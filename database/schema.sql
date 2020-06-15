@@ -10,14 +10,14 @@ SET check_function_bodies = false;
 SET client_min_messages = warning;
 
 --
--- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: deepsoc
 --
 
 CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
 
 
 --
--- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: deepsoc
 --
 
 COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
@@ -30,7 +30,7 @@ SET default_tablespace = '';
 SET default_with_oids = false;
 
 --
--- Name: extgamestates_1; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_1; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_1 (
@@ -57,10 +57,10 @@ CREATE TABLE extgamestates_1 (
 );
 
 
-ALTER TABLE extgamestates_1 OWNER TO s1328652;
+ALTER TABLE extgamestates_1 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_10; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_10; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_10 (
@@ -87,10 +87,10 @@ CREATE TABLE extgamestates_10 (
 );
 
 
-ALTER TABLE extgamestates_10 OWNER TO s1328652;
+ALTER TABLE extgamestates_10 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_11; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_11; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_11 (
@@ -117,10 +117,10 @@ CREATE TABLE extgamestates_11 (
 );
 
 
-ALTER TABLE extgamestates_11 OWNER TO s1328652;
+ALTER TABLE extgamestates_11 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_12; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_12; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_12 (
@@ -147,10 +147,10 @@ CREATE TABLE extgamestates_12 (
 );
 
 
-ALTER TABLE extgamestates_12 OWNER TO s1328652;
+ALTER TABLE extgamestates_12 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_13; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_13; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_13 (
@@ -177,10 +177,10 @@ CREATE TABLE extgamestates_13 (
 );
 
 
-ALTER TABLE extgamestates_13 OWNER TO s1328652;
+ALTER TABLE extgamestates_13 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_14; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_14; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_14 (
@@ -207,10 +207,10 @@ CREATE TABLE extgamestates_14 (
 );
 
 
-ALTER TABLE extgamestates_14 OWNER TO s1328652;
+ALTER TABLE extgamestates_14 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_15; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_15; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_15 (
@@ -237,10 +237,10 @@ CREATE TABLE extgamestates_15 (
 );
 
 
-ALTER TABLE extgamestates_15 OWNER TO s1328652;
+ALTER TABLE extgamestates_15 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_16; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_16; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_16 (
@@ -267,10 +267,10 @@ CREATE TABLE extgamestates_16 (
 );
 
 
-ALTER TABLE extgamestates_16 OWNER TO s1328652;
+ALTER TABLE extgamestates_16 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_17; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_17; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_17 (
@@ -297,10 +297,10 @@ CREATE TABLE extgamestates_17 (
 );
 
 
-ALTER TABLE extgamestates_17 OWNER TO s1328652;
+ALTER TABLE extgamestates_17 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_18; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_18; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_18 (
@@ -327,10 +327,10 @@ CREATE TABLE extgamestates_18 (
 );
 
 
-ALTER TABLE extgamestates_18 OWNER TO s1328652;
+ALTER TABLE extgamestates_18 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_19; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_19; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_19 (
@@ -357,10 +357,10 @@ CREATE TABLE extgamestates_19 (
 );
 
 
-ALTER TABLE extgamestates_19 OWNER TO s1328652;
+ALTER TABLE extgamestates_19 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_2; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_2; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_2 (
@@ -387,10 +387,10 @@ CREATE TABLE extgamestates_2 (
 );
 
 
-ALTER TABLE extgamestates_2 OWNER TO s1328652;
+ALTER TABLE extgamestates_2 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_20; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_20; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_20 (
@@ -417,10 +417,10 @@ CREATE TABLE extgamestates_20 (
 );
 
 
-ALTER TABLE extgamestates_20 OWNER TO s1328652;
+ALTER TABLE extgamestates_20 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_21; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_21; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_21 (
@@ -447,10 +447,10 @@ CREATE TABLE extgamestates_21 (
 );
 
 
-ALTER TABLE extgamestates_21 OWNER TO s1328652;
+ALTER TABLE extgamestates_21 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_22; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_22; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_22 (
@@ -477,10 +477,10 @@ CREATE TABLE extgamestates_22 (
 );
 
 
-ALTER TABLE extgamestates_22 OWNER TO s1328652;
+ALTER TABLE extgamestates_22 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_23; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_23; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_23 (
@@ -507,10 +507,10 @@ CREATE TABLE extgamestates_23 (
 );
 
 
-ALTER TABLE extgamestates_23 OWNER TO s1328652;
+ALTER TABLE extgamestates_23 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_24; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_24; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_24 (
@@ -537,10 +537,10 @@ CREATE TABLE extgamestates_24 (
 );
 
 
-ALTER TABLE extgamestates_24 OWNER TO s1328652;
+ALTER TABLE extgamestates_24 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_25; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_25; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_25 (
@@ -567,10 +567,10 @@ CREATE TABLE extgamestates_25 (
 );
 
 
-ALTER TABLE extgamestates_25 OWNER TO s1328652;
+ALTER TABLE extgamestates_25 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_26; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_26; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_26 (
@@ -597,10 +597,10 @@ CREATE TABLE extgamestates_26 (
 );
 
 
-ALTER TABLE extgamestates_26 OWNER TO s1328652;
+ALTER TABLE extgamestates_26 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_27; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_27; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_27 (
@@ -627,10 +627,10 @@ CREATE TABLE extgamestates_27 (
 );
 
 
-ALTER TABLE extgamestates_27 OWNER TO s1328652;
+ALTER TABLE extgamestates_27 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_28; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_28; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_28 (
@@ -657,10 +657,10 @@ CREATE TABLE extgamestates_28 (
 );
 
 
-ALTER TABLE extgamestates_28 OWNER TO s1328652;
+ALTER TABLE extgamestates_28 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_29; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_29; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_29 (
@@ -687,10 +687,10 @@ CREATE TABLE extgamestates_29 (
 );
 
 
-ALTER TABLE extgamestates_29 OWNER TO s1328652;
+ALTER TABLE extgamestates_29 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_3; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_3; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_3 (
@@ -717,10 +717,10 @@ CREATE TABLE extgamestates_3 (
 );
 
 
-ALTER TABLE extgamestates_3 OWNER TO s1328652;
+ALTER TABLE extgamestates_3 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_30; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_30; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_30 (
@@ -747,10 +747,10 @@ CREATE TABLE extgamestates_30 (
 );
 
 
-ALTER TABLE extgamestates_30 OWNER TO s1328652;
+ALTER TABLE extgamestates_30 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_31; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_31; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_31 (
@@ -777,10 +777,10 @@ CREATE TABLE extgamestates_31 (
 );
 
 
-ALTER TABLE extgamestates_31 OWNER TO s1328652;
+ALTER TABLE extgamestates_31 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_32; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_32; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_32 (
@@ -807,10 +807,10 @@ CREATE TABLE extgamestates_32 (
 );
 
 
-ALTER TABLE extgamestates_32 OWNER TO s1328652;
+ALTER TABLE extgamestates_32 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_33; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_33; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_33 (
@@ -837,10 +837,10 @@ CREATE TABLE extgamestates_33 (
 );
 
 
-ALTER TABLE extgamestates_33 OWNER TO s1328652;
+ALTER TABLE extgamestates_33 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_34; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_34; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_34 (
@@ -867,10 +867,10 @@ CREATE TABLE extgamestates_34 (
 );
 
 
-ALTER TABLE extgamestates_34 OWNER TO s1328652;
+ALTER TABLE extgamestates_34 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_35; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_35; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_35 (
@@ -897,10 +897,10 @@ CREATE TABLE extgamestates_35 (
 );
 
 
-ALTER TABLE extgamestates_35 OWNER TO s1328652;
+ALTER TABLE extgamestates_35 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_36; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_36; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_36 (
@@ -927,10 +927,10 @@ CREATE TABLE extgamestates_36 (
 );
 
 
-ALTER TABLE extgamestates_36 OWNER TO s1328652;
+ALTER TABLE extgamestates_36 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_37; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_37; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_37 (
@@ -957,10 +957,10 @@ CREATE TABLE extgamestates_37 (
 );
 
 
-ALTER TABLE extgamestates_37 OWNER TO s1328652;
+ALTER TABLE extgamestates_37 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_38; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_38; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_38 (
@@ -987,10 +987,10 @@ CREATE TABLE extgamestates_38 (
 );
 
 
-ALTER TABLE extgamestates_38 OWNER TO s1328652;
+ALTER TABLE extgamestates_38 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_39; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_39; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_39 (
@@ -1017,10 +1017,10 @@ CREATE TABLE extgamestates_39 (
 );
 
 
-ALTER TABLE extgamestates_39 OWNER TO s1328652;
+ALTER TABLE extgamestates_39 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_4; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_4; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_4 (
@@ -1047,10 +1047,10 @@ CREATE TABLE extgamestates_4 (
 );
 
 
-ALTER TABLE extgamestates_4 OWNER TO s1328652;
+ALTER TABLE extgamestates_4 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_40; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_40; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_40 (
@@ -1077,10 +1077,10 @@ CREATE TABLE extgamestates_40 (
 );
 
 
-ALTER TABLE extgamestates_40 OWNER TO s1328652;
+ALTER TABLE extgamestates_40 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_41; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_41; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_41 (
@@ -1107,10 +1107,10 @@ CREATE TABLE extgamestates_41 (
 );
 
 
-ALTER TABLE extgamestates_41 OWNER TO s1328652;
+ALTER TABLE extgamestates_41 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_42; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_42; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_42 (
@@ -1137,10 +1137,10 @@ CREATE TABLE extgamestates_42 (
 );
 
 
-ALTER TABLE extgamestates_42 OWNER TO s1328652;
+ALTER TABLE extgamestates_42 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_43; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_43; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_43 (
@@ -1167,10 +1167,10 @@ CREATE TABLE extgamestates_43 (
 );
 
 
-ALTER TABLE extgamestates_43 OWNER TO s1328652;
+ALTER TABLE extgamestates_43 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_44; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_44; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_44 (
@@ -1197,10 +1197,10 @@ CREATE TABLE extgamestates_44 (
 );
 
 
-ALTER TABLE extgamestates_44 OWNER TO s1328652;
+ALTER TABLE extgamestates_44 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_45; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_45; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_45 (
@@ -1227,10 +1227,10 @@ CREATE TABLE extgamestates_45 (
 );
 
 
-ALTER TABLE extgamestates_45 OWNER TO s1328652;
+ALTER TABLE extgamestates_45 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_46; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_46; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_46 (
@@ -1257,10 +1257,10 @@ CREATE TABLE extgamestates_46 (
 );
 
 
-ALTER TABLE extgamestates_46 OWNER TO s1328652;
+ALTER TABLE extgamestates_46 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_47; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_47; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_47 (
@@ -1287,10 +1287,10 @@ CREATE TABLE extgamestates_47 (
 );
 
 
-ALTER TABLE extgamestates_47 OWNER TO s1328652;
+ALTER TABLE extgamestates_47 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_48; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_48; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_48 (
@@ -1317,10 +1317,10 @@ CREATE TABLE extgamestates_48 (
 );
 
 
-ALTER TABLE extgamestates_48 OWNER TO s1328652;
+ALTER TABLE extgamestates_48 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_49; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_49; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_49 (
@@ -1347,10 +1347,10 @@ CREATE TABLE extgamestates_49 (
 );
 
 
-ALTER TABLE extgamestates_49 OWNER TO s1328652;
+ALTER TABLE extgamestates_49 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_5; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_5; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_5 (
@@ -1377,10 +1377,10 @@ CREATE TABLE extgamestates_5 (
 );
 
 
-ALTER TABLE extgamestates_5 OWNER TO s1328652;
+ALTER TABLE extgamestates_5 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_50; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_50; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_50 (
@@ -1407,10 +1407,10 @@ CREATE TABLE extgamestates_50 (
 );
 
 
-ALTER TABLE extgamestates_50 OWNER TO s1328652;
+ALTER TABLE extgamestates_50 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_51; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_51; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_51 (
@@ -1437,10 +1437,10 @@ CREATE TABLE extgamestates_51 (
 );
 
 
-ALTER TABLE extgamestates_51 OWNER TO s1328652;
+ALTER TABLE extgamestates_51 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_52; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_52; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_52 (
@@ -1467,10 +1467,10 @@ CREATE TABLE extgamestates_52 (
 );
 
 
-ALTER TABLE extgamestates_52 OWNER TO s1328652;
+ALTER TABLE extgamestates_52 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_53; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_53; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_53 (
@@ -1497,10 +1497,10 @@ CREATE TABLE extgamestates_53 (
 );
 
 
-ALTER TABLE extgamestates_53 OWNER TO s1328652;
+ALTER TABLE extgamestates_53 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_54; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_54; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_54 (
@@ -1527,10 +1527,10 @@ CREATE TABLE extgamestates_54 (
 );
 
 
-ALTER TABLE extgamestates_54 OWNER TO s1328652;
+ALTER TABLE extgamestates_54 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_55; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_55; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_55 (
@@ -1557,10 +1557,10 @@ CREATE TABLE extgamestates_55 (
 );
 
 
-ALTER TABLE extgamestates_55 OWNER TO s1328652;
+ALTER TABLE extgamestates_55 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_56; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_56; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_56 (
@@ -1587,10 +1587,10 @@ CREATE TABLE extgamestates_56 (
 );
 
 
-ALTER TABLE extgamestates_56 OWNER TO s1328652;
+ALTER TABLE extgamestates_56 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_57; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_57; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_57 (
@@ -1617,10 +1617,10 @@ CREATE TABLE extgamestates_57 (
 );
 
 
-ALTER TABLE extgamestates_57 OWNER TO s1328652;
+ALTER TABLE extgamestates_57 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_58; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_58; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_58 (
@@ -1647,10 +1647,10 @@ CREATE TABLE extgamestates_58 (
 );
 
 
-ALTER TABLE extgamestates_58 OWNER TO s1328652;
+ALTER TABLE extgamestates_58 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_59; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_59; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_59 (
@@ -1677,10 +1677,10 @@ CREATE TABLE extgamestates_59 (
 );
 
 
-ALTER TABLE extgamestates_59 OWNER TO s1328652;
+ALTER TABLE extgamestates_59 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_6; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_6; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_6 (
@@ -1707,10 +1707,10 @@ CREATE TABLE extgamestates_6 (
 );
 
 
-ALTER TABLE extgamestates_6 OWNER TO s1328652;
+ALTER TABLE extgamestates_6 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_60; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_60; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_60 (
@@ -1737,10 +1737,10 @@ CREATE TABLE extgamestates_60 (
 );
 
 
-ALTER TABLE extgamestates_60 OWNER TO s1328652;
+ALTER TABLE extgamestates_60 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_7; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_7; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_7 (
@@ -1767,10 +1767,10 @@ CREATE TABLE extgamestates_7 (
 );
 
 
-ALTER TABLE extgamestates_7 OWNER TO s1328652;
+ALTER TABLE extgamestates_7 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_8; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_8; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_8 (
@@ -1797,10 +1797,10 @@ CREATE TABLE extgamestates_8 (
 );
 
 
-ALTER TABLE extgamestates_8 OWNER TO s1328652;
+ALTER TABLE extgamestates_8 OWNER TO deepsoc;
 
 --
--- Name: extgamestates_9; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_9; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE extgamestates_9 (
@@ -1827,10 +1827,10 @@ CREATE TABLE extgamestates_9 (
 );
 
 
-ALTER TABLE extgamestates_9 OWNER TO s1328652;
+ALTER TABLE extgamestates_9 OWNER TO deepsoc;
 
 --
--- Name: gameactions_1; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_1; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_1 (
@@ -1842,10 +1842,10 @@ CREATE TABLE gameactions_1 (
 );
 
 
-ALTER TABLE gameactions_1 OWNER TO s1328652;
+ALTER TABLE gameactions_1 OWNER TO deepsoc;
 
 --
--- Name: gameactions_10; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_10; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_10 (
@@ -1857,10 +1857,10 @@ CREATE TABLE gameactions_10 (
 );
 
 
-ALTER TABLE gameactions_10 OWNER TO s1328652;
+ALTER TABLE gameactions_10 OWNER TO deepsoc;
 
 --
--- Name: gameactions_11; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_11; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_11 (
@@ -1872,10 +1872,10 @@ CREATE TABLE gameactions_11 (
 );
 
 
-ALTER TABLE gameactions_11 OWNER TO s1328652;
+ALTER TABLE gameactions_11 OWNER TO deepsoc;
 
 --
--- Name: gameactions_12; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_12; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_12 (
@@ -1887,10 +1887,10 @@ CREATE TABLE gameactions_12 (
 );
 
 
-ALTER TABLE gameactions_12 OWNER TO s1328652;
+ALTER TABLE gameactions_12 OWNER TO deepsoc;
 
 --
--- Name: gameactions_13; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_13; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_13 (
@@ -1902,10 +1902,10 @@ CREATE TABLE gameactions_13 (
 );
 
 
-ALTER TABLE gameactions_13 OWNER TO s1328652;
+ALTER TABLE gameactions_13 OWNER TO deepsoc;
 
 --
--- Name: gameactions_14; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_14; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_14 (
@@ -1917,10 +1917,10 @@ CREATE TABLE gameactions_14 (
 );
 
 
-ALTER TABLE gameactions_14 OWNER TO s1328652;
+ALTER TABLE gameactions_14 OWNER TO deepsoc;
 
 --
--- Name: gameactions_15; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_15; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_15 (
@@ -1932,10 +1932,10 @@ CREATE TABLE gameactions_15 (
 );
 
 
-ALTER TABLE gameactions_15 OWNER TO s1328652;
+ALTER TABLE gameactions_15 OWNER TO deepsoc;
 
 --
--- Name: gameactions_16; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_16; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_16 (
@@ -1947,10 +1947,10 @@ CREATE TABLE gameactions_16 (
 );
 
 
-ALTER TABLE gameactions_16 OWNER TO s1328652;
+ALTER TABLE gameactions_16 OWNER TO deepsoc;
 
 --
--- Name: gameactions_17; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_17; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_17 (
@@ -1962,10 +1962,10 @@ CREATE TABLE gameactions_17 (
 );
 
 
-ALTER TABLE gameactions_17 OWNER TO s1328652;
+ALTER TABLE gameactions_17 OWNER TO deepsoc;
 
 --
--- Name: gameactions_18; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_18; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_18 (
@@ -1977,10 +1977,10 @@ CREATE TABLE gameactions_18 (
 );
 
 
-ALTER TABLE gameactions_18 OWNER TO s1328652;
+ALTER TABLE gameactions_18 OWNER TO deepsoc;
 
 --
--- Name: gameactions_19; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_19; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_19 (
@@ -1992,10 +1992,10 @@ CREATE TABLE gameactions_19 (
 );
 
 
-ALTER TABLE gameactions_19 OWNER TO s1328652;
+ALTER TABLE gameactions_19 OWNER TO deepsoc;
 
 --
--- Name: gameactions_2; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_2; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_2 (
@@ -2007,10 +2007,10 @@ CREATE TABLE gameactions_2 (
 );
 
 
-ALTER TABLE gameactions_2 OWNER TO s1328652;
+ALTER TABLE gameactions_2 OWNER TO deepsoc;
 
 --
--- Name: gameactions_20; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_20; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_20 (
@@ -2022,10 +2022,10 @@ CREATE TABLE gameactions_20 (
 );
 
 
-ALTER TABLE gameactions_20 OWNER TO s1328652;
+ALTER TABLE gameactions_20 OWNER TO deepsoc;
 
 --
--- Name: gameactions_21; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_21; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_21 (
@@ -2037,10 +2037,10 @@ CREATE TABLE gameactions_21 (
 );
 
 
-ALTER TABLE gameactions_21 OWNER TO s1328652;
+ALTER TABLE gameactions_21 OWNER TO deepsoc;
 
 --
--- Name: gameactions_22; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_22; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_22 (
@@ -2052,10 +2052,10 @@ CREATE TABLE gameactions_22 (
 );
 
 
-ALTER TABLE gameactions_22 OWNER TO s1328652;
+ALTER TABLE gameactions_22 OWNER TO deepsoc;
 
 --
--- Name: gameactions_23; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_23; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_23 (
@@ -2067,10 +2067,10 @@ CREATE TABLE gameactions_23 (
 );
 
 
-ALTER TABLE gameactions_23 OWNER TO s1328652;
+ALTER TABLE gameactions_23 OWNER TO deepsoc;
 
 --
--- Name: gameactions_24; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_24; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_24 (
@@ -2082,10 +2082,10 @@ CREATE TABLE gameactions_24 (
 );
 
 
-ALTER TABLE gameactions_24 OWNER TO s1328652;
+ALTER TABLE gameactions_24 OWNER TO deepsoc;
 
 --
--- Name: gameactions_25; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_25; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_25 (
@@ -2097,10 +2097,10 @@ CREATE TABLE gameactions_25 (
 );
 
 
-ALTER TABLE gameactions_25 OWNER TO s1328652;
+ALTER TABLE gameactions_25 OWNER TO deepsoc;
 
 --
--- Name: gameactions_26; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_26; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_26 (
@@ -2112,10 +2112,10 @@ CREATE TABLE gameactions_26 (
 );
 
 
-ALTER TABLE gameactions_26 OWNER TO s1328652;
+ALTER TABLE gameactions_26 OWNER TO deepsoc;
 
 --
--- Name: gameactions_27; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_27; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_27 (
@@ -2127,10 +2127,10 @@ CREATE TABLE gameactions_27 (
 );
 
 
-ALTER TABLE gameactions_27 OWNER TO s1328652;
+ALTER TABLE gameactions_27 OWNER TO deepsoc;
 
 --
--- Name: gameactions_28; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_28; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_28 (
@@ -2142,10 +2142,10 @@ CREATE TABLE gameactions_28 (
 );
 
 
-ALTER TABLE gameactions_28 OWNER TO s1328652;
+ALTER TABLE gameactions_28 OWNER TO deepsoc;
 
 --
--- Name: gameactions_29; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_29; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_29 (
@@ -2157,10 +2157,10 @@ CREATE TABLE gameactions_29 (
 );
 
 
-ALTER TABLE gameactions_29 OWNER TO s1328652;
+ALTER TABLE gameactions_29 OWNER TO deepsoc;
 
 --
--- Name: gameactions_3; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_3; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_3 (
@@ -2172,10 +2172,10 @@ CREATE TABLE gameactions_3 (
 );
 
 
-ALTER TABLE gameactions_3 OWNER TO s1328652;
+ALTER TABLE gameactions_3 OWNER TO deepsoc;
 
 --
--- Name: gameactions_30; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_30; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_30 (
@@ -2187,10 +2187,10 @@ CREATE TABLE gameactions_30 (
 );
 
 
-ALTER TABLE gameactions_30 OWNER TO s1328652;
+ALTER TABLE gameactions_30 OWNER TO deepsoc;
 
 --
--- Name: gameactions_31; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_31; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_31 (
@@ -2202,10 +2202,10 @@ CREATE TABLE gameactions_31 (
 );
 
 
-ALTER TABLE gameactions_31 OWNER TO s1328652;
+ALTER TABLE gameactions_31 OWNER TO deepsoc;
 
 --
--- Name: gameactions_32; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_32; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_32 (
@@ -2217,10 +2217,10 @@ CREATE TABLE gameactions_32 (
 );
 
 
-ALTER TABLE gameactions_32 OWNER TO s1328652;
+ALTER TABLE gameactions_32 OWNER TO deepsoc;
 
 --
--- Name: gameactions_33; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_33; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_33 (
@@ -2232,10 +2232,10 @@ CREATE TABLE gameactions_33 (
 );
 
 
-ALTER TABLE gameactions_33 OWNER TO s1328652;
+ALTER TABLE gameactions_33 OWNER TO deepsoc;
 
 --
--- Name: gameactions_34; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_34; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_34 (
@@ -2247,10 +2247,10 @@ CREATE TABLE gameactions_34 (
 );
 
 
-ALTER TABLE gameactions_34 OWNER TO s1328652;
+ALTER TABLE gameactions_34 OWNER TO deepsoc;
 
 --
--- Name: gameactions_35; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_35; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_35 (
@@ -2262,10 +2262,10 @@ CREATE TABLE gameactions_35 (
 );
 
 
-ALTER TABLE gameactions_35 OWNER TO s1328652;
+ALTER TABLE gameactions_35 OWNER TO deepsoc;
 
 --
--- Name: gameactions_36; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_36; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_36 (
@@ -2277,10 +2277,10 @@ CREATE TABLE gameactions_36 (
 );
 
 
-ALTER TABLE gameactions_36 OWNER TO s1328652;
+ALTER TABLE gameactions_36 OWNER TO deepsoc;
 
 --
--- Name: gameactions_37; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_37; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_37 (
@@ -2292,10 +2292,10 @@ CREATE TABLE gameactions_37 (
 );
 
 
-ALTER TABLE gameactions_37 OWNER TO s1328652;
+ALTER TABLE gameactions_37 OWNER TO deepsoc;
 
 --
--- Name: gameactions_38; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_38; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_38 (
@@ -2307,10 +2307,10 @@ CREATE TABLE gameactions_38 (
 );
 
 
-ALTER TABLE gameactions_38 OWNER TO s1328652;
+ALTER TABLE gameactions_38 OWNER TO deepsoc;
 
 --
--- Name: gameactions_39; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_39; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_39 (
@@ -2322,10 +2322,10 @@ CREATE TABLE gameactions_39 (
 );
 
 
-ALTER TABLE gameactions_39 OWNER TO s1328652;
+ALTER TABLE gameactions_39 OWNER TO deepsoc;
 
 --
--- Name: gameactions_4; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_4; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_4 (
@@ -2337,10 +2337,10 @@ CREATE TABLE gameactions_4 (
 );
 
 
-ALTER TABLE gameactions_4 OWNER TO s1328652;
+ALTER TABLE gameactions_4 OWNER TO deepsoc;
 
 --
--- Name: gameactions_40; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_40; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_40 (
@@ -2352,10 +2352,10 @@ CREATE TABLE gameactions_40 (
 );
 
 
-ALTER TABLE gameactions_40 OWNER TO s1328652;
+ALTER TABLE gameactions_40 OWNER TO deepsoc;
 
 --
--- Name: gameactions_41; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_41; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_41 (
@@ -2367,10 +2367,10 @@ CREATE TABLE gameactions_41 (
 );
 
 
-ALTER TABLE gameactions_41 OWNER TO s1328652;
+ALTER TABLE gameactions_41 OWNER TO deepsoc;
 
 --
--- Name: gameactions_42; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_42; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_42 (
@@ -2382,10 +2382,10 @@ CREATE TABLE gameactions_42 (
 );
 
 
-ALTER TABLE gameactions_42 OWNER TO s1328652;
+ALTER TABLE gameactions_42 OWNER TO deepsoc;
 
 --
--- Name: gameactions_43; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_43; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_43 (
@@ -2397,10 +2397,10 @@ CREATE TABLE gameactions_43 (
 );
 
 
-ALTER TABLE gameactions_43 OWNER TO s1328652;
+ALTER TABLE gameactions_43 OWNER TO deepsoc;
 
 --
--- Name: gameactions_44; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_44; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_44 (
@@ -2412,10 +2412,10 @@ CREATE TABLE gameactions_44 (
 );
 
 
-ALTER TABLE gameactions_44 OWNER TO s1328652;
+ALTER TABLE gameactions_44 OWNER TO deepsoc;
 
 --
--- Name: gameactions_45; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_45; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_45 (
@@ -2427,10 +2427,10 @@ CREATE TABLE gameactions_45 (
 );
 
 
-ALTER TABLE gameactions_45 OWNER TO s1328652;
+ALTER TABLE gameactions_45 OWNER TO deepsoc;
 
 --
--- Name: gameactions_46; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_46; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_46 (
@@ -2442,10 +2442,10 @@ CREATE TABLE gameactions_46 (
 );
 
 
-ALTER TABLE gameactions_46 OWNER TO s1328652;
+ALTER TABLE gameactions_46 OWNER TO deepsoc;
 
 --
--- Name: gameactions_47; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_47; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_47 (
@@ -2457,10 +2457,10 @@ CREATE TABLE gameactions_47 (
 );
 
 
-ALTER TABLE gameactions_47 OWNER TO s1328652;
+ALTER TABLE gameactions_47 OWNER TO deepsoc;
 
 --
--- Name: gameactions_48; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_48; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_48 (
@@ -2472,10 +2472,10 @@ CREATE TABLE gameactions_48 (
 );
 
 
-ALTER TABLE gameactions_48 OWNER TO s1328652;
+ALTER TABLE gameactions_48 OWNER TO deepsoc;
 
 --
--- Name: gameactions_49; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_49; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_49 (
@@ -2487,10 +2487,10 @@ CREATE TABLE gameactions_49 (
 );
 
 
-ALTER TABLE gameactions_49 OWNER TO s1328652;
+ALTER TABLE gameactions_49 OWNER TO deepsoc;
 
 --
--- Name: gameactions_5; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_5; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_5 (
@@ -2502,10 +2502,10 @@ CREATE TABLE gameactions_5 (
 );
 
 
-ALTER TABLE gameactions_5 OWNER TO s1328652;
+ALTER TABLE gameactions_5 OWNER TO deepsoc;
 
 --
--- Name: gameactions_50; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_50; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_50 (
@@ -2517,10 +2517,10 @@ CREATE TABLE gameactions_50 (
 );
 
 
-ALTER TABLE gameactions_50 OWNER TO s1328652;
+ALTER TABLE gameactions_50 OWNER TO deepsoc;
 
 --
--- Name: gameactions_51; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_51; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_51 (
@@ -2532,10 +2532,10 @@ CREATE TABLE gameactions_51 (
 );
 
 
-ALTER TABLE gameactions_51 OWNER TO s1328652;
+ALTER TABLE gameactions_51 OWNER TO deepsoc;
 
 --
--- Name: gameactions_52; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_52; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_52 (
@@ -2547,10 +2547,10 @@ CREATE TABLE gameactions_52 (
 );
 
 
-ALTER TABLE gameactions_52 OWNER TO s1328652;
+ALTER TABLE gameactions_52 OWNER TO deepsoc;
 
 --
--- Name: gameactions_53; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_53; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_53 (
@@ -2562,10 +2562,10 @@ CREATE TABLE gameactions_53 (
 );
 
 
-ALTER TABLE gameactions_53 OWNER TO s1328652;
+ALTER TABLE gameactions_53 OWNER TO deepsoc;
 
 --
--- Name: gameactions_54; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_54; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_54 (
@@ -2577,10 +2577,10 @@ CREATE TABLE gameactions_54 (
 );
 
 
-ALTER TABLE gameactions_54 OWNER TO s1328652;
+ALTER TABLE gameactions_54 OWNER TO deepsoc;
 
 --
--- Name: gameactions_55; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_55; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_55 (
@@ -2592,10 +2592,10 @@ CREATE TABLE gameactions_55 (
 );
 
 
-ALTER TABLE gameactions_55 OWNER TO s1328652;
+ALTER TABLE gameactions_55 OWNER TO deepsoc;
 
 --
--- Name: gameactions_56; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_56; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_56 (
@@ -2607,10 +2607,10 @@ CREATE TABLE gameactions_56 (
 );
 
 
-ALTER TABLE gameactions_56 OWNER TO s1328652;
+ALTER TABLE gameactions_56 OWNER TO deepsoc;
 
 --
--- Name: gameactions_57; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_57; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_57 (
@@ -2622,10 +2622,10 @@ CREATE TABLE gameactions_57 (
 );
 
 
-ALTER TABLE gameactions_57 OWNER TO s1328652;
+ALTER TABLE gameactions_57 OWNER TO deepsoc;
 
 --
--- Name: gameactions_58; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_58; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_58 (
@@ -2637,10 +2637,10 @@ CREATE TABLE gameactions_58 (
 );
 
 
-ALTER TABLE gameactions_58 OWNER TO s1328652;
+ALTER TABLE gameactions_58 OWNER TO deepsoc;
 
 --
--- Name: gameactions_59; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_59; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_59 (
@@ -2652,10 +2652,10 @@ CREATE TABLE gameactions_59 (
 );
 
 
-ALTER TABLE gameactions_59 OWNER TO s1328652;
+ALTER TABLE gameactions_59 OWNER TO deepsoc;
 
 --
--- Name: gameactions_6; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_6; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_6 (
@@ -2667,10 +2667,10 @@ CREATE TABLE gameactions_6 (
 );
 
 
-ALTER TABLE gameactions_6 OWNER TO s1328652;
+ALTER TABLE gameactions_6 OWNER TO deepsoc;
 
 --
--- Name: gameactions_60; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_60; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_60 (
@@ -2682,10 +2682,10 @@ CREATE TABLE gameactions_60 (
 );
 
 
-ALTER TABLE gameactions_60 OWNER TO s1328652;
+ALTER TABLE gameactions_60 OWNER TO deepsoc;
 
 --
--- Name: gameactions_7; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_7; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_7 (
@@ -2697,10 +2697,10 @@ CREATE TABLE gameactions_7 (
 );
 
 
-ALTER TABLE gameactions_7 OWNER TO s1328652;
+ALTER TABLE gameactions_7 OWNER TO deepsoc;
 
 --
--- Name: gameactions_8; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_8; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_8 (
@@ -2712,10 +2712,10 @@ CREATE TABLE gameactions_8 (
 );
 
 
-ALTER TABLE gameactions_8 OWNER TO s1328652;
+ALTER TABLE gameactions_8 OWNER TO deepsoc;
 
 --
--- Name: gameactions_9; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_9; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE gameactions_9 (
@@ -2727,10 +2727,10 @@ CREATE TABLE gameactions_9 (
 );
 
 
-ALTER TABLE gameactions_9 OWNER TO s1328652;
+ALTER TABLE gameactions_9 OWNER TO deepsoc;
 
 --
--- Name: games; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: games; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE games (
@@ -2751,10 +2751,10 @@ CREATE TABLE games (
 );
 
 
-ALTER TABLE games OWNER TO s1328652;
+ALTER TABLE games OWNER TO deepsoc;
 
 --
--- Name: leagues; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: leagues; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE leagues (
@@ -2766,10 +2766,10 @@ CREATE TABLE leagues (
 );
 
 
-ALTER TABLE leagues OWNER TO s1328652;
+ALTER TABLE leagues OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_1; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_1; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_1 (
@@ -2790,10 +2790,10 @@ CREATE TABLE obsgamestates_1 (
 );
 
 
-ALTER TABLE obsgamestates_1 OWNER TO s1328652;
+ALTER TABLE obsgamestates_1 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_10; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_10; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_10 (
@@ -2814,10 +2814,10 @@ CREATE TABLE obsgamestates_10 (
 );
 
 
-ALTER TABLE obsgamestates_10 OWNER TO s1328652;
+ALTER TABLE obsgamestates_10 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_11; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_11; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_11 (
@@ -2838,10 +2838,10 @@ CREATE TABLE obsgamestates_11 (
 );
 
 
-ALTER TABLE obsgamestates_11 OWNER TO s1328652;
+ALTER TABLE obsgamestates_11 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_12; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_12; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_12 (
@@ -2862,10 +2862,10 @@ CREATE TABLE obsgamestates_12 (
 );
 
 
-ALTER TABLE obsgamestates_12 OWNER TO s1328652;
+ALTER TABLE obsgamestates_12 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_13; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_13; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_13 (
@@ -2886,10 +2886,10 @@ CREATE TABLE obsgamestates_13 (
 );
 
 
-ALTER TABLE obsgamestates_13 OWNER TO s1328652;
+ALTER TABLE obsgamestates_13 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_14; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_14; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_14 (
@@ -2910,10 +2910,10 @@ CREATE TABLE obsgamestates_14 (
 );
 
 
-ALTER TABLE obsgamestates_14 OWNER TO s1328652;
+ALTER TABLE obsgamestates_14 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_15; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_15; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_15 (
@@ -2934,10 +2934,10 @@ CREATE TABLE obsgamestates_15 (
 );
 
 
-ALTER TABLE obsgamestates_15 OWNER TO s1328652;
+ALTER TABLE obsgamestates_15 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_16; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_16; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_16 (
@@ -2958,10 +2958,10 @@ CREATE TABLE obsgamestates_16 (
 );
 
 
-ALTER TABLE obsgamestates_16 OWNER TO s1328652;
+ALTER TABLE obsgamestates_16 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_17; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_17; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_17 (
@@ -2982,10 +2982,10 @@ CREATE TABLE obsgamestates_17 (
 );
 
 
-ALTER TABLE obsgamestates_17 OWNER TO s1328652;
+ALTER TABLE obsgamestates_17 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_18; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_18; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_18 (
@@ -3006,10 +3006,10 @@ CREATE TABLE obsgamestates_18 (
 );
 
 
-ALTER TABLE obsgamestates_18 OWNER TO s1328652;
+ALTER TABLE obsgamestates_18 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_19; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_19; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_19 (
@@ -3030,10 +3030,10 @@ CREATE TABLE obsgamestates_19 (
 );
 
 
-ALTER TABLE obsgamestates_19 OWNER TO s1328652;
+ALTER TABLE obsgamestates_19 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_2; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_2; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_2 (
@@ -3054,10 +3054,10 @@ CREATE TABLE obsgamestates_2 (
 );
 
 
-ALTER TABLE obsgamestates_2 OWNER TO s1328652;
+ALTER TABLE obsgamestates_2 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_20; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_20; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_20 (
@@ -3078,10 +3078,10 @@ CREATE TABLE obsgamestates_20 (
 );
 
 
-ALTER TABLE obsgamestates_20 OWNER TO s1328652;
+ALTER TABLE obsgamestates_20 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_21; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_21; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_21 (
@@ -3102,10 +3102,10 @@ CREATE TABLE obsgamestates_21 (
 );
 
 
-ALTER TABLE obsgamestates_21 OWNER TO s1328652;
+ALTER TABLE obsgamestates_21 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_22; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_22; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_22 (
@@ -3126,10 +3126,10 @@ CREATE TABLE obsgamestates_22 (
 );
 
 
-ALTER TABLE obsgamestates_22 OWNER TO s1328652;
+ALTER TABLE obsgamestates_22 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_23; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_23; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_23 (
@@ -3150,10 +3150,10 @@ CREATE TABLE obsgamestates_23 (
 );
 
 
-ALTER TABLE obsgamestates_23 OWNER TO s1328652;
+ALTER TABLE obsgamestates_23 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_24; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_24; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_24 (
@@ -3174,10 +3174,10 @@ CREATE TABLE obsgamestates_24 (
 );
 
 
-ALTER TABLE obsgamestates_24 OWNER TO s1328652;
+ALTER TABLE obsgamestates_24 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_25; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_25; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_25 (
@@ -3198,10 +3198,10 @@ CREATE TABLE obsgamestates_25 (
 );
 
 
-ALTER TABLE obsgamestates_25 OWNER TO s1328652;
+ALTER TABLE obsgamestates_25 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_26; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_26; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_26 (
@@ -3222,10 +3222,10 @@ CREATE TABLE obsgamestates_26 (
 );
 
 
-ALTER TABLE obsgamestates_26 OWNER TO s1328652;
+ALTER TABLE obsgamestates_26 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_27; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_27; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_27 (
@@ -3246,10 +3246,10 @@ CREATE TABLE obsgamestates_27 (
 );
 
 
-ALTER TABLE obsgamestates_27 OWNER TO s1328652;
+ALTER TABLE obsgamestates_27 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_28; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_28; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_28 (
@@ -3270,10 +3270,10 @@ CREATE TABLE obsgamestates_28 (
 );
 
 
-ALTER TABLE obsgamestates_28 OWNER TO s1328652;
+ALTER TABLE obsgamestates_28 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_29; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_29; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_29 (
@@ -3294,10 +3294,10 @@ CREATE TABLE obsgamestates_29 (
 );
 
 
-ALTER TABLE obsgamestates_29 OWNER TO s1328652;
+ALTER TABLE obsgamestates_29 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_3; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_3; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_3 (
@@ -3318,10 +3318,10 @@ CREATE TABLE obsgamestates_3 (
 );
 
 
-ALTER TABLE obsgamestates_3 OWNER TO s1328652;
+ALTER TABLE obsgamestates_3 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_30; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_30; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_30 (
@@ -3342,10 +3342,10 @@ CREATE TABLE obsgamestates_30 (
 );
 
 
-ALTER TABLE obsgamestates_30 OWNER TO s1328652;
+ALTER TABLE obsgamestates_30 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_31; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_31; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_31 (
@@ -3366,10 +3366,10 @@ CREATE TABLE obsgamestates_31 (
 );
 
 
-ALTER TABLE obsgamestates_31 OWNER TO s1328652;
+ALTER TABLE obsgamestates_31 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_32; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_32; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_32 (
@@ -3390,10 +3390,10 @@ CREATE TABLE obsgamestates_32 (
 );
 
 
-ALTER TABLE obsgamestates_32 OWNER TO s1328652;
+ALTER TABLE obsgamestates_32 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_33; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_33; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_33 (
@@ -3414,10 +3414,10 @@ CREATE TABLE obsgamestates_33 (
 );
 
 
-ALTER TABLE obsgamestates_33 OWNER TO s1328652;
+ALTER TABLE obsgamestates_33 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_34; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_34; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_34 (
@@ -3438,10 +3438,10 @@ CREATE TABLE obsgamestates_34 (
 );
 
 
-ALTER TABLE obsgamestates_34 OWNER TO s1328652;
+ALTER TABLE obsgamestates_34 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_35; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_35; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_35 (
@@ -3462,10 +3462,10 @@ CREATE TABLE obsgamestates_35 (
 );
 
 
-ALTER TABLE obsgamestates_35 OWNER TO s1328652;
+ALTER TABLE obsgamestates_35 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_36; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_36; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_36 (
@@ -3486,10 +3486,10 @@ CREATE TABLE obsgamestates_36 (
 );
 
 
-ALTER TABLE obsgamestates_36 OWNER TO s1328652;
+ALTER TABLE obsgamestates_36 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_37; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_37; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_37 (
@@ -3510,10 +3510,10 @@ CREATE TABLE obsgamestates_37 (
 );
 
 
-ALTER TABLE obsgamestates_37 OWNER TO s1328652;
+ALTER TABLE obsgamestates_37 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_38; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_38; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_38 (
@@ -3534,10 +3534,10 @@ CREATE TABLE obsgamestates_38 (
 );
 
 
-ALTER TABLE obsgamestates_38 OWNER TO s1328652;
+ALTER TABLE obsgamestates_38 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_39; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_39; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_39 (
@@ -3558,10 +3558,10 @@ CREATE TABLE obsgamestates_39 (
 );
 
 
-ALTER TABLE obsgamestates_39 OWNER TO s1328652;
+ALTER TABLE obsgamestates_39 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_4; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_4; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_4 (
@@ -3582,10 +3582,10 @@ CREATE TABLE obsgamestates_4 (
 );
 
 
-ALTER TABLE obsgamestates_4 OWNER TO s1328652;
+ALTER TABLE obsgamestates_4 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_40; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_40; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_40 (
@@ -3606,10 +3606,10 @@ CREATE TABLE obsgamestates_40 (
 );
 
 
-ALTER TABLE obsgamestates_40 OWNER TO s1328652;
+ALTER TABLE obsgamestates_40 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_41; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_41; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_41 (
@@ -3630,10 +3630,10 @@ CREATE TABLE obsgamestates_41 (
 );
 
 
-ALTER TABLE obsgamestates_41 OWNER TO s1328652;
+ALTER TABLE obsgamestates_41 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_42; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_42; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_42 (
@@ -3654,10 +3654,10 @@ CREATE TABLE obsgamestates_42 (
 );
 
 
-ALTER TABLE obsgamestates_42 OWNER TO s1328652;
+ALTER TABLE obsgamestates_42 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_43; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_43; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_43 (
@@ -3678,10 +3678,10 @@ CREATE TABLE obsgamestates_43 (
 );
 
 
-ALTER TABLE obsgamestates_43 OWNER TO s1328652;
+ALTER TABLE obsgamestates_43 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_44; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_44; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_44 (
@@ -3702,10 +3702,10 @@ CREATE TABLE obsgamestates_44 (
 );
 
 
-ALTER TABLE obsgamestates_44 OWNER TO s1328652;
+ALTER TABLE obsgamestates_44 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_45; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_45; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_45 (
@@ -3726,10 +3726,10 @@ CREATE TABLE obsgamestates_45 (
 );
 
 
-ALTER TABLE obsgamestates_45 OWNER TO s1328652;
+ALTER TABLE obsgamestates_45 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_46; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_46; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_46 (
@@ -3750,10 +3750,10 @@ CREATE TABLE obsgamestates_46 (
 );
 
 
-ALTER TABLE obsgamestates_46 OWNER TO s1328652;
+ALTER TABLE obsgamestates_46 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_47; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_47; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_47 (
@@ -3774,10 +3774,10 @@ CREATE TABLE obsgamestates_47 (
 );
 
 
-ALTER TABLE obsgamestates_47 OWNER TO s1328652;
+ALTER TABLE obsgamestates_47 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_48; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_48; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_48 (
@@ -3798,10 +3798,10 @@ CREATE TABLE obsgamestates_48 (
 );
 
 
-ALTER TABLE obsgamestates_48 OWNER TO s1328652;
+ALTER TABLE obsgamestates_48 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_49; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_49; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_49 (
@@ -3822,10 +3822,10 @@ CREATE TABLE obsgamestates_49 (
 );
 
 
-ALTER TABLE obsgamestates_49 OWNER TO s1328652;
+ALTER TABLE obsgamestates_49 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_5; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_5; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_5 (
@@ -3846,10 +3846,10 @@ CREATE TABLE obsgamestates_5 (
 );
 
 
-ALTER TABLE obsgamestates_5 OWNER TO s1328652;
+ALTER TABLE obsgamestates_5 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_50; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_50; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_50 (
@@ -3870,10 +3870,10 @@ CREATE TABLE obsgamestates_50 (
 );
 
 
-ALTER TABLE obsgamestates_50 OWNER TO s1328652;
+ALTER TABLE obsgamestates_50 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_51; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_51; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_51 (
@@ -3894,10 +3894,10 @@ CREATE TABLE obsgamestates_51 (
 );
 
 
-ALTER TABLE obsgamestates_51 OWNER TO s1328652;
+ALTER TABLE obsgamestates_51 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_52; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_52; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_52 (
@@ -3918,10 +3918,10 @@ CREATE TABLE obsgamestates_52 (
 );
 
 
-ALTER TABLE obsgamestates_52 OWNER TO s1328652;
+ALTER TABLE obsgamestates_52 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_53; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_53; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_53 (
@@ -3942,10 +3942,10 @@ CREATE TABLE obsgamestates_53 (
 );
 
 
-ALTER TABLE obsgamestates_53 OWNER TO s1328652;
+ALTER TABLE obsgamestates_53 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_54; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_54; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_54 (
@@ -3966,10 +3966,10 @@ CREATE TABLE obsgamestates_54 (
 );
 
 
-ALTER TABLE obsgamestates_54 OWNER TO s1328652;
+ALTER TABLE obsgamestates_54 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_55; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_55; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_55 (
@@ -3990,10 +3990,10 @@ CREATE TABLE obsgamestates_55 (
 );
 
 
-ALTER TABLE obsgamestates_55 OWNER TO s1328652;
+ALTER TABLE obsgamestates_55 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_56; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_56; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_56 (
@@ -4014,10 +4014,10 @@ CREATE TABLE obsgamestates_56 (
 );
 
 
-ALTER TABLE obsgamestates_56 OWNER TO s1328652;
+ALTER TABLE obsgamestates_56 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_57; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_57; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_57 (
@@ -4038,10 +4038,10 @@ CREATE TABLE obsgamestates_57 (
 );
 
 
-ALTER TABLE obsgamestates_57 OWNER TO s1328652;
+ALTER TABLE obsgamestates_57 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_58; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_58; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_58 (
@@ -4062,10 +4062,10 @@ CREATE TABLE obsgamestates_58 (
 );
 
 
-ALTER TABLE obsgamestates_58 OWNER TO s1328652;
+ALTER TABLE obsgamestates_58 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_59; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_59; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_59 (
@@ -4086,10 +4086,10 @@ CREATE TABLE obsgamestates_59 (
 );
 
 
-ALTER TABLE obsgamestates_59 OWNER TO s1328652;
+ALTER TABLE obsgamestates_59 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_6; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_6; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_6 (
@@ -4110,10 +4110,10 @@ CREATE TABLE obsgamestates_6 (
 );
 
 
-ALTER TABLE obsgamestates_6 OWNER TO s1328652;
+ALTER TABLE obsgamestates_6 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_60; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_60; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_60 (
@@ -4134,10 +4134,10 @@ CREATE TABLE obsgamestates_60 (
 );
 
 
-ALTER TABLE obsgamestates_60 OWNER TO s1328652;
+ALTER TABLE obsgamestates_60 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_7; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_7; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_7 (
@@ -4158,10 +4158,10 @@ CREATE TABLE obsgamestates_7 (
 );
 
 
-ALTER TABLE obsgamestates_7 OWNER TO s1328652;
+ALTER TABLE obsgamestates_7 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_8; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_8; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_8 (
@@ -4182,10 +4182,10 @@ CREATE TABLE obsgamestates_8 (
 );
 
 
-ALTER TABLE obsgamestates_8 OWNER TO s1328652;
+ALTER TABLE obsgamestates_8 OWNER TO deepsoc;
 
 --
--- Name: obsgamestates_9; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates_9; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE obsgamestates_9 (
@@ -4206,10 +4206,10 @@ CREATE TABLE obsgamestates_9 (
 );
 
 
-ALTER TABLE obsgamestates_9 OWNER TO s1328652;
+ALTER TABLE obsgamestates_9 OWNER TO deepsoc;
 
 --
--- Name: players; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: players; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE players (
@@ -4223,10 +4223,10 @@ CREATE TABLE players (
 );
 
 
-ALTER TABLE players OWNER TO s1328652;
+ALTER TABLE players OWNER TO deepsoc;
 
 --
--- Name: policy_games; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: policy_games; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE policy_games (
@@ -4243,10 +4243,10 @@ CREATE TABLE policy_games (
 );
 
 
-ALTER TABLE policy_games OWNER TO s1328652;
+ALTER TABLE policy_games OWNER TO deepsoc;
 
 --
--- Name: seasons; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: seasons; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE seasons (
@@ -4258,10 +4258,10 @@ CREATE TABLE seasons (
 );
 
 
-ALTER TABLE seasons OWNER TO s1328652;
+ALTER TABLE seasons OWNER TO deepsoc;
 
 --
--- Name: simulation_games; Type: TABLE; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: simulation_games; Type: TABLE; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 CREATE TABLE simulation_games (
@@ -4278,10 +4278,10 @@ CREATE TABLE simulation_games (
 );
 
 
-ALTER TABLE simulation_games OWNER TO s1328652;
+ALTER TABLE simulation_games OWNER TO deepsoc;
 
 --
--- Name: extgamestates_10_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_10_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_10
@@ -4289,7 +4289,7 @@ ALTER TABLE ONLY extgamestates_10
 
 
 --
--- Name: extgamestates_11_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_11_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_11
@@ -4297,7 +4297,7 @@ ALTER TABLE ONLY extgamestates_11
 
 
 --
--- Name: extgamestates_12_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_12_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_12
@@ -4305,7 +4305,7 @@ ALTER TABLE ONLY extgamestates_12
 
 
 --
--- Name: extgamestates_13_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_13_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_13
@@ -4313,7 +4313,7 @@ ALTER TABLE ONLY extgamestates_13
 
 
 --
--- Name: extgamestates_14_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_14_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_14
@@ -4321,7 +4321,7 @@ ALTER TABLE ONLY extgamestates_14
 
 
 --
--- Name: extgamestates_15_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_15_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_15
@@ -4329,7 +4329,7 @@ ALTER TABLE ONLY extgamestates_15
 
 
 --
--- Name: extgamestates_16_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_16_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_16
@@ -4337,7 +4337,7 @@ ALTER TABLE ONLY extgamestates_16
 
 
 --
--- Name: extgamestates_17_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_17_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_17
@@ -4345,7 +4345,7 @@ ALTER TABLE ONLY extgamestates_17
 
 
 --
--- Name: extgamestates_18_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_18_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_18
@@ -4353,7 +4353,7 @@ ALTER TABLE ONLY extgamestates_18
 
 
 --
--- Name: extgamestates_19_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_19_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_19
@@ -4361,7 +4361,7 @@ ALTER TABLE ONLY extgamestates_19
 
 
 --
--- Name: extgamestates_1_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_1_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_1
@@ -4369,7 +4369,7 @@ ALTER TABLE ONLY extgamestates_1
 
 
 --
--- Name: extgamestates_20_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_20_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_20
@@ -4377,7 +4377,7 @@ ALTER TABLE ONLY extgamestates_20
 
 
 --
--- Name: extgamestates_21_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_21_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_21
@@ -4385,7 +4385,7 @@ ALTER TABLE ONLY extgamestates_21
 
 
 --
--- Name: extgamestates_22_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_22_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_22
@@ -4393,7 +4393,7 @@ ALTER TABLE ONLY extgamestates_22
 
 
 --
--- Name: extgamestates_23_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_23_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_23
@@ -4401,7 +4401,7 @@ ALTER TABLE ONLY extgamestates_23
 
 
 --
--- Name: extgamestates_24_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_24_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_24
@@ -4409,7 +4409,7 @@ ALTER TABLE ONLY extgamestates_24
 
 
 --
--- Name: extgamestates_25_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_25_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_25
@@ -4417,7 +4417,7 @@ ALTER TABLE ONLY extgamestates_25
 
 
 --
--- Name: extgamestates_26_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_26_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_26
@@ -4425,7 +4425,7 @@ ALTER TABLE ONLY extgamestates_26
 
 
 --
--- Name: extgamestates_27_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_27_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_27
@@ -4433,7 +4433,7 @@ ALTER TABLE ONLY extgamestates_27
 
 
 --
--- Name: extgamestates_28_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_28_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_28
@@ -4441,7 +4441,7 @@ ALTER TABLE ONLY extgamestates_28
 
 
 --
--- Name: extgamestates_29_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_29_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_29
@@ -4449,7 +4449,7 @@ ALTER TABLE ONLY extgamestates_29
 
 
 --
--- Name: extgamestates_2_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_2_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_2
@@ -4457,7 +4457,7 @@ ALTER TABLE ONLY extgamestates_2
 
 
 --
--- Name: extgamestates_30_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_30_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_30
@@ -4465,7 +4465,7 @@ ALTER TABLE ONLY extgamestates_30
 
 
 --
--- Name: extgamestates_31_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_31_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_31
@@ -4473,7 +4473,7 @@ ALTER TABLE ONLY extgamestates_31
 
 
 --
--- Name: extgamestates_32_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_32_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_32
@@ -4481,7 +4481,7 @@ ALTER TABLE ONLY extgamestates_32
 
 
 --
--- Name: extgamestates_33_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_33_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_33
@@ -4489,7 +4489,7 @@ ALTER TABLE ONLY extgamestates_33
 
 
 --
--- Name: extgamestates_34_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_34_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_34
@@ -4497,7 +4497,7 @@ ALTER TABLE ONLY extgamestates_34
 
 
 --
--- Name: extgamestates_35_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_35_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_35
@@ -4505,7 +4505,7 @@ ALTER TABLE ONLY extgamestates_35
 
 
 --
--- Name: extgamestates_36_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_36_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_36
@@ -4513,7 +4513,7 @@ ALTER TABLE ONLY extgamestates_36
 
 
 --
--- Name: extgamestates_37_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_37_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_37
@@ -4521,7 +4521,7 @@ ALTER TABLE ONLY extgamestates_37
 
 
 --
--- Name: extgamestates_38_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_38_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_38
@@ -4529,7 +4529,7 @@ ALTER TABLE ONLY extgamestates_38
 
 
 --
--- Name: extgamestates_39_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_39_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_39
@@ -4537,7 +4537,7 @@ ALTER TABLE ONLY extgamestates_39
 
 
 --
--- Name: extgamestates_3_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_3_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_3
@@ -4545,7 +4545,7 @@ ALTER TABLE ONLY extgamestates_3
 
 
 --
--- Name: extgamestates_40_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_40_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_40
@@ -4553,7 +4553,7 @@ ALTER TABLE ONLY extgamestates_40
 
 
 --
--- Name: extgamestates_41_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_41_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_41
@@ -4561,7 +4561,7 @@ ALTER TABLE ONLY extgamestates_41
 
 
 --
--- Name: extgamestates_42_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_42_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_42
@@ -4569,7 +4569,7 @@ ALTER TABLE ONLY extgamestates_42
 
 
 --
--- Name: extgamestates_43_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_43_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_43
@@ -4577,7 +4577,7 @@ ALTER TABLE ONLY extgamestates_43
 
 
 --
--- Name: extgamestates_44_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_44_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_44
@@ -4585,7 +4585,7 @@ ALTER TABLE ONLY extgamestates_44
 
 
 --
--- Name: extgamestates_45_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_45_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_45
@@ -4593,7 +4593,7 @@ ALTER TABLE ONLY extgamestates_45
 
 
 --
--- Name: extgamestates_46_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_46_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_46
@@ -4601,7 +4601,7 @@ ALTER TABLE ONLY extgamestates_46
 
 
 --
--- Name: extgamestates_47_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_47_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_47
@@ -4609,7 +4609,7 @@ ALTER TABLE ONLY extgamestates_47
 
 
 --
--- Name: extgamestates_48_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_48_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_48
@@ -4617,7 +4617,7 @@ ALTER TABLE ONLY extgamestates_48
 
 
 --
--- Name: extgamestates_49_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_49_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_49
@@ -4625,7 +4625,7 @@ ALTER TABLE ONLY extgamestates_49
 
 
 --
--- Name: extgamestates_4_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_4_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_4
@@ -4633,7 +4633,7 @@ ALTER TABLE ONLY extgamestates_4
 
 
 --
--- Name: extgamestates_50_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_50_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_50
@@ -4641,7 +4641,7 @@ ALTER TABLE ONLY extgamestates_50
 
 
 --
--- Name: extgamestates_51_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_51_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_51
@@ -4649,7 +4649,7 @@ ALTER TABLE ONLY extgamestates_51
 
 
 --
--- Name: extgamestates_52_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_52_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_52
@@ -4657,7 +4657,7 @@ ALTER TABLE ONLY extgamestates_52
 
 
 --
--- Name: extgamestates_53_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_53_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_53
@@ -4665,7 +4665,7 @@ ALTER TABLE ONLY extgamestates_53
 
 
 --
--- Name: extgamestates_54_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_54_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_54
@@ -4673,7 +4673,7 @@ ALTER TABLE ONLY extgamestates_54
 
 
 --
--- Name: extgamestates_55_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_55_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_55
@@ -4681,7 +4681,7 @@ ALTER TABLE ONLY extgamestates_55
 
 
 --
--- Name: extgamestates_56_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_56_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_56
@@ -4689,7 +4689,7 @@ ALTER TABLE ONLY extgamestates_56
 
 
 --
--- Name: extgamestates_57_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_57_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_57
@@ -4697,7 +4697,7 @@ ALTER TABLE ONLY extgamestates_57
 
 
 --
--- Name: extgamestates_58_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_58_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_58
@@ -4705,7 +4705,7 @@ ALTER TABLE ONLY extgamestates_58
 
 
 --
--- Name: extgamestates_59_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_59_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_59
@@ -4713,7 +4713,7 @@ ALTER TABLE ONLY extgamestates_59
 
 
 --
--- Name: extgamestates_5_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_5_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_5
@@ -4721,7 +4721,7 @@ ALTER TABLE ONLY extgamestates_5
 
 
 --
--- Name: extgamestates_60_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_60_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_60
@@ -4729,7 +4729,7 @@ ALTER TABLE ONLY extgamestates_60
 
 
 --
--- Name: extgamestates_6_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_6_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_6
@@ -4737,7 +4737,7 @@ ALTER TABLE ONLY extgamestates_6
 
 
 --
--- Name: extgamestates_7_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_7_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_7
@@ -4745,7 +4745,7 @@ ALTER TABLE ONLY extgamestates_7
 
 
 --
--- Name: extgamestates_8_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_8_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_8
@@ -4753,7 +4753,7 @@ ALTER TABLE ONLY extgamestates_8
 
 
 --
--- Name: extgamestates_9_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: extgamestates_9_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY extgamestates_9
@@ -4761,7 +4761,7 @@ ALTER TABLE ONLY extgamestates_9
 
 
 --
--- Name: gameactions_10_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_10_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_10
@@ -4769,7 +4769,7 @@ ALTER TABLE ONLY gameactions_10
 
 
 --
--- Name: gameactions_11_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_11_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_11
@@ -4777,7 +4777,7 @@ ALTER TABLE ONLY gameactions_11
 
 
 --
--- Name: gameactions_12_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_12_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_12
@@ -4785,7 +4785,7 @@ ALTER TABLE ONLY gameactions_12
 
 
 --
--- Name: gameactions_13_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_13_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_13
@@ -4793,7 +4793,7 @@ ALTER TABLE ONLY gameactions_13
 
 
 --
--- Name: gameactions_14_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_14_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_14
@@ -4801,7 +4801,7 @@ ALTER TABLE ONLY gameactions_14
 
 
 --
--- Name: gameactions_15_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_15_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_15
@@ -4809,7 +4809,7 @@ ALTER TABLE ONLY gameactions_15
 
 
 --
--- Name: gameactions_16_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_16_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_16
@@ -4817,7 +4817,7 @@ ALTER TABLE ONLY gameactions_16
 
 
 --
--- Name: gameactions_17_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_17_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_17
@@ -4825,7 +4825,7 @@ ALTER TABLE ONLY gameactions_17
 
 
 --
--- Name: gameactions_18_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_18_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_18
@@ -4833,7 +4833,7 @@ ALTER TABLE ONLY gameactions_18
 
 
 --
--- Name: gameactions_19_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_19_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_19
@@ -4841,7 +4841,7 @@ ALTER TABLE ONLY gameactions_19
 
 
 --
--- Name: gameactions_1_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_1_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_1
@@ -4849,7 +4849,7 @@ ALTER TABLE ONLY gameactions_1
 
 
 --
--- Name: gameactions_20_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_20_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_20
@@ -4857,7 +4857,7 @@ ALTER TABLE ONLY gameactions_20
 
 
 --
--- Name: gameactions_21_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_21_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_21
@@ -4865,7 +4865,7 @@ ALTER TABLE ONLY gameactions_21
 
 
 --
--- Name: gameactions_22_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_22_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_22
@@ -4873,7 +4873,7 @@ ALTER TABLE ONLY gameactions_22
 
 
 --
--- Name: gameactions_23_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_23_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_23
@@ -4881,7 +4881,7 @@ ALTER TABLE ONLY gameactions_23
 
 
 --
--- Name: gameactions_24_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_24_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_24
@@ -4889,7 +4889,7 @@ ALTER TABLE ONLY gameactions_24
 
 
 --
--- Name: gameactions_25_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_25_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_25
@@ -4897,7 +4897,7 @@ ALTER TABLE ONLY gameactions_25
 
 
 --
--- Name: gameactions_26_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_26_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_26
@@ -4905,7 +4905,7 @@ ALTER TABLE ONLY gameactions_26
 
 
 --
--- Name: gameactions_27_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_27_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_27
@@ -4913,7 +4913,7 @@ ALTER TABLE ONLY gameactions_27
 
 
 --
--- Name: gameactions_28_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_28_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_28
@@ -4921,7 +4921,7 @@ ALTER TABLE ONLY gameactions_28
 
 
 --
--- Name: gameactions_29_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_29_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_29
@@ -4929,7 +4929,7 @@ ALTER TABLE ONLY gameactions_29
 
 
 --
--- Name: gameactions_2_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_2_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_2
@@ -4937,7 +4937,7 @@ ALTER TABLE ONLY gameactions_2
 
 
 --
--- Name: gameactions_30_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_30_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_30
@@ -4945,7 +4945,7 @@ ALTER TABLE ONLY gameactions_30
 
 
 --
--- Name: gameactions_31_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_31_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_31
@@ -4953,7 +4953,7 @@ ALTER TABLE ONLY gameactions_31
 
 
 --
--- Name: gameactions_32_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_32_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_32
@@ -4961,7 +4961,7 @@ ALTER TABLE ONLY gameactions_32
 
 
 --
--- Name: gameactions_33_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_33_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_33
@@ -4969,7 +4969,7 @@ ALTER TABLE ONLY gameactions_33
 
 
 --
--- Name: gameactions_34_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_34_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_34
@@ -4977,7 +4977,7 @@ ALTER TABLE ONLY gameactions_34
 
 
 --
--- Name: gameactions_35_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_35_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_35
@@ -4985,7 +4985,7 @@ ALTER TABLE ONLY gameactions_35
 
 
 --
--- Name: gameactions_36_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_36_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_36
@@ -4993,7 +4993,7 @@ ALTER TABLE ONLY gameactions_36
 
 
 --
--- Name: gameactions_37_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_37_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_37
@@ -5001,7 +5001,7 @@ ALTER TABLE ONLY gameactions_37
 
 
 --
--- Name: gameactions_38_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_38_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_38
@@ -5009,7 +5009,7 @@ ALTER TABLE ONLY gameactions_38
 
 
 --
--- Name: gameactions_39_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_39_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_39
@@ -5017,7 +5017,7 @@ ALTER TABLE ONLY gameactions_39
 
 
 --
--- Name: gameactions_3_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_3_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_3
@@ -5025,7 +5025,7 @@ ALTER TABLE ONLY gameactions_3
 
 
 --
--- Name: gameactions_40_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_40_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_40
@@ -5033,7 +5033,7 @@ ALTER TABLE ONLY gameactions_40
 
 
 --
--- Name: gameactions_41_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_41_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_41
@@ -5041,7 +5041,7 @@ ALTER TABLE ONLY gameactions_41
 
 
 --
--- Name: gameactions_42_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_42_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_42
@@ -5049,7 +5049,7 @@ ALTER TABLE ONLY gameactions_42
 
 
 --
--- Name: gameactions_43_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_43_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_43
@@ -5057,7 +5057,7 @@ ALTER TABLE ONLY gameactions_43
 
 
 --
--- Name: gameactions_44_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_44_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_44
@@ -5065,7 +5065,7 @@ ALTER TABLE ONLY gameactions_44
 
 
 --
--- Name: gameactions_45_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_45_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_45
@@ -5073,7 +5073,7 @@ ALTER TABLE ONLY gameactions_45
 
 
 --
--- Name: gameactions_46_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_46_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_46
@@ -5081,7 +5081,7 @@ ALTER TABLE ONLY gameactions_46
 
 
 --
--- Name: gameactions_47_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_47_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_47
@@ -5089,7 +5089,7 @@ ALTER TABLE ONLY gameactions_47
 
 
 --
--- Name: gameactions_48_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_48_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_48
@@ -5097,7 +5097,7 @@ ALTER TABLE ONLY gameactions_48
 
 
 --
--- Name: gameactions_49_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_49_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_49
@@ -5105,7 +5105,7 @@ ALTER TABLE ONLY gameactions_49
 
 
 --
--- Name: gameactions_4_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_4_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_4
@@ -5113,7 +5113,7 @@ ALTER TABLE ONLY gameactions_4
 
 
 --
--- Name: gameactions_50_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_50_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_50
@@ -5121,7 +5121,7 @@ ALTER TABLE ONLY gameactions_50
 
 
 --
--- Name: gameactions_51_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_51_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_51
@@ -5129,7 +5129,7 @@ ALTER TABLE ONLY gameactions_51
 
 
 --
--- Name: gameactions_52_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_52_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_52
@@ -5137,7 +5137,7 @@ ALTER TABLE ONLY gameactions_52
 
 
 --
--- Name: gameactions_53_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_53_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_53
@@ -5145,7 +5145,7 @@ ALTER TABLE ONLY gameactions_53
 
 
 --
--- Name: gameactions_54_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_54_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_54
@@ -5153,7 +5153,7 @@ ALTER TABLE ONLY gameactions_54
 
 
 --
--- Name: gameactions_55_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_55_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_55
@@ -5161,7 +5161,7 @@ ALTER TABLE ONLY gameactions_55
 
 
 --
--- Name: gameactions_56_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_56_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_56
@@ -5169,7 +5169,7 @@ ALTER TABLE ONLY gameactions_56
 
 
 --
--- Name: gameactions_57_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_57_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_57
@@ -5177,7 +5177,7 @@ ALTER TABLE ONLY gameactions_57
 
 
 --
--- Name: gameactions_58_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_58_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_58
@@ -5185,7 +5185,7 @@ ALTER TABLE ONLY gameactions_58
 
 
 --
--- Name: gameactions_59_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_59_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_59
@@ -5193,7 +5193,7 @@ ALTER TABLE ONLY gameactions_59
 
 
 --
--- Name: gameactions_5_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_5_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_5
@@ -5201,7 +5201,7 @@ ALTER TABLE ONLY gameactions_5
 
 
 --
--- Name: gameactions_60_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_60_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_60
@@ -5209,7 +5209,7 @@ ALTER TABLE ONLY gameactions_60
 
 
 --
--- Name: gameactions_6_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_6_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_6
@@ -5217,7 +5217,7 @@ ALTER TABLE ONLY gameactions_6
 
 
 --
--- Name: gameactions_7_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_7_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_7
@@ -5225,7 +5225,7 @@ ALTER TABLE ONLY gameactions_7
 
 
 --
--- Name: gameactions_8_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_8_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_8
@@ -5233,7 +5233,7 @@ ALTER TABLE ONLY gameactions_8
 
 
 --
--- Name: gameactions_9_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: gameactions_9_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY gameactions_9
@@ -5241,7 +5241,7 @@ ALTER TABLE ONLY gameactions_9
 
 
 --
--- Name: games_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: games_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY games
@@ -5249,7 +5249,7 @@ ALTER TABLE ONLY games
 
 
 --
--- Name: leagues_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: leagues_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY leagues
@@ -5257,7 +5257,7 @@ ALTER TABLE ONLY leagues
 
 
 --
--- Name: obsgamestates1_10_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_10_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_10
@@ -5265,7 +5265,7 @@ ALTER TABLE ONLY obsgamestates_10
 
 
 --
--- Name: obsgamestates1_11_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_11_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_11
@@ -5273,7 +5273,7 @@ ALTER TABLE ONLY obsgamestates_11
 
 
 --
--- Name: obsgamestates1_12_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_12_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_12
@@ -5281,7 +5281,7 @@ ALTER TABLE ONLY obsgamestates_12
 
 
 --
--- Name: obsgamestates1_13_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_13_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_13
@@ -5289,7 +5289,7 @@ ALTER TABLE ONLY obsgamestates_13
 
 
 --
--- Name: obsgamestates1_14_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_14_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_14
@@ -5297,7 +5297,7 @@ ALTER TABLE ONLY obsgamestates_14
 
 
 --
--- Name: obsgamestates1_15_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_15_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_15
@@ -5305,7 +5305,7 @@ ALTER TABLE ONLY obsgamestates_15
 
 
 --
--- Name: obsgamestates1_16_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_16_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_16
@@ -5313,7 +5313,7 @@ ALTER TABLE ONLY obsgamestates_16
 
 
 --
--- Name: obsgamestates1_17_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_17_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_17
@@ -5321,7 +5321,7 @@ ALTER TABLE ONLY obsgamestates_17
 
 
 --
--- Name: obsgamestates1_18_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_18_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_18
@@ -5329,7 +5329,7 @@ ALTER TABLE ONLY obsgamestates_18
 
 
 --
--- Name: obsgamestates1_19_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_19_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_19
@@ -5337,7 +5337,7 @@ ALTER TABLE ONLY obsgamestates_19
 
 
 --
--- Name: obsgamestates1_1_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_1_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_1
@@ -5345,7 +5345,7 @@ ALTER TABLE ONLY obsgamestates_1
 
 
 --
--- Name: obsgamestates1_20_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_20_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_20
@@ -5353,7 +5353,7 @@ ALTER TABLE ONLY obsgamestates_20
 
 
 --
--- Name: obsgamestates1_21_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_21_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_21
@@ -5361,7 +5361,7 @@ ALTER TABLE ONLY obsgamestates_21
 
 
 --
--- Name: obsgamestates1_22_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_22_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_22
@@ -5369,7 +5369,7 @@ ALTER TABLE ONLY obsgamestates_22
 
 
 --
--- Name: obsgamestates1_23_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_23_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_23
@@ -5377,7 +5377,7 @@ ALTER TABLE ONLY obsgamestates_23
 
 
 --
--- Name: obsgamestates1_24_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_24_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_24
@@ -5385,7 +5385,7 @@ ALTER TABLE ONLY obsgamestates_24
 
 
 --
--- Name: obsgamestates1_25_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_25_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_25
@@ -5393,7 +5393,7 @@ ALTER TABLE ONLY obsgamestates_25
 
 
 --
--- Name: obsgamestates1_26_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_26_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_26
@@ -5401,7 +5401,7 @@ ALTER TABLE ONLY obsgamestates_26
 
 
 --
--- Name: obsgamestates1_27_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_27_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_27
@@ -5409,7 +5409,7 @@ ALTER TABLE ONLY obsgamestates_27
 
 
 --
--- Name: obsgamestates1_28_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_28_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_28
@@ -5417,7 +5417,7 @@ ALTER TABLE ONLY obsgamestates_28
 
 
 --
--- Name: obsgamestates1_29_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_29_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_29
@@ -5425,7 +5425,7 @@ ALTER TABLE ONLY obsgamestates_29
 
 
 --
--- Name: obsgamestates1_2_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_2_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_2
@@ -5433,7 +5433,7 @@ ALTER TABLE ONLY obsgamestates_2
 
 
 --
--- Name: obsgamestates1_30_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_30_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_30
@@ -5441,7 +5441,7 @@ ALTER TABLE ONLY obsgamestates_30
 
 
 --
--- Name: obsgamestates1_31_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_31_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_31
@@ -5449,7 +5449,7 @@ ALTER TABLE ONLY obsgamestates_31
 
 
 --
--- Name: obsgamestates1_32_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_32_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_32
@@ -5457,7 +5457,7 @@ ALTER TABLE ONLY obsgamestates_32
 
 
 --
--- Name: obsgamestates1_33_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_33_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_33
@@ -5465,7 +5465,7 @@ ALTER TABLE ONLY obsgamestates_33
 
 
 --
--- Name: obsgamestates1_34_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_34_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_34
@@ -5473,7 +5473,7 @@ ALTER TABLE ONLY obsgamestates_34
 
 
 --
--- Name: obsgamestates1_35_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_35_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_35
@@ -5481,7 +5481,7 @@ ALTER TABLE ONLY obsgamestates_35
 
 
 --
--- Name: obsgamestates1_36_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_36_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_36
@@ -5489,7 +5489,7 @@ ALTER TABLE ONLY obsgamestates_36
 
 
 --
--- Name: obsgamestates1_37_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_37_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_37
@@ -5497,7 +5497,7 @@ ALTER TABLE ONLY obsgamestates_37
 
 
 --
--- Name: obsgamestates1_38_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_38_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_38
@@ -5505,7 +5505,7 @@ ALTER TABLE ONLY obsgamestates_38
 
 
 --
--- Name: obsgamestates1_39_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_39_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_39
@@ -5513,7 +5513,7 @@ ALTER TABLE ONLY obsgamestates_39
 
 
 --
--- Name: obsgamestates1_3_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_3_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_3
@@ -5521,7 +5521,7 @@ ALTER TABLE ONLY obsgamestates_3
 
 
 --
--- Name: obsgamestates1_40_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_40_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_40
@@ -5529,7 +5529,7 @@ ALTER TABLE ONLY obsgamestates_40
 
 
 --
--- Name: obsgamestates1_41_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_41_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_41
@@ -5537,7 +5537,7 @@ ALTER TABLE ONLY obsgamestates_41
 
 
 --
--- Name: obsgamestates1_42_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_42_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_42
@@ -5545,7 +5545,7 @@ ALTER TABLE ONLY obsgamestates_42
 
 
 --
--- Name: obsgamestates1_43_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_43_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_43
@@ -5553,7 +5553,7 @@ ALTER TABLE ONLY obsgamestates_43
 
 
 --
--- Name: obsgamestates1_44_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_44_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_44
@@ -5561,7 +5561,7 @@ ALTER TABLE ONLY obsgamestates_44
 
 
 --
--- Name: obsgamestates1_45_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_45_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_45
@@ -5569,7 +5569,7 @@ ALTER TABLE ONLY obsgamestates_45
 
 
 --
--- Name: obsgamestates1_46_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_46_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_46
@@ -5577,7 +5577,7 @@ ALTER TABLE ONLY obsgamestates_46
 
 
 --
--- Name: obsgamestates1_47_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_47_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_47
@@ -5585,7 +5585,7 @@ ALTER TABLE ONLY obsgamestates_47
 
 
 --
--- Name: obsgamestates1_48_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_48_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_48
@@ -5593,7 +5593,7 @@ ALTER TABLE ONLY obsgamestates_48
 
 
 --
--- Name: obsgamestates1_49_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_49_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_49
@@ -5601,7 +5601,7 @@ ALTER TABLE ONLY obsgamestates_49
 
 
 --
--- Name: obsgamestates1_4_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_4_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_4
@@ -5609,7 +5609,7 @@ ALTER TABLE ONLY obsgamestates_4
 
 
 --
--- Name: obsgamestates1_50_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_50_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_50
@@ -5617,7 +5617,7 @@ ALTER TABLE ONLY obsgamestates_50
 
 
 --
--- Name: obsgamestates1_51_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_51_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_51
@@ -5625,7 +5625,7 @@ ALTER TABLE ONLY obsgamestates_51
 
 
 --
--- Name: obsgamestates1_52_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_52_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_52
@@ -5633,7 +5633,7 @@ ALTER TABLE ONLY obsgamestates_52
 
 
 --
--- Name: obsgamestates1_53_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_53_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_53
@@ -5641,7 +5641,7 @@ ALTER TABLE ONLY obsgamestates_53
 
 
 --
--- Name: obsgamestates1_54_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_54_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_54
@@ -5649,7 +5649,7 @@ ALTER TABLE ONLY obsgamestates_54
 
 
 --
--- Name: obsgamestates1_55_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_55_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_55
@@ -5657,7 +5657,7 @@ ALTER TABLE ONLY obsgamestates_55
 
 
 --
--- Name: obsgamestates1_56_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_56_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_56
@@ -5665,7 +5665,7 @@ ALTER TABLE ONLY obsgamestates_56
 
 
 --
--- Name: obsgamestates1_57_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_57_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_57
@@ -5673,7 +5673,7 @@ ALTER TABLE ONLY obsgamestates_57
 
 
 --
--- Name: obsgamestates1_58_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_58_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_58
@@ -5681,7 +5681,7 @@ ALTER TABLE ONLY obsgamestates_58
 
 
 --
--- Name: obsgamestates1_59_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_59_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_59
@@ -5689,7 +5689,7 @@ ALTER TABLE ONLY obsgamestates_59
 
 
 --
--- Name: obsgamestates1_5_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_5_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_5
@@ -5697,7 +5697,7 @@ ALTER TABLE ONLY obsgamestates_5
 
 
 --
--- Name: obsgamestates1_60_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_60_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_60
@@ -5705,7 +5705,7 @@ ALTER TABLE ONLY obsgamestates_60
 
 
 --
--- Name: obsgamestates1_6_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_6_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_6
@@ -5713,7 +5713,7 @@ ALTER TABLE ONLY obsgamestates_6
 
 
 --
--- Name: obsgamestates1_7_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_7_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_7
@@ -5721,7 +5721,7 @@ ALTER TABLE ONLY obsgamestates_7
 
 
 --
--- Name: obsgamestates1_8_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_8_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_8
@@ -5729,7 +5729,7 @@ ALTER TABLE ONLY obsgamestates_8
 
 
 --
--- Name: obsgamestates1_9_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: obsgamestates1_9_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY obsgamestates_9
@@ -5737,7 +5737,7 @@ ALTER TABLE ONLY obsgamestates_9
 
 
 --
--- Name: players_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: players_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY players
@@ -5745,7 +5745,7 @@ ALTER TABLE ONLY players
 
 
 --
--- Name: policy_games_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: policy_games_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY policy_games
@@ -5753,7 +5753,7 @@ ALTER TABLE ONLY policy_games
 
 
 --
--- Name: seasons_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: seasons_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY seasons
@@ -5761,7 +5761,7 @@ ALTER TABLE ONLY seasons
 
 
 --
--- Name: simulation_games_pkey; Type: CONSTRAINT; Schema: public; Owner: s1328652; Tablespace: 
+-- Name: simulation_games_pkey; Type: CONSTRAINT; Schema: public; Owner: deepsoc; Tablespace:
 --
 
 ALTER TABLE ONLY simulation_games

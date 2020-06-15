@@ -1,10 +1,11 @@
-Games=10000
+Games=10
 UseParser=false
-Log=force end
+Log=true
 ChatNegotiation=true
 BoardLoad=false
+CollectFullGameplay=true
 ~
-Test
+testsimu
 Trades=true
 Control=ASSUME_OTHER_AGENTS_USE_OUR_STRATEGY|ALWAYS_ASSUMING_IS_SELLING
 Agent=0,original,stac,USE_OLD_NEGOTIATOR|USE_OLD_NEGOTIATOR_COUNTEROFFER|NP_MAX_NUMBER_OF_OFFERS_WITHOUT_BUILDING:3

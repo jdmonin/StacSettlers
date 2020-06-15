@@ -12,10 +12,10 @@
 	<name>Settlers</name>
 
 	<properties>
-		<src.dir>src</src.dir>
+		<src.dir>src/main/java</src.dir>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<jar.name>${project.groupId}${project.artifactId}</jar.name>
-		
+
 		<!-- DL4J PROPERTIES -->
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -37,7 +37,7 @@
 		<!-- include resources -->
 		<resources>
 			<resource>
-				<directory>${basedir}/src/resources</directory>
+				<directory>${src.dir}/resources</directory>
 				<excludes>
 					<exclude>Resources.java</exclude>
 				</excludes>
@@ -61,17 +61,17 @@
 				</includes>
 			</resource>
 			<resource>
-				<directory>${basedir}/src/soc/client/images</directory>
+				<directory>${src.dir}/soc/client/images</directory>
 				<filtering>false</filtering>
 				<targetPath>soc/client/images/</targetPath>
 			</resource>
 			<resource>
-				<directory>${basedir}/src/soc/client/images/rotat</directory>
+				<directory>${src.dir}/soc/client/images/rotat</directory>
 				<filtering>false</filtering>
 				<targetPath>soc/client/images/rotat/</targetPath>
 			</resource>
 			<resource>
-				<directory>${basedir}/src/soc/client/sounds</directory>
+				<directory>${src.dir}/soc/client/sounds</directory>
 				<filtering>false</filtering>
 				<targetPath>soc/client/sounds/</targetPath>
 			</resource>
@@ -88,7 +88,7 @@
                     <target>${java.version}</target>
                 </configuration>
 			</plugin>
-			
+
 			<!-- Installing local dependencies -->
 			<plugin>
             	<groupId>org.apache.maven.plugins</groupId>
@@ -176,8 +176,8 @@
 	                        </configuration>
 	                </execution>
             	</executions>
-        	</plugin>			
-			
+        	</plugin>
+
 			<plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
@@ -232,8 +232,8 @@
                     </execution>
                 </executions>
             </plugin>
-			
-			
+
+
 		</plugins>
 	</build>
 
@@ -403,7 +403,7 @@
     		<artifactId>servlet-api</artifactId>
     		<version>3.0.20100224</version>
     	</dependency>
-    	
+
     	<dependency>
     		<groupId>org.eclipse.jetty.websocket</groupId>
     		<artifactId>websocket-api</artifactId>

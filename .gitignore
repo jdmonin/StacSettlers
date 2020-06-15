@@ -1,2 +1,9 @@
-/bin/
-/target/
+# App
+bin/
+target/
+logs_server/*
+results/*
+
+# Java
+.factorypath
+.settings

@@ -1,0 +1,3 @@
+dbURL=jdbc:postgresql://localhost:5432/soc
+dbUser=deepsoc
+dbPass=d33ps0c
