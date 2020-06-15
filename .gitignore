@@ -11,3 +11,6 @@ lib/DeepCatan*
 
 # vscode
 .vscode
+
+# OSX
+.DS_Store
