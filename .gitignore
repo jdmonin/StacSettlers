@@ -3,7 +3,11 @@ bin/
 target/
 logs_server/*
 results/*
+lib/DeepCatan*
 
 # Java
 .factorypath
 .settings
+
+# vscode
+.vscode

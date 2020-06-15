@@ -2,23 +2,16 @@
 
 This file contains a quickstart guide and a small set of sample usages. For a more detailed description of the project and of the Stac rule-based agent see "STACSettlers documentation.pdf" file. This project contains various implementations for the [Strategic Conversation (STAC)] project. It also contains the code (as local dependencies) for the agents developed in the following PhD thesis:
 - Mihai Dobre, Low-resource Learning in Complex Games, School of Informatics, University of Edinburgh, 2018.
- 
+
 ### INSTALLATION
 
-Most dependencies are contained in Maven's central repository. There is a set of local dependecies that need to be installed in the maven repository manually. To install them run the following commands, while updating the path to the jars:
+Just run `make build`. Check the main file for more information
 
-	mvn install:install-file -Dfile=<path-to-JavaBayes.jar> -DgroupId=local -DartifactId=JavaBayes -Dversion=1.0 -Dpackaging=jar -DgeneratePom=true 
-	mvn install:install-file -Dfile=<path-to-mdp-library.jar> -DgroupId=local -DartifactId=mdp-library -Dversion=1.0 -Dpackaging=jar -DgeneratePom=true 
-	mvn install:install-file -Dfile=<path-to-weka.jar> -DgroupId=local -DartifactId=weka -Dversion=1.0 -Dpackaging=jar -DgeneratePom=true 
-	mvn install:install-file -Dfile=<path-to-MCTS-1.0.jar> -DgroupId=local -DartifactId=MCTS -Dversion=1.0 -Dpackaging=jar -DgeneratePom=true 
-	mvn install:install-file -Dfile=<path-to-DeepCatan-0.0.1.jar> -DgroupId=local -DartifactId=DeepCatan -Dversion=0.0.1 -Dpackaging=jar -DgeneratePom=true
-
-Alternatively, use the install_local_library.sh and pass the corresponding parameters for each of the jars.
 
 ### RUNNING SIMULATIONS
 
 To run an example simulation between 4 Stac agents, build the jar, create a config.txt file with the following contents:
-	
+
 	Games=1
 	Log=true
 	ChatNegotiation=true
@@ -27,7 +20,7 @@ To run an example simulation between 4 Stac agents, build the jar, create a conf
 	Trades=true
 	Agent=4,Stac,stac,TRY_N_BEST_BUILD_PLANS:0|FAVOUR_DEV_CARDS:-5
 
-and run the following command:`java -cp STACSettlers-1.0-bin.jar soc.robot.stac.simulation.Simulation <config-file>`. This will run one game between 4 Stac heuristic agents with the best parameters. 
+and run the following command:`java -cp STACSettlers-1.0-bin.jar soc.robot.stac.simulation.Simulation <config-file>`. This will run one game between 4 Stac heuristic agents with the best parameters.
 The config.txt file contained in the resources package has a set of example agents that can be run in the simulation environment. Note that smartsettlers and the TypedMCTS agents require FullyObservable=true!
 
 #### REPLAY AND STORING GAMEPLAY
@@ -95,7 +88,7 @@ MCTS-1.0 (https://github.com/sorinMD/MCTS) and DeepCatan-0.0.1 (https://github.c
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
-    
-    
+
+
 [Strategic Conversation (STAC)]: https://www.irit.fr/STAC/index.html
-    
+
