@@ -6,6 +6,9 @@ DRL_CONFIG=$(CURRENT_DIR)/config-drl.txt
 ###
 # Install
 ###
+# Builds STACSettlers-1.0-bin.jar
+# Note: before first build, run once to download lib/DeepCatan-0.0.1.jar: git lfs install && git-lfs fetch && git-lfs checkout
+###
 build:
 	JAVA_HOME=`/usr/libexec/java_home -v1.8` mvn install:install-file -Dfile=lib/JavaBayes.jar -DgroupId=local -DartifactId=JavaBayes -Dversion=1.0 -Dpackaging=jar -DgeneratePom=true
 	JAVA_HOME=`/usr/libexec/java_home -v1.8` mvn install:install-file -Dfile=lib/mdp-library.jar -DgroupId=local -DartifactId=mdp-library -Dversion=1.0 -Dpackaging=jar -DgeneratePom=true

@@ -2,7 +2,7 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<prerequisites>
-        <maven>3.0.5</maven>
+        <maven>3.6.3</maven>
     </prerequisites>
 	<groupId>STAC</groupId>
 	<artifactId>STACSettlers</artifactId>
@@ -90,6 +90,7 @@
 			</plugin>
 
 			<!-- Installing local dependencies -->
+			<!-- Note: DeepCatan-0.0.1.jar satisfies several other compile-time dependencies like deeplearning4j-core  -->
 			<plugin>
             	<groupId>org.apache.maven.plugins</groupId>
             	<artifactId>maven-install-plugin</artifactId>
