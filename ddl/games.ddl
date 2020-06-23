@@ -83,5 +83,6 @@ CREATE TABLE simulation_games
   score3 integer,
   player4 integer,
   score4 integer,
+  nbsteps integer,
   CONSTRAINT simulation_games_pkey PRIMARY KEY (id)
 );

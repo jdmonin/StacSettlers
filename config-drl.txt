@@ -1,4 +1,4 @@
-Games=10
+Games=1000
 UseParser=false
 Log=true
 ChatNegotiation=true

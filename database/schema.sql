@@ -4274,7 +4274,8 @@ CREATE TABLE simulation_games (
     player3 integer,
     score3 integer,
     player4 integer,
-    score4 integer
+    score4 integer.
+    nbsteps integer
 );
 
 
