@@ -61,19 +61,24 @@
 				</includes>
 			</resource>
 			<resource>
-				<directory>${src.dir}/soc/client/images</directory>
+				<directory>${basedir}/src/main/resources/resources/images</directory>
 				<filtering>false</filtering>
-				<targetPath>soc/client/images/</targetPath>
+				<targetPath>resources/images/</targetPath>
 			</resource>
 			<resource>
-				<directory>${src.dir}/soc/client/images/rotat</directory>
+				<directory>${basedir}/src/main/resources/resources/hexes/classic</directory>
 				<filtering>false</filtering>
-				<targetPath>soc/client/images/rotat/</targetPath>
+				<targetPath>resources/hexes/classic/</targetPath>
 			</resource>
 			<resource>
-				<directory>${src.dir}/soc/client/sounds</directory>
+				<directory>${basedir}/src/main/resources/resources/hexes/classic/rotat</directory>
 				<filtering>false</filtering>
-				<targetPath>soc/client/sounds/</targetPath>
+				<targetPath>resources/hexes/classic/rotat/</targetPath>
+			</resource>
+			<resource>
+				<directory>${basedir}/src/main/resources/resources/sounds</directory>
+				<filtering>false</filtering>
+				<targetPath>resources/sounds/</targetPath>
 			</resource>
 		</resources>
 		<sourceDirectory>${src.dir}</sourceDirectory>
