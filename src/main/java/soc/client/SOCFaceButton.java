@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * Portions of this file copyright (C) 2007-2011 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file copyright (C) 2007-2011,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -54,7 +54,7 @@ public class SOCFaceButton extends Canvas
 {
     public static final int DEFAULT_FACE = 1;  // Human face # 1 (face1.gif)
 
-    private static final String IMAGEDIR = "/soc/client/images";
+    private static final String IMAGEDIR = "/resources/images";
 
     /**
      * number of /numbered/ face images, /plus 1/ for indexing.
