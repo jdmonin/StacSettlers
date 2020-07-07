@@ -3345,7 +3345,9 @@ public class SOCPlayerClient extends Applet
     	SOCGame ga = (SOCGame) games.get(mes.getGame());
 
     	try {
-			logger.startLog(mes.getGame(), ga.getPlayer(getNickname()).getPlayerNumber());
+		SOCPlayer clientPlayer = ga.getPlayer(getNickname());
+		if (clientPlayer != null)
+			logger.startLog(mes.getGame(), clientPlayer.getPlayerNumber());
 		} catch (IOException e) {
 			D.ebugERROR("Failed to start the chat logger " + e.toString());
 		}

@@ -928,7 +928,7 @@ public class StacDBHelper{
 	}
 	
 	/**
-	 * Check if total pbp and total trades have been collected
+	 * Check if this game's total pbp and total trades have been collected in {@code games} table
 	 * @return
 	 */
 	public boolean areAnyTotalNumbersCollected(int gameID){

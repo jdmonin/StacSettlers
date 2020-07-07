@@ -44,6 +44,7 @@ import soc.message.SOCJoinGameAuth;
 import soc.message.SOCLeaveGame;
 import soc.message.SOCLoadGame;
 import soc.message.SOCMessage;
+import soc.message.SOCMessageForGame;
 import soc.message.SOCMoveRobber;
 import soc.message.SOCNewGameWithOptions;
 import soc.message.SOCPlayerElement;
@@ -74,8 +75,20 @@ import soc.util.SOCRobotParameters;
 import soc.util.Version;
 
 /**
- * Client to simulate observing a game based on a log file.  Extends SOCPlayerClient
- *  for UI elements, but overrides the practice server functionality.
+ * Client to simulate observing a game based on a log file, optionally write it to database. Extends SOCPlayerClient
+ * with {@link SOCReplayInterface} for UI elements, but overrides the practice server functionality.
+ *<P>
+ * Uses the {@code soclog} file inside {@code logs_server}'s folder for the game
+ * whose filename starts with the game name, not the Client_ or Server_ files in the same folder.
+ *<P>
+ * To save a game to the DB with the {@code -c} flag:
+ *<UL>
+ *  <LI> Game's basic info must already be in {@code games} overview table: id, league, season, unique name.
+ *  <LI> Run this once to gather overall stats into {@code trades}, {@code pbps} in {@code games} table
+ *  <LI> Run again to create and fill game's Observable State and Game Action tables (and create an empty Extracted State table)
+ *  <LI> Run again, adding {@code -eo} flag, to fill game's Extracted State table
+ *</UL>
+ *
  * @author kho30
  *
  */
@@ -138,7 +151,7 @@ public class SOCReplayClient extends SOCPlayerClient {
 	}
 
 	/**
-	 * 
+	 * @param practiceGameName Soclog name to pass into {@link LogParser#getParser(String, boolean)}
 	 */
 	public void startPracticeGame(String practiceGameName, Hashtable gameOpts, boolean mainPanelIsActive)
     {
@@ -153,7 +166,7 @@ public class SOCReplayClient extends SOCPlayerClient {
         LogParser lp = LogParser.getParser(logName, AUG_LOG);
         
         if (lp != null) {
-            ftq = new FileToQueue(this, lp);            
+            ftq = new FileToQueue(this, logName, lp);
             practiceGameName = ftq.getGameName();
             
             //Act as if the game used chat negotiations. We really only want the side effect: 
@@ -342,6 +355,11 @@ public class SOCReplayClient extends SOCPlayerClient {
 	
     /** 
      * Class to act as a fake server - just parse a log file and send to the client as appropriate
+     *<P>
+     * Although {@code run()} method doesn't parse the game log until user asks us to start stepping through it,
+     * constructor will look ahead to find the game name in the log, determine if game info is in the DB yet,
+     * and set related fields.
+     *
      * @author kho30
      *
      */
@@ -352,18 +370,27 @@ public class SOCReplayClient extends SOCPlayerClient {
 		private int[][] tempTradesCounter = new int[4][4]; //temp value as the counter is modified before the correct number of trades is passed to the egsr
 		private int[][] pbpCounter = new int[4][6];
 		private int[] playersIDs;
+		/** Soclog file name passed into constructor from {@code startPracticeGame(..)}; not null */
+		private final String logName;
+		/** This game's ID in {@code games} table, from game name field in soclog messages */
 		private int gameID;
+		/** This game's name, from game name field in soclog messages */
+		private String gameName;
+
 		//information that will be selected from the games table
 		private Integer[][] totalPbps;
 		private Integer[][] totalTrades;
 		
 		//instance to help with the db interface
 		private StacDBHelper dbh = new StacDBHelper();
+		/** if true, we were able to connnect to the DB but didn't find {@link #gameName} there */
+		private boolean dbhDisconnectedAfterNotFound;
 		
 		//dummy brain to help with extracting some of the information from the raw state;
 		private StacRobotDummyBrain dummy;
 		private boolean boardInitialized = false;
 		
+		/** LogParser passed into constructor; not null */
 		private LogParser lp;
 		private final SOCReplayClient cl;
 		
@@ -381,17 +408,139 @@ public class SOCReplayClient extends SOCPlayerClient {
 		
 		private int state = PAUSE; 
 		
-		public FileToQueue(SOCReplayClient cl, LogParser lp) {				
+		public FileToQueue(SOCReplayClient cl, final String ln, LogParser lp)
+			throws IllegalArgumentException
+		{
+			if (ln == null)
+				throw new IllegalArgumentException("ln");
+			if (lp == null)
+				throw new IllegalArgumentException("lp");
+
 			this.lp = lp; 		
+			this.logName = ln;
 			this.cl = cl;
 			//initialise the counters to 0
 			Arrays.fill(tradesCounter[0],0);Arrays.fill(tradesCounter[1],0);Arrays.fill(tradesCounter[2],0);Arrays.fill(tradesCounter[3],0);
 			Arrays.fill(pbpCounter[0],0);Arrays.fill(pbpCounter[1],0);Arrays.fill(pbpCounter[2],0);Arrays.fill(pbpCounter[3],0);
+
+			precheckGameInDBFromLog();
+		}
+
+		/**
+		 * To find the {@link #gameName} and {@link #gameID} as early as possible,
+		 * read the start of the log in a separate {@link LogParser} until a
+		 * certain message type is found. Use the game name found there
+		 * to check the database for records on this game: gameID, player IDs, etc.
+		 */
+		private void precheckGameInDBFromLog() {
+			gameID = -1;
+			gameName = null;
+
+			// use separate LogParser here to not disturb message flow of actual parser
+			LogParser lpPre = LogParser.getParser(logName, false);
+			if (lpPre == null) {
+				return;
+			}
+
+			while (! lpPre.eof()) {
+				SOCMessage m = lp.parseLine();
+				if (m instanceof SOCMessageForGame) {
+					gameName = ((SOCMessageForGame) m).getGame();
+					if (gameName != null)
+						break;
+				}
+			}
+			lpPre.close();
+
+			if (gameName != null) {
+				//connect only if we want to collect
+				if (collect) {
+					dbh.initialize();
+					dbh.connect(); //try to connect to the db
+				}
+				checkGameInDB(gameName);
+			}
+		}
+
+		/**
+		 * Set {@link #gameName} field from name in parsed message.
+		 * Try to find this game in the database and query related info.
+		 * If found but game detail tables aren't created yet, do so now.
+		 *<P>
+		 * Doesn't query unless {@link StacDBHelper#isConnected()}.
+		 * Assumes {@link #collect} flag is true.
+		 * Updates {@link #gameName}, {@link #gameID}, and mode flags {@link #canExtract} and {@link #extractOnly}.
+		 */
+		private void checkGameInDB(final String gameNameInMessage) {
+			if ((gameNameInMessage == null) || ! dbh.isConnected()) {
+				gameID = -1;
+				return;
+			}
+
+			gameName = gameNameInMessage;
+			gameID = dbh.getIDfromGameName(gameName);
+			if (gameID == -1) {
+				// can't find the game
+				dbhDisconnectedAfterNotFound = true;
+				dbh.disconnect(); //do not permit any collection further as game doesn't exist in db TODO create it here?
+				System.err.println("Cannot find game details inside database");
+				return;
+			}
+
+			playersIDs = dbh.getPlayersIDsFromGame(gameID);
+			// at the beginning of the game we want to decide what we can collect
+			if (dbh.areAnyTotalNumbersCollected(gameID)) { // and data exists in games table
+				canExtract = true;
+				// get it here
+				totalPbps = dbh.getTotalPBPs(gameID);
+				totalTrades = dbh.getTotalTrades(gameID);
+			} else {
+				// we shouldn't extract or collect observable until overall stats are collected
+				canExtract = false;
+				extractOnly = true; //these two values are in contradiction so we will only collect overall stats
+			}
+
+			// create tables also
+			if ((! extractOnly) && ! dbh.tableExists(StacDBHelper.OBSFEATURESTABLE + gameID))
+				dbh.createRawStateTable(gameID);
+			if ((! extractOnly) && ! dbh.tableExists(StacDBHelper.ACTIONSTABLE + gameID))
+				dbh.createActionTable(gameID);
+			if ((canExtract) && ! dbh.tableExists(StacDBHelper.EXTFEATURESTABLE + gameID))
+				dbh.createExtractedStateTable(gameID);
 		}
 		
 		@Override
 		public void run() {
 			try {				
+				// Indicate setup is done, ready to start replaying
+				{
+					SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(getGameName());
+					if (pi != null)
+					{
+						pi.clearChatTextInput();
+
+						if (gameName == null) {
+							pi.print("Parse error: Couldn't find game name in log messages");
+						} else if (collect) {
+							pi.print("Mode: -c Collect logs into DB");
+							if (gameID == -1) {
+								pi.print("** Can't collect: " +
+									((dbhDisconnectedAfterNotFound)
+									 ? "Couldn't find game in DB named " + gameName
+									 : "Not connected to DB"));
+							} else if (canExtract) {
+								pi.print((extractOnly)
+									? "(-eo: extracting features from observable details)"
+									: "(observable details, not extracted features)");
+							} else if (extractOnly)
+								pi.print("(overall stats only)");
+						} else {
+							pi.print("Mode: Replay only");
+						}
+						pi.print("Ready to replay.");
+					}
+				}
+
 				// Put piece messages are problematic, since they affect the score.  Only handle putPiece immediately 
 				//  after a server text message indicating that something has been built.
 				boolean repeatedMsg = false;
@@ -402,13 +551,7 @@ public class SOCReplayClient extends SOCPlayerClient {
 				// we want to avoid sleeping until the board has been initialized.  nothing
 				//  interesting to see there
 				boardInitialized = false;				
-			
-				//connect only if we want to collect
-				if(collect){
-					dbh.initialize();
-					dbh.connect(); //try to connect to the db
-				}
-				
+							
 				while (!lp.eof()) {				    
 					if (state != PAUSE) {
 					    SOCMessage m = lp.parseLine();
@@ -518,36 +661,6 @@ public class SOCReplayClient extends SOCPlayerClient {
 											new SOCRobotParameters(300, 500, 0f, 0f, 0f, 0f, 0f, SOCRobotDMImpl.FAST_STRATEGY, 0),
 											(SOCGame)DeepCopy.copy(ga),new CappedQueue(),0);//need to update the playerNumber based on who is on the board
 									boardInitialized = true;
-									//get the game and the players IDs here
-									if(dbh.isConnected()){
-										gameID = dbh.getIDfromGameName(((SOCBoardLayout) m).getGame());
-										if(gameID != -1){ //if we can find the game
-											playersIDs = dbh.getPlayersIDsFromGame(gameID);
-											//at the beginning of the game we want to decide what we can collect
-											if(dbh.areAnyTotalNumbersCollected(gameID)){//and data exists in games table
-												canExtract = true;
-												//get it here
-												totalPbps = dbh.getTotalPBPs(gameID);
-												totalTrades = dbh.getTotalTrades(gameID);
-											}else{
-												//we shouldn't extract or collect observable until overall stats are collected
-												canExtract = false;
-												extractOnly = true; //these two values are in contradiction so we will only collect overall stats
-											}
-											
-											//create tables also
-											if((!extractOnly) && (!dbh.tableExists(StacDBHelper.OBSFEATURESTABLE + gameID)))
-												dbh.createRawStateTable(gameID);
-											if((!extractOnly) && (!dbh.tableExists(StacDBHelper.ACTIONSTABLE + gameID)))
-												dbh.createActionTable(gameID);
-											if((canExtract) && (!dbh.tableExists(StacDBHelper.EXTFEATURESTABLE + gameID)))
-												dbh.createExtractedStateTable(gameID);
-										}
-										else {
-											dbh.disconnect(); //do not permit any collection further as game doesn't exist in db TODO create it here?
-											System.err.println("Cannot find game details inside database");
-										}
-									}	
 								}		
 								
 								if (m instanceof SOCPutPiece) {						
@@ -648,7 +761,7 @@ public class SOCReplayClient extends SOCPlayerClient {
 				dbh.disconnect();
 		}
 		
-		// Output the game-state to the augmented log file
+		/** Output the game-state to the augmented log file and maybe database */
 		private void writeGameState(String gameName, double[] actionTypes) {        
 			SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(gameName);
             SOCGame ga = pi.getGame();
@@ -926,9 +1039,12 @@ public class SOCReplayClient extends SOCPlayerClient {
 		}
 		
 		public String getGameName() {
-		    if (lp.getGameName() == null) {
-		        lp.parseLine();
-		    }
+			if (gameName != null)
+				return gameName;
+
+			if (lp.getGameName() == null)
+				lp.parseLine();
+
 			return lp.getGameName();
 		}
 		
