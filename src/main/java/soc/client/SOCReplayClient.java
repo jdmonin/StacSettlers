@@ -103,7 +103,12 @@ public class SOCReplayClient extends SOCPlayerClient {
     private static boolean canExtract = false; 
     
     private boolean repeatedDevCardMessage = false;
-    
+
+    /**
+     * Default username if needed, so it's not {@code null}
+     */
+    protected static final String OBSERVER_DEFAULT_NAME = "Observer";
+
 	public SOCReplayClient() {}
 
 	public SOCReplayClient(boolean cp) {
@@ -118,7 +123,20 @@ public class SOCReplayClient extends SOCPlayerClient {
 	private static final String LOAD = "LOAD";
 	
 	private Frame parentFrame;
-	
+
+	/**
+	 * If {@link #gamesParams} doesn't know about this game already, add it with parameters which
+	 * act as if the game used chat negotiations. We really only want the side effect:
+	 * This hides the trade offer panel in the SOCHandPanels and we're providing extra fields (total cards and resources).
+	 */
+	protected void ensureGamesParams(final String gameName)
+	{
+	    if (gamesParams.containsKey(gameName))
+	        return;
+
+            gamesParams.put(gameName, new StacGameParameters(false, "", 0, -1, false, true, false, false));
+	}
+
 	/**
 	 * 
 	 */
@@ -140,12 +158,16 @@ public class SOCReplayClient extends SOCPlayerClient {
             
             //Act as if the game used chat negotiations. We really only want the side effect: 
             //This hides the trade offer panel in the SOCHandPanels and we're providing extra fields (total cards & resources)
-            gamesParams.put(practiceGameName, new StacGameParameters(false, "", 0, -1, false, true, false, false));
+            ensureGamesParams(practiceGameName);
             
         	// May take a while to start server & game.
             // The new-game window will clear this cursor.
             setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
-        
+
+            // Avoid possible NPEs
+            if (nickname == null)
+                setNickname(OBSERVER_DEFAULT_NAME);
+
 	        // Do some basic messages to start the window, which aren't in the log file
 	        SOCNewGameWithOptions newGame = new SOCNewGameWithOptions(practiceGameName, (String) null, -1);
 	        treat(newGame, true);
@@ -182,7 +204,16 @@ public class SOCReplayClient extends SOCPlayerClient {
 		ftq.maxPause = 0;
 		
 	}
-	
+
+	/**
+	 * Update a game's turn counter label, if we have a {@link SOCReplayInterface} for it.
+	 */
+	public void setReplayTurnLabel(final String gameName, final int idCounter) {
+		final SOCPlayerInterface pi = (SOCPlayerInterface) playerInterfaces.get(gameName);
+		if (pi instanceof SOCReplayInterface)
+			((SOCReplayInterface) pi).replayPanel.setTurnLabel(idCounter);
+	}
+
 	protected SOCPlayerInterface getPlayerInterface(String gaName, SOCGame ga) {
 		return new SOCReplayInterface(gaName, this, ga);
 	}

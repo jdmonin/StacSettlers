@@ -89,7 +89,7 @@ public class StacDBReplayClient extends SOCReplayClient{
 	private static final String START = "START";
 	
 	private Frame parentFrame;
-	
+
 	public void startPracticeGame(String practiceGameName, Hashtable gameOpts, boolean mainPanelIsActive)
     {
 		prCli = new DumbStringConn();
@@ -103,7 +103,12 @@ public class StacDBReplayClient extends SOCReplayClient{
     	// May take a while to start server & game.
         // The new-game window will clear this cursor.
         setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
-    
+
+        // Avoid possible NPEs
+        ensureGamesParams(practiceGameName);
+        if (nickname == null)
+            setNickname(OBSERVER_DEFAULT_NAME);
+
         // Do some basic messages to start the window, which aren't in the log file
         SOCNewGameWithOptions newGame = new SOCNewGameWithOptions(practiceGameName, (String) null, -1);
         treat(newGame, true);
@@ -213,15 +218,27 @@ public class StacDBReplayClient extends SOCReplayClient{
     		System.err.println("Game name not found in DB or you passed and empty String");
     }
 	
+	@Override
 	public void pause() {
 		dtq.state = DBToQueue.PAUSE;		
 	}
+
+	@Override
 	public void play() {
 		dtq.state = DBToQueue.PLAY;
 	}
+
+	@Override
 	public void toText() {
 		dtq.state = DBToQueue.FASTFORWARD;
 	}
+
+	@Override
+	public void toTurn() {
+		// only a stub: override SOCReplayClient to avoid NPE for ftq
+	}
+
+	@Override
 	public void toBreakPoint(String breakText) {
 	    dtq.state = DBToQueue.TO_END;
 		//breaktext not needed as we are breaking based on actions not on msgs in the logs
@@ -418,7 +435,9 @@ public class StacDBReplayClient extends SOCReplayClient{
 							System.out.println("ss: " + Arrays.toString(ssFeatState));
 							System.out.println("js: " + Arrays.toString(featState));
 						}
-						
+
+						cl.setReplayTurnLabel(gameName, idCounter);
+
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
