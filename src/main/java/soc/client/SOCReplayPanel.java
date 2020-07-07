@@ -138,7 +138,7 @@ public class SOCReplayPanel extends Panel implements ActionListener
         
         toTurnBut.setSize(butW, lineH);
         toTurnBut.setLocation(buttonMargin * 4 + butW * 3, curY);
-        toTurnBut.setEnabled(true);
+        toTurnBut.setEnabled(! (rcl instanceof StacDBReplayClient));
         
         curY += lineH + margin;
         toBrkBut.setSize(butW, lineH);
@@ -178,5 +178,13 @@ public class SOCReplayPanel extends Panel implements ActionListener
         	rcl.toBreakPoint(brkText.getText());
         }
     }
-    
+
+    /**
+     * Update turn counter label.
+     */
+    public void setTurnLabel(final int turnNumber)
+    {
+        turnLab.setText("Turn: " + turnNumber);
+    }
+
 }
