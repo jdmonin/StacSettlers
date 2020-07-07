@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2010 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2010,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -107,19 +107,20 @@ public class SOCJoinGameAuth extends SOCMessage
         StringTokenizer st = new StringTokenizer(s, sep2);
 
         String ga;
-        String sd;
+        String sd = null;
         
         try
         {
             ga = st.nextToken();
-            sd = st.nextToken();
+            if (st.hasMoreTokens())
+                sd = st.nextToken();
         }
         catch (Exception e)
         {
             return null;
         }
 
-        return new SOCJoinGameAuth(ga, sd.equals("true"));
+        return new SOCJoinGameAuth(ga, "true".equals(sd));
     }
 
     /**
