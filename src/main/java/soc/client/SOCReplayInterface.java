@@ -3,8 +3,11 @@ package soc.client;
 import soc.game.SOCGame;
 
 /**
- * Interface for the Replay client.  Very similar to the PlayerInterface, but uses a panel for
+ * Interface for the Replay client.  Very similar to the PlayerInterface, but uses a {@link SOCReplayPanel} for
  *  playback control instead of the Building Panel (bottom center). 
+ *<P>
+ * The game text display used by {@link SOCPlayerInterface#print(String)}
+ * is moved to the right side of the window to give it as much height as possible.
  * 
  * @author kho30
  *

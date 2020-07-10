@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * Portions of this file Copyright (C) 2007-2011 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2007-2011,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -1324,7 +1324,6 @@ public class SOCPlayerInterface extends Frame implements ActionListener, MouseLi
       {
           textInput.removeKeyListener(textInputListener);
           textInput.removeTextListener(textInputListener);
-          textInputListener.pi = null;
           textInputListener = null;
       }
         
@@ -1829,6 +1828,15 @@ public class SOCPlayerInterface extends Frame implements ActionListener, MouseLi
     {
         if (clientIsCurrentPlayer())
             getClientHand().autoRollOrPromptPlayer();
+    }
+
+    /**
+     * Clear contents of the chat input text ("please wait" during setup, etc).
+     */
+    public void clearChatTextInput()
+    {
+        textInput.setText("");
+        textInputIsInitial = false;
     }
 
     /**
@@ -2823,10 +2831,14 @@ public class SOCPlayerInterface extends Frame implements ActionListener, MouseLi
     private static class SOCPITextfieldListener
         extends KeyAdapter implements TextListener, FocusListener
     {
-        private SOCPlayerInterface pi;
+        /** our playerinterface; not null */
+        private final SOCPlayerInterface pi;
 
         public SOCPITextfieldListener(SOCPlayerInterface spi)
         {
+            if (spi == null)
+                throw new IllegalArgumentException("spi");
+
             pi = spi;
         }
 
