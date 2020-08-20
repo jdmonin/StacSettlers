@@ -163,6 +163,7 @@ import soc.robot.SOCRobotDMImpl;
 import soc.robot.SOCRobotFactory;
 import soc.robot.stac.MCTSRobotFactory;
 import soc.robot.stac.MCTSRobotType;
+import soc.robot.stac.OriginalSSRobotFactory;
 import soc.robot.stac.Persuasion;
 import soc.robot.stac.StacRobotDialogueManager;
 import soc.robot.stac.StacRobotBrain;
@@ -1005,6 +1006,9 @@ public class SOCServer extends Server
                     SOCRobotFactory factory = null;
                     if(p[2].contains("flatMCTS")){//soc.robot.stac.stacRobotFactory,ORIGINAL_ROBOT
                         factory = new StacRobotBrainFlatMCTS.StacRobotFlatMCTSFactory(new StacRobotType());              	
+                    }
+                    else if(p[2].contains("originalSS")){
+                        factory = new OriginalSSRobotFactory(true, new StacRobotType());
                     }
                     else if(p[2].contains("mcts")){
                         factory = new MCTSRobotFactory(true, new MCTSRobotType());              	
