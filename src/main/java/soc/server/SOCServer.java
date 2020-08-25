@@ -181,6 +181,7 @@ import soc.server.database.SOCDBHelper;
 import soc.server.database.stac.ExtGameStateRow;
 import soc.server.database.stac.GameActionRow;
 import soc.server.database.stac.ObsGameStateRow;
+import soc.server.database.stac.ChatRow;
 import soc.server.database.stac.StacDBHelper;
 import soc.server.genericServer.LocalStringConnection;
 import soc.server.genericServer.Server;
@@ -4902,6 +4903,9 @@ public class SOCServer extends Server
             	// Note who the recipient of the message is - in the case of rej/acc/nr, this will indicate what trade they are responding to
                 StacTradeMessage tr = StacTradeMessage.parse(StacRobotDialogueManager.fromMessage(cmdText));
 
+                // HERE !!!!
+                writeTradeMessageToDB(ga, tr);                
+                
                 //evaluate the message if it is an offer
                 if (tr.getOffer() != null) {
                 	//if we are in here it can only be a new offer or a counter-offer
@@ -5187,7 +5191,8 @@ public class SOCServer extends Server
                 //
                 // Send the message to the members of the game
                 //
-                messageToGame(gaName, new SOCGameTextMsg(gaName, (String) c.getData(), cmdText));
+                SOCGameTextMsg sgm = new SOCGameTextMsg(gaName, (String) c.getData(), cmdText);
+                messageToGame(gaName, sgm);
             }
         }
 //        else
@@ -10053,6 +10058,8 @@ public class SOCServer extends Server
                     dbh.createActionTable(gameID);
                 if(!dbh.tableExists(StacDBHelper.EXTFEATURESTABLE + gameID))
                     dbh.createExtractedStateTable(gameID);
+                if(!dbh.tableExists(StacDBHelper.CHATSTABLE + gameID))
+                    dbh.createChatTable(gameID);
             }
             final String gaName = ga.getName();
 
@@ -11480,5 +11487,33 @@ public class SOCServer extends Server
             dbh.insertExtractedState(gameID, egsr);
         }
     }
+    
+    /**
+     * Writes to the Postgresql database the game event (i.e. action) and the state it was executed from
+     * @param ga the game object in which the action was executed
+     * @param stm a StacTradeMessage
+     */
+    private void writeTradeMessageToDB(SOCGame ga, StacTradeMessage stm) {
+        if (COLLECT_FULL_GAMEPLAY) {
+            int gameID;
+            gameID = StacDBHelper.SIMGAMESSTARTID + Integer.parseInt(ga.getName().split("_")[1]);
+            ChatRow chatRow = new ChatRow(idCounter, stm);
+            dbh.insertChat(gameID, chatRow);
+        }
+    }
+    
+    // /**
+    //  * Writes to the Postgresql database the game event (i.e. action) and the state it was executed from
+    //  * @param ga the game object in which the action was executed
+    //  * @param sgm a SOCGameTextMsg
+    //  */
+    // private void writeGameTextMessageToDB(SOCGame ga, SOCGameTextMsg sgm) {
+    //     if (COLLECT_FULL_GAMEPLAY) {
+    //         int gameID;
+    //         gameID = StacDBHelper.SIMGAMESSTARTID + Integer.parseInt(ga.getName().split("_")[1]);
+    //         ChatRow chatRow = new ChatRow(idCounter, sgm);
+    //         dbh.insertChat(gameID, chatRow);
+    //     }
+    // }
 
 }

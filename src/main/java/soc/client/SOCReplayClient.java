@@ -507,6 +507,8 @@ public class SOCReplayClient extends SOCPlayerClient {
 				dbh.createActionTable(gameID);
 			if ((canExtract) && ! dbh.tableExists(StacDBHelper.EXTFEATURESTABLE + gameID))
 				dbh.createExtractedStateTable(gameID);
+			if ((canExtract) && ! dbh.tableExists(StacDBHelper.CHATSTABLE + gameID))
+				dbh.createChatTable(gameID);
 		}
 		
 		@Override

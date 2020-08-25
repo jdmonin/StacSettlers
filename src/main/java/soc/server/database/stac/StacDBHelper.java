@@ -47,7 +47,8 @@ public class StacDBHelper{
     //table names;
     public static final String OBSFEATURESTABLE = "obsgamestates_";
     public static final String EXTFEATURESTABLE = "extgamestates_";
-    public static final String ACTIONSTABLE = "gameactions_";
+	public static final String ACTIONSTABLE = "gameactions_";
+	public static final String CHATSTABLE = "chats_";
     public static final String GAMESTABLE = "games";
     public static final String PLAYERSTABLE = "players";
     public static final String LEAGUESTABLE = "leagues";
@@ -262,6 +263,28 @@ public class StacDBHelper{
 	}
 	
 	/**
+	 * Creates the table containing the chat messages
+	 * @param id the id of the simulation set
+	 */
+	public void createChatTable(int id){
+		try {
+			stmt = conn.createStatement();
+        String sql = "CREATE TABLE " + StacDBHelper.CHATSTABLE + id +
+				" (ID          	SERIAL PRIMARY KEY   NOT NULL, " +
+				" CURRENT_STATE INT, " +
+				" SENDER       	TEXT, " +
+				" RECEIVERS    	TEXT, " +
+                " RAW          	TEXT, " +
+                " MESSAGE	   	TEXT) ";
+			stmt.executeUpdate(sql);
+			stmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+//		 System.out.println("Table StateValue_" + id + " created successfully");
+	}
+	
+	/**
 	 * Inserts a row into the raw states table.
 	 * @param gameID the ID of the game from the games table in the DB
 	 * @param ogsr the row to insert
@@ -406,6 +429,32 @@ public class StacDBHelper{
 	}
 	
 	/**
+	 * Inserts a row into the value function table.
+	 * @param id the id of the table
+	 * @param row the row to insert
+	 */
+	public void insertChat(int id, ChatRow row){
+		
+		try {
+			String sqlString = "INSERT INTO " + StacDBHelper.CHATSTABLE + id
+						+ " (CURRENT_STATE,SENDER,RECEIVERS,RAW,MESSAGE)"
+					   	+ "VALUES (?,?,?,?,?);";
+			PreparedStatement ps = conn.prepareStatement(sqlString);
+			ps.setInt(1, row.getCurrentState());
+			ps.setString(2, row.getSender());
+			ps.setString(3, row.getReceivers());
+			ps.setString(4, row.getRaw());
+			ps.setString(5, row.getMessage());
+			ps.execute();
+			ps.close();
+			
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+//		System.out.println("Value row created successfully");
+	}
+	
+	/**
 	 * Drops a table.
 	 * @param tableName the name of the table to drop
 	 */
@@ -452,7 +501,7 @@ public class StacDBHelper{
 		ExtGameStateRow egsr = new ExtGameStateRow(egsrID, "");
 		try {
 			stmt = conn.createStatement();
-		    ResultSet rs = stmt.executeQuery( "SELECT * FROM extgamestates_" + gameID + " WHERE ID=" + egsrID +";");
+		    ResultSet rs = stmt.executeQuery( "SELECT * FROM " + StacDBHelper.EXTFEATURESTABLE + gameID + " WHERE ID=" + egsrID +";");
 		    while ( rs.next() ) {
 		    	//should only be one as ID is a unique primary key;
 		    	egsr.setGameName(rs.getString("name"));
@@ -494,7 +543,7 @@ public class StacDBHelper{
 		ObsGameStateRow ogsr = new ObsGameStateRow(ogsrID, "");
 		try {
 			stmt = conn.createStatement();
-		    ResultSet rs = stmt.executeQuery( "SELECT * FROM obsgamestates_" + gameID + " WHERE ID=" + ogsrID +";");
+		    ResultSet rs = stmt.executeQuery( "SELECT * FROM " + StacDBHelper.OBSFEATURESTABLE + gameID + " WHERE ID=" + ogsrID +";");
 		    while ( rs.next() ) {
 		    	//should only be one as ID is a unique primary key;
 		    	ogsr.setGameName(rs.getString("name"));
@@ -538,7 +587,7 @@ public class StacDBHelper{
 		GameActionRow gar = new GameActionRow(garID);
 		try {
 			stmt = conn.createStatement();
-		    ResultSet rs = stmt.executeQuery( "SELECT * FROM gameactions_" + gameID + " WHERE ID=" + garID +";");
+		    ResultSet rs = stmt.executeQuery( "SELECT * FROM " + StacDBHelper.ACTIONSTABLE + gameID + " WHERE ID=" + garID +";");
 		    while ( rs.next() ) {
 		    	//should only be one as ID is a unique primary key;
 		    	gar.setBeforeState(rs.getInt("beforestate"));
@@ -702,7 +751,7 @@ public class StacDBHelper{
 	 */
 	public void updateDistanceToPort(ExtGameStateRow egsr, int gameID){
 		try {
-			String sqlString = "UPDATE extgamestates_" + gameID + "set DISTTOPORT=? where ID=" + egsr.getID() + ";";
+			String sqlString = "UPDATE " + StacDBHelper.EXTFEATURESTABLE + gameID + "set DISTTOPORT=? where ID=" + egsr.getID() + ";";
 			PreparedStatement ps = conn.prepareStatement(sqlString);
 			ps.setArray(1, conn.createArrayOf("integer", egsr.getDistanceToPort()));
 			ps.execute();
@@ -719,7 +768,7 @@ public class StacDBHelper{
 	 */
 	public void updateDistanceToOpp(ExtGameStateRow egsr, int gameID){
 		try {
-			String sqlString = "UPDATE extgamestates_" + gameID + "set DISTTOOPP=? where ID=" + egsr.getID() + ";";
+			String sqlString = "UPDATE " + StacDBHelper.EXTFEATURESTABLE + gameID + "set DISTTOOPP=? where ID=" + egsr.getID() + ";";
 			PreparedStatement ps = conn.prepareStatement(sqlString);
 			ps.setArray(1, conn.createArrayOf("integer", egsr.getDistanceToOpponents()));
 			ps.execute();
@@ -736,7 +785,7 @@ public class StacDBHelper{
 	 */
 	public void updateDistanceToLegal(ExtGameStateRow egsr, int gameID){
 		try {
-			String sqlString = "UPDATE extgamestates_" + gameID + "set DISTTOLEGAL=? where ID=" + egsr.getID() + ";";
+			String sqlString = "UPDATE " + StacDBHelper.EXTFEATURESTABLE + gameID + "set DISTTOLEGAL=? where ID=" + egsr.getID() + ";";
 			PreparedStatement ps = conn.prepareStatement(sqlString);
 			ps.setArray(1, conn.createArrayOf("integer", egsr.getDistanceToNextLegalLoc()));
 			ps.execute();
@@ -755,7 +804,7 @@ public class StacDBHelper{
 	public void updateActionValue(int gameID, int actionID, int value){
 		try {
 	        stmt = conn.createStatement();
-	        String sql = "UPDATE gameactions_" + gameID + " set VALUE =" + value + " where ID=" + actionID +";";
+	        String sql = "UPDATE " + StacDBHelper.ACTIONSTABLE + gameID + " set VALUE =" + value + " where ID=" + actionID +";";
 	        stmt.executeUpdate(sql);
 	        conn.commit();
 	        stmt.close();
@@ -977,7 +1026,7 @@ public class StacDBHelper{
 		Vector ogsrs = new Vector();
 		try {
 			stmt = conn.createStatement();
-		    ResultSet rs = stmt.executeQuery( "SELECT * FROM obsgamestates_" + gameID + " WHERE GAMESTATE=" + gameState +";");
+		    ResultSet rs = stmt.executeQuery( "SELECT * FROM " + StacDBHelper.OBSFEATURESTABLE + gameID + " WHERE GAMESTATE=" + gameState +";");
 		    while ( rs.next() ) {
 		    	ObsGameStateRow ogsr = new ObsGameStateRow(0, ""); //ID will be reset later
 		    	ogsr.setID(rs.getInt("ID"));

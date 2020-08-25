@@ -16,6 +16,9 @@ build:
 	JAVA_HOME=`/usr/libexec/java_home -v1.8` mvn install:install-file -Dfile=lib/MCTS-1.0.jar -DgroupId=local -DartifactId=MCTS -Dversion=1.0 -Dpackaging=jar -DgeneratePom=true
 	JAVA_HOME=`/usr/libexec/java_home -v1.8` mvn install:install-file -Dfile=lib/DeepCatan-0.0.1.jar -DgroupId=local -DartifactId=DeepCatan -Dversion=0.0.1 -Dpackaging=jar -DgeneratePom=true
 	JAVA_HOME=`/usr/libexec/java_home -v1.8` mvn package
+	
+package:
+	JAVA_HOME=`/usr/libexec/java_home -v1.8` mvn package
 
 ###
 # Simulation
@@ -33,6 +36,9 @@ delete_simu:
 
 replay_simu:
 	JAVA_HOME=`/usr/libexec/java_home -v1.8` java -cp $(STAC_SETTLERS_JAR) soc.client.SOCReplayClient
+
+replay_simu_and_collect:
+	JAVA_HOME=`/usr/libexec/java_home -v1.8` java -cp $(STAC_SETTLERS_JAR) soc.client.SOCReplayClient -c
 
 # Run the nodejs server
 nodejs_server:
