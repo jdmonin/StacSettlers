@@ -10053,7 +10053,7 @@ public class SOCServer extends Server
                 gameID = StacDBHelper.SIMGAMESSTARTID + Integer.parseInt(ga.getName().split("_")[1]);
                 //create tables also
                 if(!dbh.tableExists(StacDBHelper.OBSFEATURESTABLE + gameID))
-                    dbh.createRawStateTable(gameID);
+                    dbh.createObsGameStateTable(gameID);
                 if(!dbh.tableExists(StacDBHelper.ACTIONSTABLE + gameID))
                     dbh.createActionTable(gameID);
                 if(!dbh.tableExists(StacDBHelper.EXTFEATURESTABLE + gameID))
@@ -11480,9 +11480,20 @@ public class SOCServer extends Server
 
             for (SOCPlayer p : ga.getPlayers()) {
                 int pn = p.getPlayerNumber();
-                ogsr.setPlayerID(pn, 0);
+                String pName = p.getName();
+                if(dbh.isConnected()) {
+                    int playerID = dbh.getPlayerIDByName(pName);
+                    if(playerID != -1){ 
+	            		ogsr.setPlayerID(pn, playerID);
+	            	} else {
+                        ogsr.setPlayerID(pn, 0);
+                    }
+                } else {
+                    ogsr.setPlayerID(pn, 0);
+                }
+                
             }
-            dbh.insertRawState(gameID, ogsr);
+            dbh.insertObsGameState(gameID, ogsr);
             dbh.insertAction(gameID, gar);
             dbh.insertExtractedState(gameID, egsr);
         }
@@ -11498,6 +11509,17 @@ public class SOCServer extends Server
             int gameID;
             gameID = StacDBHelper.SIMGAMESSTARTID + Integer.parseInt(ga.getName().split("_")[1]);
             ChatRow chatRow = new ChatRow(idCounter, stm);
+            String receivers = "";
+            for (SOCPlayer p : ga.getPlayers()) {
+                if (stm.getSenderInt() == p.getPlayerNumber()){
+                    String pName = p.getName();
+                    chatRow.setSender(pName);    
+                } else {
+                    receivers += p.getName() + ",";
+                }
+            }
+            chatRow.setReceivers(receivers.substring(0, receivers.length() - 1));
+                
             dbh.insertChat(gameID, chatRow);
         }
     }

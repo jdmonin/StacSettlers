@@ -68,8 +68,16 @@ public class ChatRow {
 		return this.sender;
 	}
 	
+	public void setSender(String sender) {
+		this.sender = sender;
+	}
+	
 	public String getReceivers() {
 		return this.receivers;
+	}
+	
+	public void setReceivers(String receivers) {
+		this.receivers = receivers;
 	}
 	
 	public String getRaw() {

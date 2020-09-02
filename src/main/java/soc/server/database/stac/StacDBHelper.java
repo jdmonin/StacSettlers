@@ -156,12 +156,13 @@ public class StacDBHelper{
 	 * Creates the table containing the raw features collected from the logs. The table can be found in the db by the name: ObsGameStates_{gameID}.
 	 * @param gameID the ID of the game from the games table in the DB.
 	 */
-	public void createRawStateTable(int gameID){
+	public void createObsGameStateTable(int gameID){
 		try {
 			stmt = conn.createStatement();
         String sql = "CREATE TABLE ObsGameStates_" + gameID +
                      " (ID              INT PRIMARY KEY   NOT NULL, " +
-                     " NAME             TEXT              NOT NULL, " +
+					 " NAME             TEXT              NOT NULL, " +
+					 " GAMETURN	        INT               NOT NULL, " +
                      " HEXLAYOUT        INT[37]           NOT NULL, " +
                      " NUMBERLAYOUT     INT[37]           NOT NULL, " +
                      " ROBBERHEX        INT               NOT NULL, " +
@@ -172,7 +173,8 @@ public class StacDBHelper{
                      " CURRENTPLAYER    INT               NOT NULL, " +
                      " PLAYEDDEVCARD    BOOLEAN           NOT NULL, " + //has the current player played a dev card;
                      " PIECESONBOARD    INT[][3]          NOT NULL, " + //all the pieces on the board with TYPE, COORD and OWNER
-                     " PLAYERS  	    INT[4][41]        NOT NULL, " + //for each player all personal information aside from pieces and numbers touching
+					 " PLAYERS  	    INT[4][35]        NOT NULL, " + //for each player all personal information aside from pieces and numbers touching
+					 " PLAYERSRESOURCES INT[4][6]        NOT NULL, " + //for each player all resources
                      " TOUCHINGNUMBERS  INT[4][5][]		  NOT NULL)";   //3D because: for each player and for each resource, what numbers on the board
 			stmt.executeUpdate(sql);
 			stmt.close();
@@ -289,25 +291,27 @@ public class StacDBHelper{
 	 * @param gameID the ID of the game from the games table in the DB
 	 * @param ogsr the row to insert
 	 */
-	public void insertRawState(int gameID, ObsGameStateRow ogsr){
-		String sqlString = "INSERT INTO ObsGameStates_" + gameID + " (ID,NAME,HEXLAYOUT,NUMBERLAYOUT,ROBBERHEX,GAMESTATE,DEVCARDSLEFT,DICERESULT," +
-				"STARTINGPLAYER,CURRENTPLAYER,PLAYEDDEVCARD,PIECESONBOARD,PLAYERS,TOUCHINGNUMBERS) "
-				+ "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+	public void insertObsGameState(int gameID, ObsGameStateRow ogsr){
+		String sqlString = "INSERT INTO ObsGameStates_" + gameID + " (ID,NAME,GAMETURN,HEXLAYOUT,NUMBERLAYOUT,ROBBERHEX,GAMESTATE,DEVCARDSLEFT,DICERESULT," +
+				"STARTINGPLAYER,CURRENTPLAYER,PLAYEDDEVCARD,PIECESONBOARD,PLAYERSRESOURCES,PLAYERS,TOUCHINGNUMBERS) "
+				+ "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
 		try(PreparedStatement ps = conn.prepareStatement(sqlString)) {
 			ps.setInt(1, ogsr.getID());
 			ps.setString(2, ogsr.getGameName());
-			ps.setArray(3, conn.createArrayOf("integer", ogsr.getHexLayout()));
-			ps.setArray(4, conn.createArrayOf("integer", ogsr.getNumberLayout()));
-			ps.setInt(5, ogsr.getRobberHex());
-			ps.setInt(6, ogsr.getGameState());
-			ps.setInt(7, ogsr.getDevCardsLeft());
-			ps.setInt(8, ogsr.getDiceResult());
-			ps.setInt(9, ogsr.getStartingPlayer());
-			ps.setInt(10, ogsr.getCurrentPlayer());
-			ps.setBoolean(11, ogsr.hasPlayedDevCard());
-			ps.setArray(12, conn.createArrayOf("integer", ogsr.getPiecesOnBoard()));
-			ps.setArray(13, conn.createArrayOf("integer", ogsr.getPlayers()));
-			ps.setArray(14, conn.createArrayOf("integer", ogsr.getTouchingNumbers()));
+			ps.setInt(3, ogsr.getGameTurn());
+			ps.setArray(4, conn.createArrayOf("integer", ogsr.getHexLayout()));
+			ps.setArray(5, conn.createArrayOf("integer", ogsr.getNumberLayout()));
+			ps.setInt(6, ogsr.getRobberHex());
+			ps.setInt(7, ogsr.getGameState());
+			ps.setInt(8, ogsr.getDevCardsLeft());
+			ps.setInt(9, ogsr.getDiceResult());
+			ps.setInt(10, ogsr.getStartingPlayer());
+			ps.setInt(11, ogsr.getCurrentPlayer());
+			ps.setBoolean(12, ogsr.hasPlayedDevCard());
+			ps.setArray(13, conn.createArrayOf("integer", ogsr.getPiecesOnBoard()));
+			ps.setArray(14, conn.createArrayOf("integer", ogsr.getPlayersResources()));
+			ps.setArray(15, conn.createArrayOf("integer", ogsr.getPlayers()));
+			ps.setArray(16, conn.createArrayOf("integer", ogsr.getTouchingNumbers()));
 			ps.execute();
 		} catch (SQLException e) {
 			e.printStackTrace();
@@ -547,6 +551,7 @@ public class StacDBHelper{
 		    while ( rs.next() ) {
 		    	//should only be one as ID is a unique primary key;
 		    	ogsr.setGameName(rs.getString("name"));
+		    	ogsr.setGameTurn(rs.getInt("gameturn"));
 		    	ogsr.setHexLayout((Integer[]) rs.getArray("hexlayout").getArray());
 		    	ogsr.setNumberLayout((Integer[]) rs.getArray("numberlayout").getArray());
 		    	ogsr.setRobberHex(rs.getInt("robberhex"));
@@ -566,6 +571,7 @@ public class StacDBHelper{
 				}
 		    	
 		    	ogsr.setPlayers((Integer[][]) rs.getArray("players").getArray());
+		    	ogsr.setPlayersResources((Integer[][]) rs.getArray("playersResources").getArray());
 		    	ogsr.setTouchingNumbers((Integer[][][]) rs.getArray("touchingnumbers").getArray());
 		    }
 		    rs.close();
@@ -935,6 +941,27 @@ public class StacDBHelper{
 	}
 	
 	/**
+	 * @param playerName the player's name
+	 * @return -1 if it can't find it or the player's id
+	 */
+	public int getPlayerIDByName(String playerName){
+		int id = -1;
+		try {
+			stmt = conn.createStatement();
+		    ResultSet rs = stmt.executeQuery( "SELECT id FROM players WHERE name = '" + playerName.toLowerCase() +"';");
+		    while ( rs.next() ) {
+		    	id = rs.getInt("id");
+		    }
+		    rs.close();
+		    stmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		
+		return id;
+	}
+	
+	/**
 	 * @param gameID the game's id
 	 * @return empty string if it can't find it or the game's name
 	 */
@@ -1031,6 +1058,7 @@ public class StacDBHelper{
 		    	ObsGameStateRow ogsr = new ObsGameStateRow(0, ""); //ID will be reset later
 		    	ogsr.setID(rs.getInt("ID"));
 		    	ogsr.setGameName(rs.getString("name"));
+		    	ogsr.setGameTurn(rs.getInt("gameturn"));
 		    	ogsr.setHexLayout((Integer[]) rs.getArray("hexlayout").getArray());
 		    	ogsr.setNumberLayout((Integer[]) rs.getArray("numberlayout").getArray());
 		    	ogsr.setRobberHex(rs.getInt("robberhex"));
@@ -1049,7 +1077,9 @@ public class StacDBHelper{
 					ogsr.setPiecesOnBoard(decoy);
 				}
 		    	ogsr.setPlayers((Integer[][]) rs.getArray("players").getArray());
-		    	ogsr.setTouchingNumbers((Integer[][][]) rs.getArray("touchingnumbers").getArray());
+		    	ogsr.setPlayersResources((Integer[][]) rs.getArray("playersresources").getArray());
+				ogsr.setTouchingNumbers((Integer[][][]) rs.getArray("touchingnumbers").getArray());
+				
 		    	ogsrs.add(ogsr);
 		    }
 		    rs.close();

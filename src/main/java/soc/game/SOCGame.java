@@ -5053,6 +5053,7 @@ public class SOCGame implements Serializable, Cloneable
         int[] hexes = board.getHexLayout();
         int[] numbers = board.getNumberLayout();
         int robber = board.getRobberHex();   
+        ogsr.setGameTurn(getRoundCount());
         ogsr.setHexLayout(hexes);
         ogsr.setNumberLayout(numbers);
         ogsr.setRobberHex(robber);
@@ -5067,7 +5068,8 @@ public class SOCGame implements Serializable, Cloneable
         Integer[][] pob = new Integer[board.getPieces().size()][3];
         int piecesIndex = 0;
         //initialise players array
-        ogsr.setPlayers(new Integer[4][41]);
+        ogsr.setPlayers(new Integer[4][35]);
+        ogsr.setPlayersResources(new Integer[4][6]);
         ogsr.setTouchingNumbers(new Integer[4][5][]);
         
         for (SOCPlayer p : getPlayers()) {

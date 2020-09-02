@@ -33,6 +33,10 @@ public class ObsGameStateRow implements Serializable{
 	 */
 	private Integer[] numberLayout;
 	/**
+	 * Game turn (one player can make many actions per turn)
+	 */
+	private int gameTurn;
+	/**
 	 * Robber's location
 	 */
 	private int robberHex;
@@ -65,13 +69,19 @@ public class ObsGameStateRow implements Serializable{
 	 */
 	private Integer[][] piecesOnBoard; 
 	/**
-	 * A 4x37 array containing all the data for each player in the following order: player's ID (from the db), public vp, total vp, largest army,
+	 * A 4x35 array containing all the data for each player in the following order: player's ID (from the db), public vp, total vp, largest army,
 	 * longest road, total number of development cards in hand, number of dev cards which represent a vp, an array[5] of all the unplayed dev cards,
-	 * an array[5] of all the newly bought dev cards, number of played knights, an array[6] containing the number of each resource(including unknowns),
+	 * an array[5] of all the newly bought dev cards, number of played knights,
 	 * an array[5] of which resource types the player is touching, an array[5] of which port types the player is touching, an array[3] of all the 
 	 * pieces the player can still build. All booleans (LA,LR labels, touching stuff are represented in 1for true or 0 for false).
 	 */
 	private Integer[][] players;
+	
+	/**
+	 * All players resources (including unknowns)
+	 */
+	private Integer[][] playersResources;
+	
 	/**
 	 * A 4x5xn array, containing a list of all the numbers for each resource touched by each player. 
 	 * (Do not want to include this in the above array as it complicates things)
@@ -97,6 +107,14 @@ public class ObsGameStateRow implements Serializable{
 
 	public void setGameName(String name) {
 		this.gameName = name;
+	}
+	
+	public int getGameTurn() {
+		return gameTurn;
+	}
+
+	public void setGameTurn(int turn) {
+		gameTurn = turn;
 	}
 
 	public Integer[] getHexLayout() {
@@ -185,6 +203,14 @@ public class ObsGameStateRow implements Serializable{
 
 	public void setPlayers(Integer[][] players) {
 		this.players = players;
+	}
+	
+	public Integer[][] getPlayersResources() {
+		return playersResources;
+	}
+	
+	public void setPlayersResources(Integer[][] playersResources) {
+		this.playersResources = playersResources;
 	}
 
 	public Integer[][][] getTouchingNumbers() {
@@ -287,85 +313,86 @@ public class ObsGameStateRow implements Serializable{
 	public int[] getResources(int pn){
 		int[] rss = new int[6];
 		for(int i = 0; i < 6; i++)
-			rss[i] = players[pn][i+18]; //6 positions from index 18(including)
+			rss[i] = playersResources[pn][i];
 		return rss; 
 	}
 	
 	public void setResources(int pn, int[] rss){
-		for(int i = 0; i < 6; i++)
-		players[pn][i+18] = rss[i]; 
+		for(int i = 0; i < 6; i++) {
+			playersResources[pn][i] = rss[i];
+		}
 	}
 	
 	public int[] getTouchingResourceTypes(int pn){
 		int[] trt = new int[5];
 		for(int i = 0; i < 5; i++)
-			trt[i] = players[pn][i+24]; //5 positions from index 24(including)
+			trt[i] = players[pn][i+18]; //5 positions from index 18(including)
 		return trt; 
 	}
 	
 	public void setTouchingResourceTypes(int pn, int[] trt){
 		for(int i = 0; i < 5; i++)
-		players[pn][i+24] = trt[i]; 
+		players[pn][i+18] = trt[i]; 
 	}
 	
 	public int[] getTouchingPortTypes(int pn){
 		int[] tpt = new int[6];
 		for(int i = 0; i < 6; i++)
-			tpt[i] = players[pn][i+29]; //5 positions from index 29(including)
+			tpt[i] = players[pn][i+23]; //5 positions from index 23(including)
 		return tpt; 
 	}
 	
 	public void setTouchingPortTypes(int pn, int[] tpt){
 		for(int i = 0; i < 6; i++)
-		players[pn][i+29] = tpt[i]; 
+		players[pn][i+23] = tpt[i]; 
 	}
 	
 	public int getRoadsLeftToBuild(int pn){
-		return players[pn][35];
+		return players[pn][29];
 	}
 	
 	public int getSettlementsLeftToBuild(int pn){
-		return players[pn][36];
+		return players[pn][30];
 	}
 	
 	public int getCitiesLeftToBuild(int pn){
-		return players[pn][37];
+		return players[pn][31];
 	}
 	
 	public void setRoadsLeftToBuild(int pn, int rltb){
-		players[pn][35] = rltb;
+		players[pn][29] = rltb;
 	}
 	
 	public void setSettlementsLeftToBuild(int pn, int sltb){
-		players[pn][36] = sltb;
+		players[pn][30] = sltb;
 	}
 	
 	public void setCitiesLeftToBuild(int pn, int cltb){
-		players[pn][37] = cltb;
+		players[pn][31] = cltb;
 	}
 	
 	public int getPlayedRB(int pn){
-		return players[pn][38];
+		return players[pn][32];
 	}
 	
 	public int getPlayedMono(int pn){
-		return players[pn][39];
+		return players[pn][33];
 	}
 	
 	public int getPlayedDisc(int pn){
-		return players[pn][40];
+		return players[pn][34];
 	}
 	
 	public void setPlayedRB(int pn, int rltb){
-		players[pn][38] = rltb;
+		players[pn][32] = rltb;
 	}
 	
 	public void setPlayedMono(int pn, int sltb){
-		players[pn][39] = sltb;
+		players[pn][33] = sltb;
 	}
 	
 	public void setPlayedDisc(int pn, int cltb){
-		players[pn][40] = cltb;
+		players[pn][34] = cltb;
 	}
 	
 	public int[][] getPiecesOnBoard(int pn){

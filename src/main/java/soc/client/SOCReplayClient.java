@@ -502,7 +502,7 @@ public class SOCReplayClient extends SOCPlayerClient {
 
 			// create tables also
 			if ((! extractOnly) && ! dbh.tableExists(StacDBHelper.OBSFEATURESTABLE + gameID))
-				dbh.createRawStateTable(gameID);
+				dbh.createObsGameStateTable(gameID);
 			if ((! extractOnly) && ! dbh.tableExists(StacDBHelper.ACTIONSTABLE + gameID))
 				dbh.createActionTable(gameID);
 			if ((canExtract) && ! dbh.tableExists(StacDBHelper.EXTFEATURESTABLE + gameID))
@@ -1027,7 +1027,7 @@ public class SOCReplayClient extends SOCPlayerClient {
 	        //then commit to the db the obs and action rows
             if(dbh.isConnected()){
             	if((!extractOnly) && canExtract){
-		        dbh.insertRawState(gameID, ogsr);
+		        dbh.insertObsGameState(gameID, ogsr);
 		        dbh.insertAction(gameID, gar);
             	}else if(canExtract && extractOnly){
     		        dbh.insertExtractedState(gameID, egsr);
