@@ -8,6 +8,9 @@ import java.awt.Dimension;
 import java.awt.FileDialog;
 import java.awt.FlowLayout;
 import java.awt.Frame;
+import java.awt.Insets;
+import java.awt.Label;
+import java.awt.Panel;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.Arrays;
@@ -15,6 +18,7 @@ import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Vector;
 
+import javax.swing.BoxLayout;
 import javax.swing.JFrame;
 import javax.swing.JTextArea;
 
@@ -181,21 +185,27 @@ public class StacDBReplayClient extends SOCReplayClient{
         // Actual frame for the replay
         client.parentFrame = new Frame("JSettlers Replay client");
         frame = client.parentFrame;
-        frame.setBackground(new Color(Integer.parseInt("61AF71",16)));
-        frame.setForeground(Color.black);
+        Panel pan = new Panel() {
+        	public Insets getInsets() { return new Insets (4, 8, 8, 8); }
+        };
+        pan.setBackground(new Color(Integer.parseInt("61AF71",16)));
+        pan.setForeground(Color.black);
         // Add a listener for the close event
         frame.addWindowListener(client.createWindowAdapter());        
-        frame.setSize(300, 120);        
-        frame.setLayout(new FlowLayout());
+        pan.setLayout(new BoxLayout(pan, BoxLayout.Y_AXIS));
         
         Button b = new Button("Start game");
         b.setPreferredSize(new Dimension(300, 50));
         client.textName = new JTextArea();
         client.textName.setPreferredSize(new Dimension(300, 30));
-        frame.add(b);
-        frame.add(client.textName);
+        pan.add(b);
+        pan.add(new Label("Game name in database:"));
+        pan.add(client.textName);
         b.setActionCommand(START);
         b.addActionListener(client);
+        frame.add(pan);
+        frame.pack();
+        client.textName.requestFocusInWindow();
         frame.setVisible(true);
     }
     
