@@ -546,10 +546,12 @@ public class SOCReplayClient extends SOCPlayerClient {
 				// Put piece messages are problematic, since they affect the score.  Only handle putPiece immediately 
 				//  after a server text message indicating that something has been built.
 				boolean repeatedMsg = false;
-				// Robber gets printed twice.  When we handle a "ChoosePlayer", ignore the next 2 resource messages
+				// Robber gets printed twice.  When we handle a "ChoosePlayer", ignore the next 2 resource messages (SOCPlayerElement)
 				int ignoreNextN = 0;	
+
 				// Track the date of the last message for the purpose of pausing.  No pause before the first message
 				long lastDate = Long.MAX_VALUE; 		
+
 				// we want to avoid sleeping until the board has been initialized.  nothing
 				//  interesting to see there
 				boardInitialized = false;				
@@ -578,14 +580,14 @@ public class SOCReplayClient extends SOCPlayerClient {
 								}		
 								else if (gtm.getText().contains("traded")) {
 									// Echo trade messages in the chat interface as well as the game interface.  Much easier to follow.
-									SOCGameTextMsg chatMsg = new SOCGameTextMsg(gtm.getGame(), "Trade", gtm.getText());
+									SOCGameTextMsg chatMsg = new SOCGameTextMsg(gameName, "Trade", gtm.getText());
 									cl.treat(chatMsg, true);
 									isPlayerText = true;
 									
 									if (gtm.getText().contains("traded")) {
 	                                    lp.writeAugLog("Game State after Trade Action: ");
 	                                    //we need to know who has the player traded with and update the counters here
-	                        			SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(gtm.getGame());
+	                        			SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(gameName);
 	                                    SOCGame ga = pi.getGame();
 	                                  //keep a reference to the old trade numbers
 	                                    for(int i = 0; i < 4; i++)
@@ -601,29 +603,29 @@ public class SOCReplayClient extends SOCPlayerClient {
 //	                        	        	else
 //	                        	        		tradesCounter[ga.getCurrentPlayerNumber()][ga.getPlayer("dummy").getPlayerNumber()]++;
 	                        	        }
-										writeGameState(gtm.getGame(), new double[]{GameActionRow.TRADE});
+										writeGameState(gameName, new double[]{GameActionRow.TRADE});
 	                                }
 								}else if(gtm.getText().contains("gets")){
 									lp.writeAugLog("Game State after Roll Dice action: ");
-									writeGameState(gtm.getGame(),new double[]{GameActionRow.ROLL}); //capture the roll dice result
+									writeGameState(gameName, new double[]{GameActionRow.ROLL}); //capture the roll dice result
 								}else if(gtm.getText().contains("will move the robber")){
 									lp.writeAugLog("Game State after Discard or Roll Dice or Play Soldier actions (exclusive or): ");
-									writeGameState(gtm.getGame(),new double[]{GameActionRow.ROLL,GameActionRow.DISCARD,GameActionRow.PLAYKNIGHT}); //capture the discard/roll/play knight action result
+									writeGameState(gameName, new double[]{GameActionRow.ROLL,GameActionRow.DISCARD,GameActionRow.PLAYKNIGHT}); //capture the discard/roll/play knight action result
 								}else if(gtm.getText().contains("stole a resource")){
 									lp.writeAugLog("Game State after both Move Robber and Choose Player actions (or just Choose Player): ");
-									writeGameState(gtm.getGame(),new double[]{GameActionRow.CHOOSEPLAYER});
+									writeGameState(gameName, new double[]{GameActionRow.CHOOSEPLAYER});
 								}else if(gtm.getText().contains("You monopolized")){
 									lp.writeAugLog("Game State after Play Monopoly Action: ");
-									writeGameState(gtm.getGame(),new double[]{GameActionRow.PLAYMONO});
+									writeGameState(gameName, new double[]{GameActionRow.PLAYMONO});
 								}else if(gtm.getText().contains("received")){
 									lp.writeAugLog("Game State after Play Discovery Action: ");
-									writeGameState(gtm.getGame(),new double[]{GameActionRow.PLAYDISC});
+									writeGameState(gameName, new double[]{GameActionRow.PLAYDISC});
 								}else if(gtm.getText().contains("bought a development card")){
 									lp.writeAugLog("Game State after Buy Dev Card Action: ");
-									writeGameState(gtm.getGame(),new double[]{GameActionRow.BUYDEVCARD});
+									writeGameState(gameName, new double[]{GameActionRow.BUYDEVCARD});
 								}else if(gtm.getText().contains("has won the game")){
 									lp.writeAugLog("Final game state: ");
-									writeGameState(gtm.getGame(),new double[]{GameActionRow.WIN});
+									writeGameState(gameName, new double[]{GameActionRow.WIN});
 								}
 								
 								if (state == TO_BREAK) {
@@ -645,13 +647,13 @@ public class SOCReplayClient extends SOCPlayerClient {
 									ignoreNextN = 0;
 								}else if (sm.getState() == SOCGame.WAITING_FOR_DISCARDS){
 									lp.writeAugLog("Game State only after Rolling a 7(roll Dice) Action: ");
-									writeGameState(sm.getGame(),new double[]{GameActionRow.ROLL}); //capture the rolled a seven result just before having to discard
+									writeGameState(gameName, new double[]{GameActionRow.ROLL}); //capture the rolled a seven result just before having to discard
 								}else if (sm.getState() == SOCGame.PLACING_FREE_ROAD1){
 									lp.writeAugLog("Game State only after Play Road Building Card Action: ");
-									writeGameState(sm.getGame(),new double[]{GameActionRow.PLAYROAD}); //capture the play road building card result
+									writeGameState(gameName, new double[]{GameActionRow.PLAYROAD}); //capture the play road building card result
 								}else if (sm.getState() == SOCGame.WAITING_FOR_CHOICE){
 									lp.writeAugLog("Game State only after Moving The Robber Action: ");
-									writeGameState(sm.getGame(),new double[]{GameActionRow.MOVEROBBER}); //capture the move robber result
+									writeGameState(gameName, new double[]{GameActionRow.MOVEROBBER}); //capture the move robber result
 								}
 							}							
 							if (m != null) {
@@ -680,20 +682,20 @@ public class SOCReplayClient extends SOCPlayerClient {
 										else
 											at = GameActionRow.BUILDCITY;
 										//in here update the game object in the brain and update trackers and this should be it
-	                        			SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(((SOCPutPiece) m).getGame());
+	                        			SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(gameName);
 	                                    SOCGame ga = pi.getGame();
 										dummy.setGame((SOCGame)DeepCopy.copy(ga));
 										dummy.handlePUTPIECE_updateTrackers((SOCPutPiece)m);
-										writeGameState(((SOCPutPiece) m).getGame(),new double[]{at}); //capture the result of buying and building actions
+										writeGameState(gameName, new double[]{at}); //capture the result of buying and building actions
 									}
 								}else if (m instanceof SOCTurn){
 									cl.treat(m, true);
 									lp.writeAugLog("Game State after End Turn Action: ");
-									writeGameState(((SOCTurn) m).getGame(),new double[]{GameActionRow.ENDTURN}); //need to capture the result of the end turn action
+									writeGameState(gameName, new double[]{GameActionRow.ENDTURN}); //need to capture the result of the end turn action
                                                                         if (state == TO_TURN) {
                                                                             state = PAUSE;
                                                                         }
-                                                                        SOCReplayInterface pi = (SOCReplayInterface) cl.playerInterfaces.get(((SOCTurn) m).getGame());
+                                                                        SOCReplayInterface pi = (SOCReplayInterface) cl.playerInterfaces.get(gameName);
                                                                         SOCGame ga = pi.getGame();
                                                                         pi.replayPanel.turnLab.setText("Turn: " + ga.getTurnCount());
 								}else if (m instanceof SOCPlayerElement) {
@@ -717,7 +719,7 @@ public class SOCReplayClient extends SOCPlayerClient {
 											cl.treat(m, true);
 										}
 									}
-                                                                        SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(pe.getGame());
+                                                                        SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(gameName);
                                                                         SOCHandPanel hp = pi.getPlayerHandPanel(pe.getPlayerNumber());
                                                                         hp.updateValue(SOCHandPanel.NUMRESOURCES);
 								}
