@@ -306,12 +306,14 @@ public class SOCServer extends Server
     public static final String PROP_JSETTLERS_STARTROBOTS = "jsettlers.startrobots";
 
     /**
-     * Property <tt>jsettlers.startrobots</tt> to start some robots when the server starts.
+     * Property <tt>stac.robots</tt> to start some STAC robots when the server starts.
      * (The default is 0, no robots are started by default.)
      *<P>
-     * 30% will be "smart" robots, the other 70% will be "fast" robots.
+     * Their parameters are configured through {@code config.txt} stored in the jar ({@link Resources#configName})
+     * from {@code src/main/java/resources/config.txt}: see {@link #setUpStacRobots()}.
+     *<P>
      * Remember that robots count against the {@link #PROP_JSETTLERS_CONNECTIONS max connections} limit.
-     * @since 1.1.09
+     * @since STAC 1.0
      */
     public static final String PROP_STAC_ROBOTS = "stac.robots";
     
@@ -345,7 +347,7 @@ public class SOCServer extends Server
         PROP_JSETTLERS_PORT,     "TCP port number for server to bind to",
         PROP_JSETTLERS_CONNECTIONS,   "Maximum connection count, including robots",
         PROP_JSETTLERS_STARTROBOTS,   "Number of robots to create at startup",
-        PROP_STAC_ROBOTS,   "Number of Stac robots to create at startup",
+        PROP_STAC_ROBOTS,   "Number of Stac robots to create at startup, from jar's " + Resources.configName,
         PROP_JSETTLERS_CLI_MAXCREATECHANNELS,   "Maximum simultaneous channels that a client can create",
         PROP_JSETTLERS_CLI_MAXCREATEGAMES,      "Maximum simultaneous games that a client can create",
         SOCDBHelper.PROP_JSETTLERS_DB_USER,     "DB username",
@@ -931,11 +933,16 @@ public class SOCServer extends Server
             try
             {
             	boolean stacRobots = false;
-            	final int rcount;
-            	if(props.containsKey(PROP_JSETTLERS_STARTROBOTS))
-            		rcount = Integer.parseInt(props.getProperty(PROP_JSETTLERS_STARTROBOTS));
-            	else{
-            		rcount = Integer.parseInt(props.getProperty(PROP_STAC_ROBOTS));//TODO: do we need the number of agents or just use config file for that?
+            	final int rcountBuiltIn = init_getIntProperty(props, PROP_JSETTLERS_STARTROBOTS, 0),
+            		rcountStac = init_getIntProperty(props, PROP_STAC_ROBOTS, 0),  //TODO: do we need the number of agents or just use config file for that?
+            		rcount;
+            	if (rcountBuiltIn != 0)
+            	{
+            		rcount = rcountBuiltIn;
+            		if (rcountStac != 0)
+            			System.err.println("* ignoring prop " + PROP_STAC_ROBOTS + " because " + PROP_JSETTLERS_STARTROBOTS + " > 0");
+            	} else {
+            		rcount = rcountStac;
             		stacRobots = true;
             	}
                 final int hcount = maxConnections - rcount;  // max human client connection count
@@ -978,7 +985,10 @@ public class SOCServer extends Server
     public boolean useRobotSelectionForExperiment = false;
     
     /**
-     * Reads the config.txt file and looks for the Agent fields and sets up the robots accordingly
+     * Reads the {@code config.txt} file stored in the jar,
+     * and looks for the Agent fields and sets up the robots accordingly.
+     *<P>
+     * Is called when {@link #PROP_STAC_ROBOTS} &gt; 0.
      */
     private boolean setUpStacRobots(){
         String agentName; 
@@ -989,21 +999,27 @@ public class SOCServer extends Server
         	InputStream is = url.openStream();
         	config = new BufferedReader(new InputStreamReader(is));
     	} catch (IOException e) {
+			System.err.println("** Could not read jar's " + Resources.configName + ": " + e);
 			e.printStackTrace();
+			return false;
 		}
     	
         List<FactoryDescr> factories = new ArrayList<FactoryDescr>();
         List<String> controlParams = new ArrayList<String>();
+        boolean anyAgents = false, anyNonzeroAgents = false;
     	
         try {
             String nextLine = config.readLine();
             while (nextLine != null) {
             	
                 if(nextLine.contains("Agent")){
+                    anyAgents = true;
                     String p[] = nextLine.split("=");
                     p = p[1].split(",");
                     numAgents = Integer.parseInt(p[0]);
                     agentName = p[1];
+                    if (numAgents > 0)
+                        anyNonzeroAgents = true;
                     SOCRobotFactory factory = null;
                     if(p[2].contains("flatMCTS")){//soc.robot.stac.stacRobotFactory,ORIGINAL_ROBOT
                         factory = new StacRobotBrainFlatMCTS.StacRobotFlatMCTSFactory(new StacRobotType());              	
@@ -1083,11 +1099,21 @@ public class SOCServer extends Server
             }
         
         } catch (FileNotFoundException e) {
+            System.err.println("** Config file " + Resources.configName + "not found");
             e.printStackTrace();
+            return false;
         } catch (IOException e) {
+            System.err.println("** Could not read " + Resources.configName + ": " + e);
             e.printStackTrace();
+            return false;
         }
         
+        if (! anyNonzeroAgents) {
+            String err = (anyAgents) ? "No Agent= lines with count > 0" : "No Agent= lines";
+            System.err.println("* setUpStacRobots: No bots started: " + err + " in jar's " + Resources.configName);
+            return false;
+        }
+
         boolean result = true;
         
         for (FactoryDescr f : factories) {
