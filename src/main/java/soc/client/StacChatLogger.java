@@ -82,9 +82,9 @@ public class StacChatLogger{
 
     public void endLog(String gameName) {
         PrintWriter[] out = outputStreams.get(gameName);
-        for (PrintWriter o : out) {
-            o.close();            
-        }
+        if (out != null)
+            for (PrintWriter o : out)
+                o.close();
         outputStreams.remove(gameName);
     }
 

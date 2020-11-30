@@ -83,6 +83,7 @@ import soc.util.Version;
  *<P>
  * To save a game to the DB with the {@code -c} flag:
  *<UL>
+ *  <LI> DB must be created, {@code database/schema.sql} executed, and connection info placed into {@code src/main/java/dbconfig.txt}
  *  <LI> Game's basic info must already be in {@code games} overview table: id, league, season, unique name.
  *  <LI> Run this once to gather overall stats into {@code trades}, {@code pbps} in {@code games} table
  *  <LI> Run again to create and fill game's Observable State and Game Action tables (and create an empty Extracted State table)
@@ -348,9 +349,12 @@ public class SOCReplayClient extends SOCPlayerClient {
     
     public void actionPerformed(ActionEvent e) {
         // Currently only one action...
-        FileDialog fd = new FileDialog(parentFrame, "Load replay file");        
+        FileDialog fd = new FileDialog(parentFrame, "Load replay file: Select game soclog under logs_server folder");
         fd.setVisible(true);       
-        startPracticeGame(fd.getDirectory() + fd.getFile(), null, true);
+        String fname = fd.getFile();
+        if (fname == null)
+            return;
+        startPracticeGame(fd.getDirectory() + fname, null, true);
     }
 	
     /** 
