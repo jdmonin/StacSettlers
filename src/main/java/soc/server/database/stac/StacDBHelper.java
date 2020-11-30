@@ -539,6 +539,11 @@ public class StacDBHelper{
 	
 	/**
 	 * Selects the row from the obsGameStates_{gameID} table with the ID = {ogsrID}
+	 *<P>
+	 * If the DB was loaded from a pre-2020 dump (like human.sql), its {@code OBSFEATURESTABLE}s won't have
+	 * the {@code playersResources} or {@code gameturn} fields. This method will translate
+	 * from that old schema's {@code players} data into {@code playersResources}.
+	 *
 	 * @param gameID the id of the table
 	 * @param ogsrID the id of the row
 	 * @return the row as a {@link ObsGameStateRow} object
@@ -551,7 +556,9 @@ public class StacDBHelper{
 		    while ( rs.next() ) {
 		    	//should only be one as ID is a unique primary key;
 		    	ogsr.setGameName(rs.getString("name"));
-		    	ogsr.setGameTurn(rs.getInt("gameturn"));
+		    	try {
+		    		ogsr.setGameTurn(rs.getInt("gameturn"));
+		    	} catch (SQLException e) {}
 		    	ogsr.setHexLayout((Integer[]) rs.getArray("hexlayout").getArray());
 		    	ogsr.setNumberLayout((Integer[]) rs.getArray("numberlayout").getArray());
 		    	ogsr.setRobberHex(rs.getInt("robberhex"));
@@ -569,9 +576,28 @@ public class StacDBHelper{
 					decoy[0] = new Integer[]{-1,-1,-1}; //decoy just so the toString method will not fail (remember to check for this when replacing during replay)
 					ogsr.setPiecesOnBoard(decoy);
 				}
-		    	
-		    	ogsr.setPlayers((Integer[][]) rs.getArray("players").getArray());
-		    	ogsr.setPlayersResources((Integer[][]) rs.getArray("playersResources").getArray());
+		    	boolean hasPlayersResources = false;
+		    	try {
+		    		ogsr.setPlayersResources((Integer[][]) rs.getArray("playersResources").getArray());
+		    		hasPlayersResources = true;
+		    	} catch (SQLException e) {}
+		    	Integer[][] playersData = (Integer[][]) rs.getArray("players").getArray();
+		    	if (hasPlayersResources) {
+		    		ogsr.setPlayers(playersData);
+		    	} else {
+		    		// extract player resources from pre-2020 players array format
+		    		Integer[][] playersRes = new Integer[4][];
+		    		for (int pn = 0; pn <= 3; ++pn) {
+			    		playersRes[pn] = new Integer[6];
+			    		System.arraycopy(playersData[pn], 18, playersRes[pn], 0, 6);
+			    		int L = playersData[pn].length;
+			    		Integer[] newData = Arrays.copyOf(playersData[pn], L - 6);
+			    		System.arraycopy(playersData[pn], 18+6, newData, 18, L - (18+6));
+			    		playersData[pn] = newData;
+		    		}
+		    		ogsr.setPlayersResources(playersRes);
+		    		ogsr.setPlayers(playersData);
+		    	}
 		    	ogsr.setTouchingNumbers((Integer[][][]) rs.getArray("touchingnumbers").getArray());
 		    }
 		    rs.close();
