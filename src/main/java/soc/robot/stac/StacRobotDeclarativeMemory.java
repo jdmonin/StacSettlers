@@ -863,7 +863,7 @@ public class StacRobotDeclarativeMemory implements Serializable{
             if (pastOffer.hasDisjunctiveGiveSet()) {
                 if ((offerToCheck.hasDisjunctiveGiveSet() || offerToCheck.getGiveSet().numberOfResourceTypes() == 1) && offerToCheck.getGiveSet().isSubsetOf(pastOffer.getGiveSet()))
                     giveSetMatches = true;
-            } else if (pastOffer.getGiveSet().isEmptySet())
+            } else if (pastOffer.getGiveSet().isEmpty())
                 giveSetMatches = true;
             else if (pastOffer.getGiveSet().equals(offerToCheck.getGiveSet()))
                 giveSetMatches = true;
@@ -871,7 +871,7 @@ public class StacRobotDeclarativeMemory implements Serializable{
                 if (pastOffer.hasDisjunctiveGetSet()) {
                     if ((offerToCheck.hasDisjunctiveGetSet() || offerToCheck.getGetSet().numberOfResourceTypes() == 1) && offerToCheck.getGetSet().isSubsetOf(pastOffer.getGetSet()))
                         return true;
-                } else if (pastOffer.getGetSet().isEmptySet())
+                } else if (pastOffer.getGetSet().isEmpty())
                     return true;
                 else if (pastOffer.getGetSet().equals(offerToCheck.getGetSet()))
                     return true;

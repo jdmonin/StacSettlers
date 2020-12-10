@@ -1,7 +1,8 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2008-2010 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2008-2014,2016-2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net> - getGameNames, parameterize types
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,58 +17,97 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.util;
 
 import soc.disableDebug.D;
 import soc.game.SOCGame;
 import soc.game.SOCGameOption;
+import soc.game.SOCGameOptionSet;
 import soc.message.SOCGames;
 
-import java.util.Enumeration;
 import java.util.Hashtable;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 
 /**
  * A class for creating and tracking the games;
  * contains each game's name, {@link SOCGameOption game options},
- * {@link SOCGame} object, and mutex for synchronization.
+ * and mutex for synchronization.
  *<P>
  * In 1.1.07, moved from soc.server to soc.util package for client's use.
  * Some methods moved to new subclass {@link soc.server.SOCGameListAtServer}.
- * That subclass also tracks each game's clients ({@link soc.server.genericServer.StringConnection}s).
+ * That subclass also tracks each game's {@link SOCGame} object and
+ * its client {@link soc.server.genericServer.Connection Connection}s.
  *<P>
  * The client-side addGame methods allow game names to have a prefix which marks them
  * as unjoinable by the client ({@link SOCGames#MARKER_THIS_GAME_UNJOINABLE}).
  * If the game name has this prefix, its {@link GameInfo#canJoin} flag is set to false,
  * as queried by {@link #isUnjoinableGame(String)}.  The prefix is stripped within addGame,
  * and not stored as part of the game name in this list.
- * Besides addGame, never supply this prefix to a SOCGameList method taking a game name;
+ * Except to {@code addGame}, never supply this prefix to a SOCGameList method taking a game name;
  * supply the game name without the prefix.
  *
  * @author Robert S. Thomas
  */
 public class SOCGameList
 {
-    /** key = String, value = {@link GameInfo}; includes mutexes to synchronize game state access,
-     *  game options, and other per-game info
+    /**
+     * Maximum permitted game name length, default 30 characters.
+     *<P>
+     * Before v1.1.13, the default maximum was 20 characters.<BR>
+     * From v1.1.07 through 1.2.00, this field was {@code SOCServer.GAME_NAME_MAX_LENGTH}.
+     *
+     * @see soc.server.SOCServer#createOrJoinGameIfUserOK(soc.server.genericServer.Connection, String, String, String, SOCGameOptionSet)
+     * @since 1.2.01
      */
-    protected Hashtable gameInfo;
+    public static final int GAME_NAME_MAX_LENGTH = 30;
 
-    /** map of game names to {@link SOCGame} objects */
-    protected Hashtable gameData;
+    /**
+     * Regex pattern to match a string which is entirely digits or punctuation:
+     * 0-9 or unicode class {@code Nd} ({@link Character#isDigit(int)})
+     * or <tt>\p{Punct}</tt> or <tt>\p{IsPunctuation}</tt>.
+     * Useful for checking validity of a new game name at client or server.
+     * @since 2.0.00
+     */
+    public static final Pattern REGEX_ALL_DIGITS_OR_PUNCT =
+        Pattern.compile("^[\\p{Nd}\\p{Punct}\\p{P}]+$");
+        // \d won't capture unicode digits without using (?U) not available before java 7 (UNICODE_CHARACTER_CLASS).
+        // \p{P} (IsPunctuation) matches 632 unicode chars, but only \p{Punct} includes $, +, <, =, >, ^, `, |, and ~
+        //    -- https://stackoverflow.com/questions/13925454/check-if-string-is-a-punctuation-character
+        //       answer by hans-brende 2018-03-15
+        // Replaced \p{IsPunctuation} with \p{P} for java 1.5 compat.
+        // If you adjust this regex, also update soctest.util.TestGameList method testRegexAllDigitsOrPunct().
+
+    /**
+     * Info about every game in this {@code SOCGameList}.
+     * key = String, value = {@link GameInfo}; includes mutexes to synchronize game state access,
+     * game options, and other per-game info
+     * @see soc.server.SOCGameListAtServer#gameData
+     */
+    protected Hashtable<String, GameInfo> gameInfo;
+
+    /**
+     * All Known Options for the server hosting these games.
+     * @since 2.4.50
+     */
+    protected final SOCGameOptionSet knownOpts;
 
     /** used with gamelist's monitor */
     protected boolean inUse;
 
     /**
      * constructor
+     * @param knownOpts All Known Options at server hosting the games in this list,
+     *     if might be needed for {@link #parseGameOptions(String)}, or {@code null} if not needed
      */
-    public SOCGameList()
+    public SOCGameList(final SOCGameOptionSet knownOpts)
     {
-        gameInfo = new Hashtable();
-        gameData = new Hashtable();
+        gameInfo = new Hashtable<String, GameInfo>();
+        this.knownOpts = knownOpts;
         inUse = false;
     }
 
@@ -82,7 +122,7 @@ public class SOCGameList
         {
             try
             {
-                wait(1000);
+                wait(1000);  // timeout to help avoid deadlock
             }
             catch (InterruptedException e)
             {
@@ -111,19 +151,21 @@ public class SOCGameList
     public synchronized void replaceGame(SOCGame newGame){
     	gameData.put(newGame.getName(), newGame);
     }
-    
+
     /**
-     * take the monitor for this game
+     * take the monitor for this game.
+     * When done with it, you must call {@link #releaseMonitorForGame(String)}.
      *
      * @param game  the name of the game
-     * @return false if the game has no mutex, or game not found in the list
+     * @return false if the game has no mutex, or game not found in the list,
+     *   or {@link GameInfo#gameDestroyed} is true
      */
     public boolean takeMonitorForGame(String game)
     {
         // D.ebugPrintln("SOCGameList : TAKE MONITOR FOR " + game);
 
-        GameInfo info = (GameInfo) gameInfo.get(game);
-        if (info == null)
+        GameInfo info = gameInfo.get(game);
+        if ((info == null) || info.gameDestroyed)
         {
             return false;
         }
@@ -142,6 +184,12 @@ public class SOCGameList
             {
                 return false;
             }
+            if (info.gameDestroyed)
+            {
+                // Debug print is JM temp add: (TODO)
+                soc.debug.D.ebugPrintStackTrace(null, "Game " + game + " was destroyed while waiting");
+                return false;
+            }
 
             synchronized (mutex)
             {
@@ -149,7 +197,7 @@ public class SOCGameList
                 {
                     try
                     {
-                        mutex.wait(1000);
+                        mutex.wait(1000);  // timeout to help avoid deadlock
                     }
                     catch (InterruptedException e)
                     {
@@ -169,7 +217,10 @@ public class SOCGameList
     }
 
     /**
-     * release the monitor for this game
+     * Release the monitor for this game,
+     * recently taken by {@link #takeMonitorForGame(String)}.
+     *<P>
+     * Release is allowed even if {@link GameInfo#gameDestroyed} is true.
      *
      * @param game  the name of the game
      * @return false if the game has no mutex
@@ -178,7 +229,7 @@ public class SOCGameList
     {
         // D.ebugPrintln("SOCGameList : RELEASE MONITOR FOR " + game);
 
-        GameInfo info = (GameInfo) gameInfo.get(game);
+        GameInfo info = gameInfo.get(game);
         if (info == null)
             return false;
         MutexFlag mutex = info.mutex;
@@ -199,29 +250,17 @@ public class SOCGameList
 
     /**
      * Get the names of every game we know about, even those with no {@link SOCGame} object.
-     * @return an enumeration of game names (Strings)
-     * @see #getGamesData()
+     * @return an set of game names (Strings)
+     * @see soc.server.SOCGameListAtServer#getGamesData()
+     * @since 2.0.00
      */
-    public Enumeration getGames()
+    public Set<String> getGameNames()
     {
-        return gameInfo.keys();
+        return gameInfo.keySet();
     }
 
     /**
-     * Get all the {@link SOCGame} data available; some games in {@link #getGames()}
-     * may not have associated SOCGame data, so this enumeration may have fewer
-     * elements than getGames, or even 0 elements.
-     * @return an enumeration of game data (SOCGames)
-     * @see #getGames()
-     * @since 1.1.06
-     */
-    public Enumeration getGamesData()
-    {
-        return gameData.elements();
-    }
-
-    /**
-     * the number of games in our list
+     * Get the size (number of games) in our list.
      * @return the number of games in our list
      * @since 1.1.07
      */
@@ -231,26 +270,16 @@ public class SOCGameList
     }
 
     /**
-     * get a game's SOCGame, if we've stored that
-     * @param   gaName  game name
-     * @return the game object data, or null
-     */
-    public SOCGame getGameData(String gaName)
-    {
-        return (SOCGame) gameData.get(gaName);
-    }
-
-    /**
      * get a game's {@link SOCGameOption}s, if stored and parsed
      * @param   gaName  game name
-     * @return the game options (hashtable of {@link SOCGameOption}), or null if none or if unparsed
+     * @return the game options (map of {@link SOCGameOption}), or null if none or if unparsed
      * @see #getGameOptionsString(String)
      * @see #parseGameOptions(String)
      * @since 1.1.07
      */
-    public Hashtable getGameOptions(String gaName)
+    public SOCGameOptionSet getGameOptions(String gaName)
     {
-        GameInfo info = (GameInfo) gameInfo.get(gaName);
+        GameInfo info = gameInfo.get(gaName);
         if (info == null)
             return null;
         else
@@ -266,7 +295,7 @@ public class SOCGameList
      */
     public String getGameOptionsString(String gaName)
     {
-        GameInfo info = (GameInfo) gameInfo.get(gaName);
+        GameInfo info = gameInfo.get(gaName);
         if (info == null)
             return null;
         else
@@ -274,16 +303,17 @@ public class SOCGameList
     }
 
     /**
-     * Parse these game options from string to hashtable.
+     * Parse this game's options from string to {@link SOCGameOption}s.
      * Should not be called at client before any updates to "known options" are received from server.
+     * Calls {@link GameInfo#parseOptsStr()}.
      * @param   gaName  game name
-     * @return the game options (hashtable of {@link SOCGameOption}), or null if none
+     * @return the game options, or null if none
      * @see #getGameOptionsString(String)
      * @since 1.1.07
      */
-    public Hashtable parseGameOptions(String gaName)
+    public SOCGameOptionSet parseGameOptions(String gaName)
     {
-        GameInfo info = (GameInfo) gameInfo.get(gaName);
+        GameInfo info = gameInfo.get(gaName);
         if (info == null)
             return null;
         else
@@ -297,11 +327,12 @@ public class SOCGameList
      */
     public boolean isGame(String gaName)
     {
-        return (gameInfo.get(gaName) != null);
+        return gameInfo.containsKey(gaName);
     }
 
     /**
-     * does this game have the unjoinable flag prefix?
+     * does this game have the unjoinable flag, either in its game info in our GameList,
+     *     or by a special prefix in its name string?
      * @param   gaName  the name of the game;  may be marked with the prefix
      *         {@link soc.message.SOCGames#MARKER_THIS_GAME_UNJOINABLE}.
      *         Remember that the prefix is not stored as part of the game name in this list,
@@ -315,7 +346,7 @@ public class SOCGameList
     {
         if (gaName.charAt(0) == SOCGames.MARKER_THIS_GAME_UNJOINABLE)
             return true;
-        GameInfo gi = (GameInfo) gameInfo.get(gaName);
+        GameInfo gi = gameInfo.get(gaName);
         if (gi == null)
             return false;
         return ! gi.canJoin;
@@ -325,12 +356,14 @@ public class SOCGameList
      * Client-side - Add this game name, with game options.
      * If a game already exists (per {@link #isGame(String)}), at most clear its canJoin flag.
      *<P>
-     * Server should instead call {@link soc.server.SOCGameListAtServer#createGame(String, Hashtable)}.
+     * Server should instead call
+     * {@link soc.server.SOCGameListAtServer#createGame(String, String, String, SOCGameOptionSet, soc.server.GameHandler)}
+     * or {@link soc.server.SOCGameListAtServer#addGame(SOCGame, soc.server.GameHandler, String, String)}.
      *
      * @param gaName Name of added game; may be marked with the prefix
      *         {@link soc.message.SOCGames#MARKER_THIS_GAME_UNJOINABLE}.
      * @param gaOptsStr set of {@link SOCGameOption}s as packed by
-     *         {@link SOCGameOption#packOptionsToString(Hashtable, boolean)}, or null.
+     *         {@link SOCGameOption#packOptionsToString(Map, boolean, boolean)}, or null.
      *         Game options should remain unparsed as late as possible.
      * @param cannotJoin This game is unjoinable, even if its name doesn't
      *         start with the unjoinable prefix.
@@ -344,27 +377,32 @@ public class SOCGameList
 
     /**
      * Internal use - Add this game name, with game options.
-     * If a game already exists (per {@link #isGame(String)}), at most clear its canJoin flag.
+     * If a game called {@code gaName} is already in this list (per {@link #isGame(String)}),
+     * at most clear its canJoin flag.
+     *<P>
      * Supply gaOpts or gaOptsStr, not both.
      *<P>
      * Client should instead call {@link #addGame(String, String, boolean)} because game options should
      * remain unparsed as late as possible.
-     * Server should instead call {@link soc.server.SOCGameListAtServer#createGame(String, String, Hashtable)}.
+     * Server should instead call
+     * {@link soc.server.SOCGameListAtServer#createGame(String, String, String, SOCGameOptionSet, soc.server.GameHandler)}.
      *
      * @param gaName Name of added game; may be marked with the prefix
      *         {@link soc.message.SOCGames#MARKER_THIS_GAME_UNJOINABLE}.
-     * @param gaOpts Hashtable of {@link SOCGameOption game options} of added game, or null 
+     *         Not validated here for length or naming rules.
+     * @param gaOpts {@link SOCGameOption}s of added game, or null
      * @param gaOptsStr set of {@link SOCGameOption}s as packed by
-     *         {@link SOCGameOption#packOptionsToString(Hashtable, boolean)}, or null.
+     *         {@link SOCGameOption#packOptionsToString(Map, boolean, boolean)}, or null.
      *         Game options should remain unparsed as late as possible.
      * @param cannotJoin This game is unjoinable, even if its name doesn't
      *         start with the unjoinable prefix.
      *         gaName will be checked for the prefix regardless of cannotJoin's value.
      * @see #addGames(SOCGameList, int)
-     * @see #addGames(Enumeration, int)
+     * @see #addGames(Iterable, int)
      * @since 1.1.07
      */
-    protected synchronized void addGame(String gaName, Hashtable gaOpts, String gaOptsStr, boolean cannotJoin)
+    protected synchronized void addGame
+        (String gaName, SOCGameOptionSet gaOpts, String gaOptsStr, boolean cannotJoin)
     {
         if (gaName.charAt(0) == SOCGames.MARKER_THIS_GAME_UNJOINABLE)
         {
@@ -376,11 +414,12 @@ public class SOCGameList
         {
             if (cannotJoin)
             {
-                GameInfo gi = (GameInfo) gameInfo.get(gaName);
+                GameInfo gi = gameInfo.get(gaName);
                 if (gi.canJoin)
                     gi.canJoin = false;
             }
-            return;
+
+            return;  // <--- Early return: Already a known game, don't re-add ---
         }
 
         if (gaOpts != null)
@@ -394,6 +433,10 @@ public class SOCGameList
      * Calls addGame for each one.
      * gl's {@link SOCGame}s will be added first, followed by games for which we only know
      * the name and options.
+     *<P>
+     * For use at client.  Each added game's {@link SOCGameList.GameInfo} is examined for game options
+     * and {@code canJoin} flag, but not directly copied.
+     *
      * @param gl Another SOCGameList from which to copy game data.
      *          If gl is null, nothing happens.
      *          If any game already exists here (per this.{@link #isGame(String)}), don't overwrite it.
@@ -407,15 +450,13 @@ public class SOCGameList
     {
         if ((gl == null) || (gl.gameInfo == null))
             return;
-        if (gl.gameData != null)
-            addGames(gl.gameData.elements(), ourVersion);
+
         if (gl.gameInfo != null)
         {
             // add games, and/or update canJoin flag of games added via gameData.
-            for (Enumeration gnEnum = gl.gameInfo.keys(); gnEnum.hasMoreElements(); )
+            for (String gaName : gl.gameInfo.keySet())
             {
-                String gaName = (String) gnEnum.nextElement();
-                GameInfo gi = (GameInfo) gl.gameInfo.get(gaName);
+                GameInfo gi = gl.gameInfo.get(gaName);
                 if (gi.opts != null)
                     addGame(gaName, gi.opts, null, ! gi.canJoin);
                 else
@@ -426,11 +467,14 @@ public class SOCGameList
 
     /**
      * Add several games to this GameList.
-     * Calls {@link #addGame(String, Hashtable, String, boolean)} for each one.
-     * @param gamelist Enumeration of Strings and/or {@link SOCGame}s (mix and match);
+     * Calls {@link #addGame(String, SOCGameOptionSet, String, boolean)} for each one.
+     *<P>
+     * For use at client.
+     *
+     * @param gameList Enumeration of Strings and/or {@link SOCGame}s (mix and match);
      *          game names may be marked with the prefix
      *          {@link soc.message.SOCGames#MARKER_THIS_GAME_UNJOINABLE}.
-     *          If gamelist is null, nothing happens.
+     *          If gameList is null, nothing happens.
      *          If any game already exists (per {@link #isGame(String)}), don't overwrite it;
      *          at most, clear its canJoin flag.
      * @param ourVersion Version to check to see if we can join,
@@ -439,18 +483,18 @@ public class SOCGameList
      *          will be called.
      * @since 1.1.07
      */
-    public synchronized void addGames(Enumeration gamelist, final int ourVersion)
+    public synchronized void addGames(Iterable<?> gameList, final int ourVersion)
     {
-        if (gamelist == null)
+        if (gameList == null)
             return;
 
-        while (gamelist.hasMoreElements())
+        for (Object ob : gameList)
         {
-            Object ob = gamelist.nextElement();
             String gaName;
-            Hashtable gaOpts;
+            SOCGameOptionSet gaOpts;
             boolean cannotJoin;
-            if (ob instanceof SOCGame)
+            final boolean isGameObj = (ob instanceof SOCGame);
+            if (isGameObj)
             {
                 gaName = ((SOCGame) ob).getName();
                 gaOpts = ((SOCGame) ob).getGameOptions();
@@ -462,11 +506,13 @@ public class SOCGameList
             }
 
             addGame(gaName, gaOpts, null, cannotJoin);
-        }    
+        }
     }
 
     /**
-     * remove the game from the list
+     * Remove the game from the list
+     * and call {@link SOCGame#destroyGame()}.
+     * Set its mutex's {@link GameInfo#gameDestroyed} flag.
      *
      * @param gaName  the name of the game; should not be marked with any prefix.
      */
@@ -474,43 +520,43 @@ public class SOCGameList
     {
         D.ebugPrintlnINFO("SOCGameList : deleteGame(" + gaName + ")");
 
-        SOCGame game = (SOCGame) gameData.get(gaName);
-
-        if (game != null)
+        GameInfo info = gameInfo.get(gaName);
+        if (info == null)
         {
-            game.destroyGame();
-            gameData.remove(gaName);
+            return;  // game wasn't in this SOCGameList
         }
-
-        GameInfo info = (GameInfo) gameInfo.get(gaName);
+        info.gameDestroyed = true;
         gameInfo.remove(gaName);
         synchronized (info.mutex)
         {
             info.mutex.notifyAll();
         }
-        info.finalize();
+        info.dispose();
     }
 
     /**
      * Holds most information on one game, except its SOCGame object, which is kept separately.
      * Includes mutexes to synchronize game state access.
-     * Kept within {@link #gameInfo} hashtable.
+     * Kept within the {@link #gameInfo} map.
      * @author Jeremy D Monin <jeremy@nand.net>
      * @since 1.1.07
      */
-    protected static class GameInfo
+    protected class GameInfo
     {
         public MutexFlag mutex;
-        public Hashtable opts;  // or null
+        public SOCGameOptionSet opts;  // or null
         public String optsStr;  // or null
         public boolean canJoin;
+
+        /** Flag for when game has been destroyed, in case anything's waiting on its mutex. @since 1.1.15 */
+        public boolean gameDestroyed;
 
         /**
          * Constructor: gameOpts is null or contains game option objects
          * @param canJoinGame can we join this game?
-         * @param gameOpts Hashtable of {@link SOCGameOption}s, or null
+         * @param gameOpts The game's {@link SOCGameOption}s, or null
          */
-        public GameInfo (boolean canJoinGame, Hashtable gameOpts)
+        public GameInfo(boolean canJoinGame, SOCGameOptionSet gameOpts)
         {
             mutex = new MutexFlag();
             opts = gameOpts;
@@ -521,9 +567,9 @@ public class SOCGameList
          * Constructor: gameOptsStr is null or unparsed game options
          * @param canJoinGame can we join this game?
          * @param gameOptsStr set of {@link SOCGameOption}s as packed by
-         *            {@link SOCGameOption#packOptionsToString(Hashtable, boolean)}, or null
+         *            {@link SOCGameOption#packOptionsToString(Map, boolean, boolean)}, or null
          */
-        public GameInfo (boolean canJoinGame, String gameOptsStr)
+        public GameInfo(boolean canJoinGame, String gameOptsStr)
         {
             mutex = new MutexFlag();
             optsStr = gameOptsStr;
@@ -534,20 +580,20 @@ public class SOCGameList
          * Parse optsStr to opts, unless it's already been parsed.
          * @return opts, after parsing if necessary, or null if opts==null and optsStr==null.
          */
-        public Hashtable parseOptsStr()
+        public SOCGameOptionSet parseOptsStr()
         {
             if (opts != null)  // already parsed
                 return opts;
-            else if (optsStr == null)  // none to parse
+            else if ((optsStr == null) || (knownOpts == null))  // none to parse
                 return null;
             else
             {
-                opts = SOCGameOption.parseOptionsToHash(optsStr);
+                opts = SOCGameOption.parseOptionsToSet(optsStr, knownOpts);
                 return opts;
             }
         }
 
-        public void finalize()
+        public void dispose()
         {
             if (opts != null)
             {
@@ -555,5 +601,7 @@ public class SOCGameList
                 opts = null;
             }
         }
+
     }
+
 }

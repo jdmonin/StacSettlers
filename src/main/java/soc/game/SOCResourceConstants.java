@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2009-2010 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2009-2010,2012-2013,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.game;
 
@@ -28,9 +28,9 @@ package soc.game;
  * Warning: Many pieces of code depend on these values and their count.
  *          Clay is first (1), Wood is last (5), Unknown is after wood.
  *          Those are the 5 resource types (count==5 or ==6 (unknown) is also assumed).
- *          Adding a new resource type would require changes in many places.
- *          SOCRobotBrain.estimateResourceRarity is one of many examples.
- * Constants in other places (like {@link soc.message.SOCPlayerElement#CLAY})
+ *          Adding a new resource type would require changes in many places,
+ *          like robot's {@code OpeningBuildStrategy.estimateResourceRarity}.
+ * Constants in other places (like {@link soc.message.SOCPlayerElement.PEType#CLAY})
  * have the same hardcoded values.
  *<P>
  * Before 1.1.08, this was an interface.  Changing to a class allowed adding
@@ -43,15 +43,60 @@ public class SOCResourceConstants
     /**
      * Warning: Don't mess with these constants, other pieces
      *          of code depend on these numbers staying like this.
-     *          Clay is first (1), Wood is last (5), Unknown is after wood.
+     *          {@link #CLAY} is first (1), {@link #WOOD} is last (5), {@link #UNKNOWN} is after wood.
+     *<P>
+     *          Some code also takes advantage that {@link #CLAY} == {@link SOCBoard#CLAY_HEX},
+     *          {@link #SHEEP} == {@link SOCBoard#SHEEP_HEX}, etc.
+     * @see #MIN
      */
     public static final int CLAY = 1;
     public static final int ORE = 2;
     public static final int SHEEP = 3;
     public static final int WHEAT = 4;
     public static final int WOOD = 5;
+
+    /**
+     * Unknown resource type (6).  Occurs after {@link #WOOD} (5).
+     * Sometimes also used as a "MAX+1" for array sizing
+     * for per-resource-type arrays that contain {@link #CLAY} through {@link #WOOD}
+     * but don't contain {@code UNKNOWN}.
+     *<P>
+     * Before sending this from server, check if game option {@link SOCGameOptionSet#K_PLAY_FO PLAY_FO} is set:
+     * May want to send as known resource type instead.
+     *<P>
+     * Same numeric value as {@link #GOLD_LOCAL}.
+     * @see #MAXPLUSONE
+     */
     public static final int UNKNOWN = 6;
+
+    /**
+     * Some code, internal to the <tt>soc.game</tt> or <tt>soc.robot</tt> packages,
+     * uses this value (6) to represent {@link SOCBoardLarge#GOLD_HEX} tiles;
+     * same numeric value as {@link #UNKNOWN}.  Occurs after {@link #WOOD} (5).
+     *<P>
+     * Gold is not a resource, and <tt>GOLD_LOCAL</tt> should not be sent over the
+     * network or used externally.
+     * @since 2.0.00
+     */
+    public static final int GOLD_LOCAL = 6;
+
+    /**
+     * Some code, internal to the <tt>soc.game</tt> or <tt>soc.server</tt> packages,
+     * uses this value (7) to represent stolen cloth ({@link SOCPlayer#getCloth()})
+     * for scenario game option {@link SOCGameOptionSet#K_SC_CLVI _SC_CLVI}.
+     *<P>
+     * Cloth is not a resource, and <tt>CLOTH_STOLEN_LOCAL</tt> should not be sent
+     * over the network or used for anything except internally reporting stolen cloth.
+     * So, this value can be changed between versions.
+     * Numerically higher than {@link #GOLD_LOCAL}.
+     * @since 2.0.00
+     */
+    public static final int CLOTH_STOLEN_LOCAL = 7;
+
+    /** Minimum value (1 == {@link #CLAY}) */
     public static final int MIN = 1;
+
+    /** One past maximum value (7; max value is 6 == {@link #UNKNOWN}) */
     public static final int MAXPLUSONE = 7;
 
     /**
@@ -59,6 +104,7 @@ public class SOCResourceConstants
      * such as "clay" or "ore".
      *
      * @param rtype Resource type, such as {@link #CLAY} or {@link #WOOD}.
+     *     {@link #UNKNOWN} / {@link #GOLD_LOCAL} is out of range.
      * @return Lowercase resource name, or null if rtype is out of range.
      * @since 1.1.08
      */
@@ -79,7 +125,7 @@ public class SOCResourceConstants
             tname = "wood";  break;
         default:
             // Should not happen
-            tname = null;            
+            tname = null;
         }
         return tname;
     }
@@ -89,18 +135,30 @@ public class SOCResourceConstants
      * such as "a clay" or "an ore".
      *
      * @param rtype Resource type, such as {@link #CLAY} or {@link #SHEEP}.
-     * @return Lowercase resource name, or "a null" if rtype is out of range
+     * @return Lowercase resource name, or {@code null} if rtype is out of range
      *              ({@link #CLAY} - {@link #WOOD})
      * @since 1.1.08
      */
     public static String aResName(final int rtype)
     {
-        StringBuffer sb = new StringBuffer();
-        if (rtype == ORE)
-            sb.append("an ");
-        else
-            sb.append("a ");
-        sb.append(resName(rtype));
-        return sb.toString();
+        String tname;
+        switch (rtype)
+        {
+        case CLAY:
+            tname = /*I*/"a clay"/*18N*/;  break;
+        case ORE:
+            tname = /*I*/"an ore"/*18N*/;  break;
+        case SHEEP:
+            tname = /*I*/"a sheep"/*18N*/; break;
+        case WHEAT:
+            tname = /*I*/"a wheat"/*18N*/; break;
+        case WOOD:
+            tname = /*I*/"a wood"/*18N*/;  break;
+        default:
+            // Should not happen
+            tname = null;
+        }
+        return tname;
     }
+
 }

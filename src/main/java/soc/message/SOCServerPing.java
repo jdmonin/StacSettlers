@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2009 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2009,2014,2016-2017,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
@@ -33,20 +33,28 @@ package soc.message;
  * it is replaced in all games by the newly connecting client.
  * Server attempts to send a final SERVERPING to the old client,
  * with sleepTime -1, to let it know it's no longer connected.
+ *<P>
+ * The server sends bot clients {@code SOCServerPing} about once every 2 minutes,
+ * and those clients also locally generate and send themselves
+ * one {@link SOCTimingPing} per second in their active games.
  *
  * @author Robert S Thomas
+ * @see SOCAdminPing
  */
 public class SOCServerPing extends SOCMessage
 {
+    private static final long serialVersionUID = 100L;  // last structural change v1.0.0 or earlier
+
     /**
-     * the ammount of time to sleep waiting for the next ping
+     * the amount of time to sleep waiting for the next ping, or -1;
+     * see {@link #getSleepTime()} for description.
      */
-    int sleepTime;
+    private final int sleepTime;
 
     /**
      * Create a ServerPing message.
      *
-     * @param st  the sleep time
+     * @param st  the sleep time; see {@link #getSleepTime()} for description
      */
     public SOCServerPing(int st)
     {
@@ -55,6 +63,14 @@ public class SOCServerPing extends SOCMessage
     }
 
     /**
+     * Get the sleep time sent from the server:
+     * For human clients, the value to send back to the server,
+     * or -1 if server is telling a client it's being disconnected
+     * because a new client is replacing it, or for bots (informational)
+     * the amount of milliseconds server will sleep waiting to send the next ping.
+     *<P>
+     * The server's ping thread typically wakes and sends that next ping
+     * about 60 seconds earlier than indicated by {@code getSleepTime()}.
      * @return the sleep time
      */
     public int getSleepTime()
@@ -69,18 +85,7 @@ public class SOCServerPing extends SOCMessage
      */
     public String toCmd()
     {
-        return toCmd(sleepTime);
-    }
-
-    /**
-     * SERVERPING sep sleepTime
-     *
-     * @param  st  the sleep time
-     * @return the command String
-     */
-    public static String toCmd(int st)
-    {
-        return SERVERPING + sep + st;
+        return SERVERPING + sep + sleepTime;
     }
 
     /**
@@ -101,4 +106,5 @@ public class SOCServerPing extends SOCMessage
     {
         return "SOCServerPing:sleepTime=" + sleepTime;
     }
+
 }

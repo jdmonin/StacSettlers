@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2010 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2010,2014,2017,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
@@ -30,6 +30,8 @@ package soc.message;
 public class SOCRobotDismiss extends SOCMessage
     implements SOCMessageForGame
 {
+    private static final long serialVersionUID = 1111L;  // last structural change v1.1.11
+
     /**
      * Name of game
      */
@@ -61,25 +63,14 @@ public class SOCRobotDismiss extends SOCMessage
      */
     public String toCmd()
     {
-        return toCmd(game);
-    }
-
-    /**
-     * ROBOTDISMISS sep game
-     *
-     * @param ga  the game name
-     * @return    the command string
-     */
-    public static String toCmd(String ga)
-    {
-        return ROBOTDISMISS + sep + ga;
+        return ROBOTDISMISS + sep + game;
     }
 
     /**
      * Parse the command String into a RobotDismiss message
      *
      * @param s   the String to parse
-     * @return    a RobotDismiss message, or null of the data is garbled
+     * @return    a RobotDismiss message, or null if the data is garbled
      */
     public static SOCRobotDismiss parseDataStr(String s)
     {
@@ -95,4 +86,5 @@ public class SOCRobotDismiss extends SOCMessage
 
         return s;
     }
+
 }

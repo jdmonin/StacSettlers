@@ -39,7 +39,7 @@ public class StacDBToCatanInterface implements GameStateConstants {
 			return SOCGame.START2B;
 			
 		case S_BEFOREDICE:
-			return SOCGame.PLAY;
+			return SOCGame.ROLL_OR_CARD;
 			
 		case S_NORMAL:
 			return SOCGame.PLAY1;
@@ -75,7 +75,7 @@ public class StacDBToCatanInterface implements GameStateConstants {
 		case SOCGame.START2B:
 			return S_ROAD2;
 			
-		case SOCGame.PLAY:
+		case SOCGame.ROLL_OR_CARD:
 			return S_BEFOREDICE;
 			
 		case SOCGame.PLAY1:

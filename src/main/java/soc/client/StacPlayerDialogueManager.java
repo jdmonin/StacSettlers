@@ -407,8 +407,8 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
                     }    
                 }
             }
-            if ((commonGiveSet && myOffer.getGetSet().isEmptySet()) || 
-                    (commonGetSet && myOffer.getGiveSet().isEmptySet())) {
+            if ((commonGiveSet && myOffer.getGetSet().isEmpty()) || 
+                    (commonGetSet && myOffer.getGiveSet().isEmpty())) {
                 to = myOffer.getTo();
             } else {
                 message = "*** Addressee unclear - more than 1 player made you an offer";
@@ -459,8 +459,8 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
                         SOCTradeOffer lastOfferFromMe = lastOfferFromMe();
                         //is the nonempty resource set of the last offers to and from me the same (crossing give/get)
                         if (lastOfferFromMe != null && 
-                                ((lastOfferFromMe.getGiveSet().equals(lastOfferToMe.getGetSet()) && myOffer.getGiveSet().isEmptySet()) ||
-                                (lastOfferFromMe.getGetSet().equals(lastOfferToMe.getGiveSet()) && myOffer.getGetSet().isEmptySet()))) {
+                                ((lastOfferFromMe.getGiveSet().equals(lastOfferToMe.getGetSet()) && myOffer.getGiveSet().isEmpty()) ||
+                                (lastOfferFromMe.getGetSet().equals(lastOfferToMe.getGiveSet()) && myOffer.getGetSet().isEmpty()))) {
                             to[lastOfferToMe.getFrom()] = true;
                             opponentOffer = lastOfferToMe;
                         }
@@ -537,12 +537,12 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
     private StacTradeOffer amendMyPartialOfferWithOffer(StacTradeOffer myOffer, StacTradeOffer otherOffer, boolean[] to) {
         StacTradeOffer amendedOffer = null;
         if (otherOffer != null) {
-            if (myOffer.getGiveSet().isEmptySet()) {
+            if (myOffer.getGiveSet().isEmpty()) {
                 amendedOffer = new StacTradeOffer(game.getName(), myOffer.getFrom(), to, otherOffer.getGetSet(), otherOffer.hasDisjunctiveGetSet(), myOffer.getGetSet(), myOffer.hasDisjunctiveGetSet());
                 //check if our offer did leave the get resource type unspecified (i.e. unknown resources will be > 0)
                 if (amendedOffer.getGetSet().getAmount(SOCResourceConstants.UNKNOWN) > 0)
                     amendedOffer = treatOfferWithUnknownQuant(myOffer.getGetSet(), otherOffer.getGiveSet(), amendedOffer);
-            } else if (myOffer.getGetSet().isEmptySet()) {
+            } else if (myOffer.getGetSet().isEmpty()) {
                 amendedOffer = new StacTradeOffer(game.getName(), myOffer.getFrom(), to, myOffer.getGiveSet(), myOffer.hasDisjunctiveGiveSet(), otherOffer.getGiveSet(), otherOffer.hasDisjunctiveGiveSet());
                 //check if our offer did leave the give resource type unspecified (i.e. unknown resources will be > 0)
                 if (myOffer.getGiveSet().getAmount(SOCResourceConstants.UNKNOWN) > 0)
@@ -733,7 +733,7 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
                         HashMap<String,String> swapTable = new HashMap<>();
                         swapTable.put(SENDER_WILDCARD, playerNames[receiver]);
                         swapTable.put(RECEIVER_WILDCARD, playerNames[playerNumber]);
-                        String emptySetAttValue = offer.getGiveSet().isEmptySet() ? "give" : "get";
+                        String emptySetAttValue = offer.getGiveSet().isEmpty() ? "give" : "get";
                         String fakeMsg = queryXMLFile(NEGOTIATION_PREFIX
                                 + "fakeOpponentResponse/incompleteOffer[@emptySet=\"" + emptySetAttValue + "\"]" 
                                 + xmlQueryMessageSuffix, 

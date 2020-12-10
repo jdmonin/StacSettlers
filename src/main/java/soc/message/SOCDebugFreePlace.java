@@ -1,6 +1,6 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2011 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2011,2014,2017,2020 Jeremy D Monin <jeremy@nand.net>
  * Portions of this file Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
  *
  * This program is free software; you can redistribute it and/or
@@ -24,16 +24,28 @@ import java.util.StringTokenizer;
  * This debug message from client to server means that a player
  * is asking to place a piece on the board, without spending
  * resources or checking the current player.  The server will
- * send {@link SOCPutPiece} in reply.
+ * send {@link SOCPutPiece} in reply, or {@link SOCGameServerText}
+ * if it declines the request.
+ *<P>
+ * A few scenario-specific conditions might cause server to decline the request;
+ * see {@link soc.game.SOCPlayer#canPlaceShip_debugFreePlace(int)}.
+ * Other conditions might cause server to send additional messages when replying
+ * to a successful request, like {@link SOCInventoryItemAction} and
+ * {@link SOCGameState}({@link soc.game.SOCGame#PLACING_INV_ITEM PLACING_INV_ITEM})
+ * for port placement in scenario {@link soc.game.SOCGameOptionSet#K_SC_FTRI SC_FTRI}.
+ *<P>
+ * If placement leads to Longest Route player changing, server sends that after its SOCPutPiece message:
+ * {@link SOCGameElements}({@link SOCGameElements.GEType#LONGEST_ROAD_PLAYER LONGEST_ROAD_PLAYER}).
  *<P>
  * When sent from server to client, the message is a generic message to
  * acknowledge that the "Free Placement" debug-mode has been turned on or off.
- * {@link #getCoordinates()} will return 1 for on, 0 for off.
+ * {@link #getCoordinates()} is 1 for on, 0 for off.
  *<P>
  * Introduced in 1.1.12; check client version against {@link SOCDebugFreePlace#VERSION_FOR_DEBUGFREEPLACE}
  * before sending this message.
  *
  * @author Jeremy D Monin
+ * @since 1.1.12
  */
 public class SOCDebugFreePlace extends SOCMessage
     implements SOCMessageForGame
@@ -63,7 +75,7 @@ public class SOCDebugFreePlace extends SOCMessage
     private int playerNumber;
 
     /**
-     * the coordinates of the piece
+     * the coordinates of the piece; is >= 0
      */
     private int coordinates;
 
@@ -71,12 +83,19 @@ public class SOCDebugFreePlace extends SOCMessage
      * create a DEBUGFREEPLACE message from the client.
      *
      * @param na  name of the game
-     * @param pt  type of playing piece, such as {@link soc.game.SOCPlayingPiece#CITY}
+     * @param pt  type of playing piece, such as {@link soc.game.SOCPlayingPiece#CITY}; must be >= 0
      * @param pn  player number
-     * @param co  coordinates
+     * @param co  coordinates; must be >= 0
+     * @throws IllegalArgumentException if {@code pt} &lt; 0 or {@code co} &lt; 0
      */
     public SOCDebugFreePlace(String na, int pn, int pt, int co)
+        throws IllegalArgumentException
     {
+        if (pt < 0)
+            throw new IllegalArgumentException("pt: " + pt);
+        if (co < 0)
+            throw new IllegalArgumentException("coord < 0");
+
         messageType = DEBUGFREEPLACE;
         game = na;
         pieceType = pt;
@@ -95,7 +114,7 @@ public class SOCDebugFreePlace extends SOCMessage
      */
     public SOCDebugFreePlace(String na, int pn, boolean onOff)
     {
-	this(na, pn, 0, onOff ? 1 : 0);
+        this(na, pn, 0, onOff ? 1 : 0);
     }
 
     /**
@@ -123,7 +142,7 @@ public class SOCDebugFreePlace extends SOCMessage
     }
 
     /**
-     * @return the coordinates
+     * @return the coordinates; is >= 0
      */
     public int getCoordinates()
     {
@@ -148,21 +167,28 @@ public class SOCDebugFreePlace extends SOCMessage
      * DEBUGFREEPLACE sep game sep2 playerNumber sep2 pieceType sep2 coordinates
      *
      * @param na  the name of the game
-     * @param pt  type of playing piece
+     * @param pt  type of playing piece, such as {@link soc.game.SOCPlayingPiece#CITY}; must be >= 0
      * @param pn  player number
-     * @param co  coordinates
+     * @param co  coordinates; must be >= 0
      * @return the command string
+     * @throws IllegalArgumentException if {@code pt} &lt; 0 or {@code co} &lt; 0
      */
     public static String toCmd(String na, int pn, int pt, int co)
+        throws IllegalArgumentException
     {
+        if (pt < 0)
+            throw new IllegalArgumentException("pt: " + pt);
+        if (co < 0)
+            throw new IllegalArgumentException("coord < 0");
+
         return DEBUGFREEPLACE + sep + na + sep2 + pn + sep2 + pt + sep2 + co;
     }
 
     /**
-     * parse the command string into a PutPiece message
+     * parse the command string into a DEBUGFREEPLACE message.
      *
      * @param s   the String to parse
-     * @return    a TextMsg message, or null of the data is garbled
+     * @return    a DEBUGFREEPLACE message, or null if the data is garbled
      */
     public static SOCDebugFreePlace parseDataStr(String s)
     {
@@ -179,13 +205,13 @@ public class SOCDebugFreePlace extends SOCMessage
             pn = Integer.parseInt(st.nextToken());
             pt = Integer.parseInt(st.nextToken());
             co = Integer.parseInt(st.nextToken());
+
+            return new SOCDebugFreePlace(na, pn, pt, co);
         }
         catch (Exception e)
         {
             return null;
         }
-
-        return new SOCDebugFreePlace(na, pn, pt, co);
     }
 
     /**
@@ -194,7 +220,30 @@ public class SOCDebugFreePlace extends SOCMessage
      * @return Version number, 1112 for JSettlers 1.1.12.
      * @see #VERSION_FOR_DEBUGFREEPLACE
      */
-    public int getMinimumVersion() { return VERSION_FOR_DEBUGFREEPLACE; }
+    public int getMinimumVersion() { return VERSION_FOR_DEBUGFREEPLACE; /* == 1112 */ }
+
+    /**
+     * Strip out the parameter/attribute names from {@link #toString()}'s format,
+     * returning message parameters as a comma-delimited list for {@link SOCMessage#parseMsgStr(String)}.
+     * Converts piece coordinate to decimal from hexadecimal format.
+     * @param messageStrParams Params part of a message string formatted by {@link #toString()}; not {@code null}
+     * @return Message parameters without attribute names, or {@code null} if params are malformed
+     * @since 2.4.50
+     */
+    public static String stripAttribNames(String messageStrParams)
+    {
+        String s = SOCMessage.stripAttribNames(messageStrParams);
+        if (s == null)
+            return null;
+        String[] pieces = s.split(SOCMessage.sep2);
+
+        StringBuilder ret = new StringBuilder();
+        for (int i = 0; i < 3; i++)
+            ret.append(pieces[i]).append(sep2_char);
+        ret.append(Integer.parseInt(pieces[3].substring(2), 16));  // skip "0x"
+
+        return ret.toString();
+    }
 
     /**
      * @return a human readable form of the message

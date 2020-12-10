@@ -1,6 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * This file Copyright (C) 2009,2011 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2009,2011-2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,242 +21,269 @@
 package soc.game;
 
 import java.io.Serializable;
-import java.util.Enumeration;
-import java.util.Hashtable;
-import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.StringTokenizer;
-import java.util.Vector;
 
 import soc.message.SOCMessage;
+import soc.util.SOCFeatureSet;
+import soc.util.Version;
 
 /**
  * Game-specific options, configurable at game creation.
  * This class has two purposes:
  *<UL>
  * <LI> Per-game values of options
- * <LI> Static dictionary of known options;
- *    see {@link #initAllOptions()} for the current list.
+ * <LI> Static set of Known Options: see {@link SOCGameOptionSet#getAllKnownOptions()} for the current list.
  *</UL>
+ * Also handles packing/parsing sets of options to/from Strings.
+ *<P>
+ * Many static methods expect the caller to pass in their set of Known Options.
+ * Before v2.4.50 this class used a static shared copy of those known options, which caused problems when server
+ * and robot clients both want to change their "known options" in different ways.
  *<P>
  * For information about adding or changing game options in a
- * later version of JSettlers, please see {@link #initAllOptions()}.
+ * later version of JSettlers, please see {@link SOCGameOptionSet#getAllKnownOptions()}.
+ *
+ *<H3>Naming and referencing Game Options</H3>
+ *
+ * Each game option has a short unique name key. Most keys are 2 or 3 uppercase letters.
+ * Numbers and underscores are also permitted (details below).
+ * Before v2.0, the maximum length was 3. The maximum key length is currently 8,
+ * but v1.x clients will reject keys longer than 3 or having underscores.
+ * Such options must have {@link SOCVersionedItem#minVersion} >= 2000.
  *<P>
- * All in-game code uses 2-letter key strings to query and change
- * game option settings; only a very few places use SOCGameOption
+ * All in-game code uses those key strings to refer to and change
+ * game option settings; only a few places use SOCGameOption
  * objects.  To search the code for uses of a game option, search for
- * its capitalized key string.
- *<P>
+ * its key. You will see calls to {@link SOCGame#isGameOptionDefined(String)},
+ * {@link SOCGame#getGameOptionIntValue(String, int, boolean)},
+ * {@link SOCGameOptionSet#getOptionIntValue(String)}, etc.
+ * Also search {@link SOCScenario} for the option as part of a string,
+ * such as <tt>"SBL=t,VP=12"</tt>.
+ *
+ *<H3>Name and value formats</H3>
+ *
  * Option name keys must start with a letter and contain only ASCII uppercase
  * letters ('A' through 'Z') and digits ('0' through '9'), in order to normalize
  * handling and network message formats.  This is enforced in constructors via
- * {@link #isAlphanumericUpcaseAscii(String)}.
+ * {@link SOCVersionedItem#isAlphanumericUpcaseAscii(String)}.
+ * Version 2.0 and newer allow '_'; please check {@link #minVersion},
+ * name keys with '_' or longer than 3 characters can't be sent to older clients.
+ * Options starting with '_' are meant to be set by the server during game creation,
+ * not requested by the client. They're set during
+ * {@link SOCGameOptionSet#adjustOptionsToKnown(Map, boolean, SOCFeatureSet) SOCGameOptionSet.adjustOptionsToKnown(getAllKnownOptions(), true, cliFeats)}.
  *<P>
  * For the same reason, option string values (and enum choices) must not contain
  * certain characters or span more than 1 line; this is checked by calling
  * {@link SOCMessage#isSingleLineAndSafe(String)} within constructors and setters.
- *<P>
- * The "known options" are initialized via {@link #initAllOptions()}.  See that
+ *
+ *<H3>Known Options and interaction</H3>
+ *
+ * The "known options" are initialized via {@link SOCGameOptionSet#getAllKnownOptions()}. See that
  * method's description for more details on adding an option.
  * If a new option changes previously expected behavior of the game, it should default to
  * the old behavior; its default value on your server can be changed at runtime.
  *<P>
- * Introduced in 1.1.07; check server, client versions against
+ * Since 1.1.13, when the user changes options while creating a new game, related
+ * options can be changed on-screen for consistency; see {@link SOCGameOption.ChangeListener} for details.
+ * If you create a ChangeListener, consider adding equivalent code to
+ * {@link SOCGameOptionSet#adjustOptionsToKnown(Map, Map, boolean)} for the server side.
+ *
+ *<H3>Sea Board Scenarios</H3>
+ *
+ * Game scenarios were introduced with the large sea board in 2.0.
+ * Game options are used to indicate which {@link SOCGameEvent}s, {@link SOCPlayerEvent}s,
+ * and rules are possible in the current game.
+ * These all start with <tt>"_SC_"</tt> and have a static key string;
+ * an example is {@link SOCGameOptionSet#K_SC_SANY} for scenario game option <tt>"_SC_SANY"</tt>.
+ *
+ *<H3>Inactive Options/Activated Options</H3>
+ *
+ * Some game options might be useful only for developers or in other special situations,
+ * and would only be clutter if they always appeared in every client's New Game Options window.
+ * To help with this:
+ *<P>
+ * An Inactive Option is a Known Option which remains hidden and unused at server and clients which
+ * have its definition, and not sent to older clients which don't, as if the option doesn't exist.
+ * The server's owner can choose to {@link SOCGameOptionSet#activate(String)} the option during server startup,
+ * making it visible and available for games.
+ *<P>
+ * Added in 2.4.50, also compatible with earlier clients. Example: {@link #K_PLAY_VPO "PLAY_VPO"}.
+ *
+ *<H3>Third-Party Options</H3>
+ *
+ * "Third-party" game options can be defined by any 3rd-party client, bot, or server JSettlers fork,
+ * as a way to add features or flags but remain backwards-compatible with standard JSettlers;
+ * such game opts might not be known by all currently connected clients/servers at the same version.
+ * These are defined as having {@link #FLAG_3RD_PARTY} to avoid problems while syncing game option info
+ * when clients connect to servers. To use such an option, the client and server must both be
+ * from the same third-party source and have its definition. See {@link #FLAG_3RD_PARTY} javadoc for details.
+ *<P>
+ * Added in 2.4.50, not compatible with earlier clients because they won't have such an option's definition
+ * or its required client feature.
+ *
+ *<H3>Version negotiation</H3>
+ *
+ * Game options were introduced in 1.1.07; check server, client versions against
  * {@link soc.message.SOCNewGameWithOptions#VERSION_FOR_NEWGAMEWITHOPTIONS}.
+ *<P>
  * Each option has version information, because options can be added or changed
  * with new versions of JSettlers.  Since games run on the server, the server is
  * authoritative about game options:  If the client is newer, it must defer to the
- * server's older set of known options.  At client connect, the client compares its
- * JSettlers version number to the server's, and asks for any changes to options if
- * their versions differ.
+ * server's older set of known options.
  *<P>
- * @author Jeremy D. Monin <jeremy@nand.net>
+ * At client connect, the client compares its JSettlers version number to the server's,
+ * and asks for any changes to options if client and server versions differ.
+ * The newer server or client calls methods which check Known Options'
+ * {@link SOCVersionedItem#minVersion minVersion} and {@link SOCVersionedItem#lastModVersion lastModVersion}.
+ * Server also sends any compatible Activated Options.
+ * Also if connecting client has limited features, server sends all
+ * unsupported game options as unknowns by checking each option's {@link #getClientFeature()}.
+ *
+ *<H3>I18N</H3>
+ *
+ * Game option descriptions are also stored as {@code gameopt.*} in
+ * {@code server/strings/toClient_*.properties} to be sent to clients if needed
+ * during version negotiation. At the client, option's text can be localized with {@link #setDesc(String)}.
+ * See unit test {@link soctest.TestI18NGameoptScenStrings} and
+ * {@link soc.server.SOCServerMessageHandler#handleGAMEOPTIONGETINFOS(soc.server.genericServer.Connection, soc.message.SOCGameOptionGetInfos) SOCServerMessageHandler.handleGAMEOPTIONGETINFOS(..)}.
+ *<P>
+ * @author Jeremy D. Monin &lt;jeremy@nand.net&gt;
  * @since 1.1.07
  */
-public class SOCGameOption implements Cloneable, Comparable, Serializable
+public class SOCGameOption
+    extends SOCVersionedItem implements Cloneable, Comparable<Object>, Serializable
 {
     /**
-     * Set of "known options".
-     * allOptions must never be null, because other places assume it is filled.
+     * {@link #optFlags} bitfield constant to indicate option should be dropped if unset/default.
+     * If this option's value is the default, then server should not add it to game options
+     * or send over the network (to reduce overhead).
+     * Only recommended if game behavior without the option is well-established
+     * (for example, trading is allowed unless option NT is present).
+     *<P>
+     *<b>Details:</b><BR>
+     * Should the server drop this option from game options, and not send over
+     * the network, if the value is false or blank?
+     * (Meaning false (not set) for {@link #OTYPE_BOOL}, {@link #OTYPE_ENUMBOOL}
+     * or {@link #OTYPE_INTBOOL}; blank for {@link #OTYPE_STR} or {@link #OTYPE_STRHIDE};
+     * {@link #defaultIntValue} for {@link #OTYPE_INT} or {@link #OTYPE_ENUM})
+     *<P>
+     * Only recommended for seldom-used options.
+     * The removal is done in {@link SOCGameOptionSet#adjustOptionsToKnown(SOCGameOptionSet, boolean, SOCFeatureSet)}.
+     * Once this flag is set for an option, it should not be un-set if the
+     * option is changed in a later version.
+     *<P>
+     * For {@link #OTYPE_INTBOOL} and {@link #OTYPE_ENUMBOOL}, both the integer and
+     * boolean values are checked against defaults.
+     *<P>
+     * This flag is ignored at the client when asking to create a new game:
+     * <tt>NewGameOptionsFrame</tt> sends all options it has displayed, even those
+     * which would be dropped because they're unused and they have this flag.
+     *<P>
+     * Recognized in v1.1.07 and newer.
+     * This is the only flag recognized by clients older than v2.0.00.
+     * Clients older than v2.0.00 also ignore this flag for {@link #OTYPE_INT}, {@link #OTYPE_ENUM}.
      */
-    private static Hashtable allOptions = initAllOptions();
+    public static final int FLAG_DROP_IF_UNUSED = 0x01;  // OTYPE_* - mention in javadoc how this applies to the new type
 
     /**
-     * Create a set of the known options.
-     * This method creates and returns a Hashtable, but does not set the static {@link #allOptions} field.
+     * {@link #optFlags} bitfield constant to indicate option is an internal property.
+     * Set if the purpose of this option is to hold information about the option's game or its board.
+     * The user shouldn't be able to set this option when creating a game,
+     * and it should be hidden not shown in the Game Options window during play ({@code NewGameOptionsFrame}).
+     *<P>
+     * Options with this flag should have a {@link SOCVersionedItem#key key} starting with '_', although not all options
+     * which start with '_' are hidden for internal use.  (Options starting with '_' are meant to be set
+     * by the server during game creation, not requested by the client.)
      *
-     * <h3>Current known options:</h3>
-     *<UL>
-     *<LI> PL  Maximum # players (2-6)
-     *<LI> RD  Robber can't return to the desert
-     *<LI> N7  Roll no 7s during first # rounds
-     *<LI> BC  Break up clumps of # or more same-type ports/hexes
-     *<LI> NT  No trading allowed
-     *<LI> SD  Show the Dialog reminding the user of our way of trading
-     *</UL>
-     *
-     * <h3>If you want to add a game option:</h3>
-     *<UL>
-     *<LI> Choose an unused 2-character key name: for example, "PL" for "max players".
-     *   All in-game code uses these key strings to query and change
-     *   game option settings; only a very few places use SOCGameOption
-     *   objects, and you won't need to adjust those places.
-     *   The list of already-used key names is here within initAllOptions.
-     *<LI> Decide which {@link #optType option type} your option will be
-     *   (boolean, enumerated, int+bool, etc.), and its default value.
-     *   Typically the default will let the game behave as it did before
-     *   the option existed (for example, the "max players" default is 4).
-     *   Its default value on your own server can be changed at runtime.
-     *<LI> Decide if all client versions can use your option.  Typically, if the option
-     *   requires server changes but not any client changes, all clients can use it.
-     *   (For example, "N7" for "roll no 7s early in the game" is strictly server-side.)
-     *<LI> If only <em>some values</em> of the option will require client changes,
-     *   also update {@link #getMinVersion()}.  (For example, if "PL"'s value is 5 or 6,
-     *   a new client would be needed to display that many players at once, but 2 - 4
-     *   can use any client version.)  If this is the case and your option type
-     *   is {@link #OTYPE_ENUM} or {@link #OTYPE_ENUMBOOL}, also update
-     *   {@link #getMaxEnumValueForVersion(String, int)}.
-     *   Otherwise, update {@link #getMaxIntValueForVersion(String, int)}.
-     *<LI> Create the option by calling opt.put here in initAllOptions.
-     *   Use the current version for the "last modified" field.
-     *<LI> Within {@link SOCGame}, don't add any object fields due to the new option;
-     *   instead call {@link SOCGame#isGameOptionDefined(String)},
-     *   {@link SOCGame#getGameOptionIntValue(String)}, etc.
-     *   Look for game methods where game behavior changes with the new option,
-     *   and adjust those.
-     *<LI> Check the server and clients for places which must check for the new option.
-     *   Typically these will be the <strong>places which call the game methods</strong> affected.
-     *   <UL>
-     *   <LI> {@link soc.server.SOCServer} is the server class,
-     *           see its "handle" methods for network messages
-     *   <LI> {@link soc.client.SOCPlayerClient} is the graphical client
-     *   <LI> {@link soc.robot.SOCRobotClient} and {@link soc.robot.SOCRobotBrain#run()}
-     *           together handle the robot client messages
-     *   <LI> {@link soc.client.SOCDisplaylessPlayerClient} is the foundation for the robot client,
-     *           and handles some of its messages
-     *   </UL>
-     *   Some options don't need any code at the robot; for example, the robot doesn't
-     *   care about the maximum number of players in a game, because the server tells the
-     *   robot when to join a game.
-     *<LI> To find other places which may possibly need an update from your new option,
-     *   search the entire source tree for this marker: <code> // NEW_OPTION</code>
-     *   <br>
-     *   This would include places like
-     *   {@link soc.util.SOCRobotParameters#copyIfOptionChanged(Hashtable)}
-     *   which ignore most, but not all, game options.
-     *</UL>
-     *
-     * <h3>If you want to change a game option (in a later version):</h3>
-     *
-     *   Typical changes to a game option would be:
-     *<UL>
-     *<LI> Add new values to an {@link #OTYPE_ENUM enumerated} option;
-     *   they must be added to the end of the list
-     *<LI> Change the maximum or minimum permitted values for an
-     *   {@link #OTYPE_INT integer} option
-     *<LI> Change the default value, although this can also be done
-     *   at runtime on the command line
-     *</UL>
-     *   Things you can't change about an option, because inconsistencies would occur:
-     *<UL>
-     *<LI> {@link #optKey name key}
-     *<LI> {@link #optType}
-     *<LI> {@link #minVersion}
-     *<LI> {@link #dropIfUnused} flag
-     *<LI> For {@link #OTYPE_ENUM} and {@link #OTYPE_ENUMBOOL}, you can't remove options or change
-     *     the meaning of current ones, because this would mean that the option's intValue (sent over
-     *     the network) would mean different things to different-versioned clients in the game.
-     *</UL>
-     *
-     *   <b>To make the change:</b>
-     *<UL>
-     *<LI> Change the option here in initAllOptions; change the "last modified" field to
-     *   the current game version. Otherwise the server can't tell the client what has
-     *   changed about the option.
-     *<LI> If new values require a newer minimum client version, add code to {@link #getMinVersion()}.
-     *<LI> If adding a new enum value for {@link #OTYPE_ENUM} and {@link #OTYPE_ENUMBOOL},
-     *   add code to {@link #getMaxEnumValueForVersion(String, int)}.
-     *<LI> If increasing the maximum value of an int-valued parameter, and the new maximum
-     *   requires a certain version, add code to {@link #getMaxIntValueForVersion(String, int)}.
-     *   For example, versions below 1.1.08 limit "max players" to 4.
-     *<LI> Search the entire source tree for its key name, to find places which may need an update.
-     *<LI> Consider if any other places listed above (for add) need adjustment.
-     *</UL>
-     *
-     * <h3>If you want to remove or obsolete a game option (in a later version):</h3>
-     *
-     * Please think twice beforehand; breaking compatibility with older clients shouldn't
-     * be done without a very good reason.  That said, the server is authoritative on options.
-     * If an option isn't in its known list ({@link #initAllOptions()}), the client won't be
-     * allowed to ask for it.  Any obsolete options should be kept around as commented-out code.
-     *
-     * @return a fresh copy of the "known" options, with their hardcoded default values
+     * @since 2.0.00
      */
-    public static Hashtable initAllOptions()
-    {
-        Hashtable opt = new Hashtable();
+    public static final int FLAG_INTERNAL_GAME_PROPERTY = 0x02;  // NEW_OPTION - decide if this applies to your option
 
-        opt.put("PL", new SOCGameOption
-                ("PL", -1, 1108, 4, 2, 6, "Maximum # players"));
-        opt.put("RD", new SOCGameOption
-                ("RD", -1, 1107, false, false, "Robber can't return to the desert"));
-        opt.put("N7", new SOCGameOption
-                ("N7", -1, 1107, false, 7, 1, 999, false, "Roll no 7s during first # rounds"));
-        opt.put("BC", new SOCGameOption
-                ("BC", -1, 1107, true, 4, 3, 9, false, "Break up clumps of # or more same-type hexes/ports"));
-        opt.put("NT", new SOCGameOption
-                ("NT", 1107, 1107, false, true, "No trading allowed between players"));
-        //---MG
-        opt.put("RG", new SOCGameOption
-        		("RG", -1, 1113, false, false, "Regular SOCL game (untick for practice game)"));
-        
-        opt.put("LB", new SOCGameOption
-        		("LB", -1, 1113, false, false, "Load saved board layout (tick to load a saved configuration)"));
-        
-        opt.put("CN", new SOCGameOption
-        		("CN", -1, 1113, true, false, "Chat negotiations (tick to trade via the chat)"));
-        
-        opt.put("FO", new SOCGameOption
-        		("FO", -1, 1113, false, false, "Fully observable (tick to show hidden information)"));
-        
-        // NEW_OPTION - Add opt.put here at end of list, and update the
-        //       list of "current known options" in javadoc just above.
+    /**
+     * {@link #optFlags} bitfield constant for an Inactive Option.
+     * See {@link SOCGameOption} class javadoc for more about Inactive Options.
+     *<P>
+     * If an inactive Known Option is activated during server startup by calling
+     * {@link SOCGameOptionSet#activate(String)}, it loses this flag and gains {@link #FLAG_ACTIVATED}.
+     *
+     * @since 2.4.50
+     */
+    public static final int FLAG_INACTIVE_HIDDEN = 0x04;  // NEW_OPTION - decide if this applies to your option
 
-        return opt;
+    /**
+     * {@link #optFlags} bitfield constant for a formerly inactive game option ({@link #FLAG_INACTIVE_HIDDEN})
+     * which has been activated (made visible) at server by a call to {@link SOCGameOptionSet#activate(String)}.
+     * This separate flag bit helps the server tell connecting clients the option is available,
+     * as long as their version &gt;= its {@link SOCVersionedItem#minVersion minVersion}.
+     *
+     * @see SOCGameOptionSet#optionsWithFlag(int, int)
+     * @since 2.4.50
+     */
+    public static final int FLAG_ACTIVATED = 0x08;
 
-        /*
-                // A commented-out debug option is kept here for each option type's testing convenience.
-                // OTYPE_* - Add a commented-out debug of the new type, for testing the new type.
+    /**
+     * {@link #optFlags} bitfield constant for a "third-party" game option defined by
+     * a 3rd-party client, bot, or server JSettlers fork, as a way to add features or flags
+     * but remain backwards-compatible with standard JSettlers; this game option might not be known by all
+     * currently connected clients/servers at the same version.
+     *<UL>
+     * <LI> Each such game opt requires an accompanying client feature name, so a server
+     *      which knows about the opt can easily tell if a client knows it
+     * <LI> A client which knows 3rd-party game opts should ask server about all of them
+     *      during game option info sync, to see whether server knows them.
+     *      (Client call to {@link SOCGameOptionSet#optionsNewerThanVersion(int, boolean, boolean)} handles this.)
+     * <LI> The client feature name can be as long as needed, and named using the same
+     *      "reverse DNS" convention as java package names
+     * <LI> The game option name key should use {@code '3'} as the second character of
+     *      their name key: {@code "_3"}, {@code "T3"}, etc. This avoids a naming conflict,
+     *      since built-in options will never have {@code '3'} in that position
+     * <LI> Unless the server and client both know the third-party option and its client feature
+     *      in their {@link SOCGameOptionSet#getAllKnownOptions()} methods,
+     *      it will be ignored/unknown during the game option info synchronization/negotiation
+     *      process done when the client connects
+     *</UL>
+     *
+     * @since 2.4.50
+     */
+    public static final int FLAG_3RD_PARTY = 0x10;
 
-        opt.put("DEBUGENUM", new SOCGameOption
-                ("DEBUGENUM", 1107, 1107, 
-                 3, new String[]{ "First", "Second", "Third", "Fourth"}, "Test option # enum"));
-        opt.put("DEBUGENUMBOOL", new SOCGameOption
-                ("DEBUGENUMBOOL", 1107, 1108, true,
-                 3, new String[]{ "First", "Second", "Third", "Fourth"}, true, "Test option # enumbool"));
-        opt.put("DEBUGSTR", new SOCGameOption
-                ("DEBUGSTR", 1107, 1107, 20, false, true, "Test option str"));
-        opt.put("DEBUGSTRHIDE", new SOCGameOption
-                ("DEBUGSTRHIDE", 1107, 1107, 20, true, true, "Test option strhide"));
-        */
+    // -- Option Types --
+    // OTYPE_*: See comment above optType for "If you create a new option type"
 
-        // OBSOLETE OPTIONS, REMOVED OPTIONS - Move its opt.put down here, commented out,
-        //       including the version, date, and reason of the removal.
-    }
-
-    /** Lowest OTYPE value known at this version */
+    /** Lowest OTYPE_ ({@link #optType}) value known at this version */
     public static final int OTYPE_MIN = 0;
 
-    /** Option type: unknown (probably due to version mismatch)  */
+    /**
+     * Option type: unknown (probably due to version mismatch).
+     * Options of this type will also set their {@link SOCVersionedItem#isKnown isKnown} flag false.
+     */
     public static final int OTYPE_UNKNOWN = 0;
 
     /** Option type: boolean  */
     public static final int OTYPE_BOOL = 1;
 
-    /** Option type: integer  */
+    /**
+     * Option type: integer.
+     *<P>
+     * In v1.1.20 and newer, while reading values in the NewGameOptionsFrame dialog, a blank textfield is treated as 0.
+     * If 0 is out of range, the user will have to enter a valid number.
+     */
     public static final int OTYPE_INT = 2;
 
-    /** Option type: integer + boolean.  Both {@link #boolValue} and {@link #intValue} fields are used. */
+    /**
+     * Option type: integer + boolean.  Both {@link #boolValue} and {@link #intValue} fields are used.
+     *<P>
+     * In v1.1.20 and newer, while reading values in the NewGameOptionsFrame dialog, a blank int value textfield
+     * is treated as 0. If 0 is out of range, the user will have to enter a valid number.
+     * If the option's boolean value checkbox isn't set, the int value isn't set or changed.
+     */
     public static final int OTYPE_INTBOOL = 3;
 
     /** Option type: enumeration (1 of several possible choices, described with text strings,
@@ -268,7 +296,7 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
      */
     public static final int OTYPE_ENUMBOOL = 5;
 
-    /** Option type: text string (max string length is {@link #maxIntValue}, default value is "") */
+    /** Option type: text string (max string length is option's {@link #maxIntValue}, default value is "") */
     public static final int OTYPE_STR = 6;
 
     /** Option type: text string (like {@link #OTYPE_STR}) but hidden from view; is NOT encrypted,
@@ -279,9 +307,37 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
     /** Highest OTYPE value known at this version */
     public static final int OTYPE_MAX = OTYPE_STRHIDE;  // OTYPE_* - adj OTYPE_MAX if adding new type
 
+    // -- End of option types --
+
+    /**
+     * Version 2.0.00 introduced longer option keynames (8 characters, earlier max was 3)
+     * and underscores '_' in option names.
+     * Game option names sent to v1.x.xx servers must be 3 characters or less, alphanumeric, no underscores ('_').
+     * @since 2.0.00
+     */
+    public static final int VERSION_FOR_LONGER_OPTNAMES = 2000;
+
+    /**
+     * Maximum possible length of any text-type SOCGameOption's value, to conserve network bandwidth.
+     * Checked in option's constructor. Individual SOCGameOptions may choose a shorter max length
+     * (stored in {@link #maxIntValue} field).
+     *<P>
+     * Types: {@link #OTYPE_STR}, {@link #OTYPE_STRHIDE}.
+     * @since 2.0.00
+     */
+    public static final int TEXT_OPTION_MAX_LENGTH = 255;
+
+    /**
+     * List of options to refresh on-screen after a change during game creation;
+     * filled by {@link #refreshDisplay()}.  Not thread-safe.
+     * @see ChangeListener
+     * @since 1.1.13
+     */
+    private static List<SOCGameOption> refreshList;
+
     // If you create a new option type,
-    // please update parseOptionsToHash(), packOptionsToString(),
-    // adjustOptionsToKnown(), and soc.message.SOCGameOptionGetInfo,
+    // please update parseOptionsToMap(), packOptionsToString(),
+    // SOCGameOptionSet.adjustOptionsToKnown(), and soc.message.SOCGameOptionGetInfo,
     // and other places.
     // (Search *.java for "// OTYPE_*" to find all locations)
 
@@ -290,7 +346,7 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
      * <LI> {@link #OTYPE_BOOL} Boolean
      * <LI> {@link #OTYPE_INT}  Integer, with min/max value
      * <LI> {@link #OTYPE_INTBOOL} Int plus bool (Ex. [x] no robber rolls in first _5_ turns)
-     * <LI> {@link #OTYPE_ENUM} Enumerated-choice (Ex. Standard vs Seafarers):
+     * <LI> {@link #OTYPE_ENUM} Enumerated-choice (Ex. Classic vs Seafarers):
      *        Stored like integer {@link #OTYPE_INT} in range 1-n, described to user with text strings.
      * <LI> {@link #OTYPE_ENUMBOOL} Enum plus bool; stored like {@link #OTYPE_INTBOOL}.
      * <LI> {@link #OTYPE_STR} short text string: max string length is {@link #maxIntValue}; default value is the empty string.
@@ -300,47 +356,11 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
     public final int optType;  // OTYPE_* - if a new type is added, update this field's javadoc.
 
     /**
-     * Option key/name: Short alphanumeric name (2 characters, uppercase, starting with a letter)
+     * Sum of all of option's flags, if any, such as {@link #FLAG_DROP_IF_UNUSED}.
+     * @see #hasFlag(int)
+     * @since 2.0.00
      */
-    public final String optKey;
-
-    /**
-     * Minimum game version supporting this option, or -1;
-     * same format as {@link soc.util.Version#versionNumber() Version.versionNumber()}.
-     * Public direct usage of this is discouraged;
-     * use {@link #optionsMinimumVersion(Hashtable)} or {@link #getMinVersion()} instead,
-     * because the current value of an option can change its minimum version.
-     * For example, a 5- or 6-player game will need a newer client than 4 players,
-     * but option "PL"'s minVersion is -1, to allow 2- or 3-player games with any client.
-     */
-    public final int minVersion;  // or -1
-
-    /**
-     * Most recent game version in which this option changed, or if not modified, the version which added it.
-     * changes would include different min/max values, new choices for an {@link #OTYPE_ENUM}, etc.
-     * Same format as {@link soc.util.Version#versionNumber() Version.versionNumber()}.
-     */
-    public final int lastModVersion;
-
-    /**
-     * Should the server drop this option from game options, and not send over
-     * the network (to reduce overhead), if the value is un-set or blank?
-     * (Meaning not set (false) for {@link #OTYPE_BOOL}, {@link #OTYPE_ENUMBOOL}
-     * or {@link #OTYPE_INTBOOL}; blank for {@link #OTYPE_STR} or {@link #OTYPE_STRHIDE})
-     *<P>
-     * Only recommended for seldom-used options.
-     * The removal is done in {@link #adjustOptionsToKnown(Hashtable, Hashtable)}.
-     * Once this flag is set for an option, it should not be un-set if the
-     * option is changed in a later version.
-     *<P>
-     * For {@link #OTYPE_INTBOOL} and {@link #OTYPE_ENUMBOOL}, both the integer and
-     * boolean values are checked against defaults.
-     *<P>
-     * This flag is ignored at the client when asking to create a new game:
-     * <tt>NewGameOptionsFrame</tt> sends all options it has displayed, even those
-     * which would be dropped because they're unused and they have this flag.
-     */
-    public final boolean dropIfUnused;  // OTYPE_* - mention in javadoc if this applies to the new type.
+    public final int optFlags;
 
     /**
      * Default value for boolean part of this option, if any
@@ -359,15 +379,6 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
     public final int minIntValue, maxIntValue;
 
     /**
-     * Descriptive text for the option. Must not contain the network delimiter
-     * characters {@link SOCMessage#sep_char} or {@link SOCMessage#sep2_char}.
-     * If option type is integer-valued ({@link #OTYPE_ENUM}, {@link #OTYPE_INTBOOL}, etc),
-     * may contain a placeholder '#' where the value is typed onscreen.
-     * For {@link #OTYPE_UNKNOWN}, an empty string.
-     */
-    public final String optDesc;   // OTYPE_* - if a new type is added, update this field's javadoc.
-
-    /**
      * For type {@link #OTYPE_ENUM} and {@link #OTYPE_ENUMBOOL}, descriptive text for each possible value;
      * null for other types.  If a value is added or changed in a later version, the option's
      * {@link #lastModVersion} field must be updated, so server/client will know
@@ -376,83 +387,124 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
      */
     public final String[] enumVals;
 
+    /**
+     * Any client feature required to use this game option, or null; see {@link #getClientFeature()} for details.
+     * Set at server only.
+     * @since 2.4.00
+     */
+    private String clientFeat;
+
     private boolean boolValue;
     private int     intValue;
-    private String  strValue;  // no default value: is "", stored as null
+
+    /** no default value field; "" if unset, stored as null */
+    private String  strValue;
+
+    /**
+     * The option's ChangeListener, or null.
+     * @since 1.1.13
+     */
+    private transient ChangeListener optCL;
+
+    /**
+     * Has the user selected a value?
+     * False if unchanged, or if changed only by
+     * a {@link ChangeListener} or other automatic means.
+     *<P>
+     * If a {@link ChangeListener} later changes the
+     * option's value, consider clearing <tt>userChanged</tt>
+     * because the user hasn't set that.
+     *<P>
+     * Client use only; not sent over the network.
+     * Set in <tt>NewGameOptionsFrame</tt>.
+     * @since 1.1.20
+     */
+    public transient boolean userChanged;
 
     /**
      * Create a new game option of unknown type ({@link #OTYPE_UNKNOWN}).
      * Minimum version will be {@link Integer#MAX_VALUE}.
-     * Value will be false/0. optDesc will be an empty string.
-     * @param key   Alphanumeric 2-character code for this option;
-     *                see {@link #isAlphanumericUpcaseAscii(String)} for format.
-     * @throws IllegalArgumentException if key length is > 3 or not alphanumeric,
-     *        or if minVers or lastModVers is under 1000 but not -1
+     * Value will be false/0. desc will be an empty string.
+     * @param key   Alphanumeric short unique key for this option;
+     *                see {@link SOCVersionedItem#isAlphanumericUpcaseAscii(String)} for format.
+     * @throws IllegalArgumentException if key is not alphanumeric or length is > 8;
+     *        {@link Throwable#getMessage()} will have details
      */
-    public SOCGameOption(String key)
+    public SOCGameOption(final String key)
         throws IllegalArgumentException
     {
-        this(OTYPE_UNKNOWN, key, Integer.MAX_VALUE, Integer.MAX_VALUE, false, 0, 0, 0, false, null, key);
+        this(OTYPE_UNKNOWN, key, Integer.MAX_VALUE, Integer.MAX_VALUE, false, 0, 0, 0, null, 0, key);
     }
 
     /**
      * Create a new boolean game option ({@link #OTYPE_BOOL}).
      *
-     * @param key     Alphanumeric 2-character code for this option;
-     *                see {@link #isAlphanumericUpcaseAscii(String)} for format.
+     * @param key     Alphanumeric short unique key for this option;
+     *                see {@link SOCVersionedItem#isAlphanumericUpcaseAscii(String)} for format.
+     *                See {@link SOCGameOption} class javadoc for max length, which depends on {@code minVers}.
      * @param minVers Minimum client version if this option is set (is true), or -1
      * @param lastModVers Last-modified version for this option, or version which added it
      * @param defaultValue Default value (true if set, false if not set)
-     * @param dropIfUnused If this option's value is unset, should server not add it to game options
-     *           or send over the network (to reduce overhead)?
-     *           Only recommended if game behavior without the option is well-established
-     *           (for example, trading is allowed unless option NT is present).
+     * @param flags   Option flags such as {@link #FLAG_DROP_IF_UNUSED}, or 0;
+     *                Remember that older clients won't recognize some gameoption flags.
      * @param desc    Descriptive brief text, to appear in the options dialog
-     * @throws IllegalArgumentException if key length is > 3 or not alphanumeric,
+     * @throws IllegalArgumentException if key is not alphanumeric or length is > 8,
+     *        or if key length > 3 and minVers &lt; 2000,
      *        or if desc contains {@link SOCMessage#sep_char} or {@link SOCMessage#sep2_char},
-     *        or if minVers or lastModVers is under 1000 but not -1
+     *        or if minVers or lastModVers is under 1000 but not -1,
+     *        or if flags {@link #FLAG_INACTIVE_HIDDEN} and {@link #FLAG_ACTIVATED} are both set;
+     *        {@link Throwable#getMessage()} will have details
      */
-    public SOCGameOption(String key, int minVers, int lastModVers,
-        boolean defaultValue, boolean dropIfUnused, String desc)
+    public SOCGameOption(final String key, final int minVers, final int lastModVers,
+        final boolean defaultValue, final int flags, final String desc)
         throws IllegalArgumentException
     {
-	this(OTYPE_BOOL, key, minVers, lastModVers, defaultValue, 0, 0, 0, dropIfUnused, null, desc);
+        this(OTYPE_BOOL, key, minVers, lastModVers, defaultValue, 0, 0, 0, null, flags, desc);
     }
 
     /**
      * Create a new integer game option ({@link #OTYPE_INT}).
-     * There is no dropIfUnused parameter for integer options,
-     * because they have no 'blank' value.
+     *<P>
+     * If {@link #FLAG_DROP_IF_UNUSED} is set, the option will be dropped if == {@link #defaultIntValue}.<BR>
+     * Before v2.0.00, there was no dropIfUnused flag for integer options.
      *
-     * @param key     Alphanumeric 2-character code for this option;
-     *                see {@link #isAlphanumericUpcaseAscii(String)} for format.
+     * @param key     Alphanumeric short unique key for this option;
+     *                see {@link SOCVersionedItem#isAlphanumericUpcaseAscii(String)} for format.
+     *                See {@link SOCGameOption} class javadoc for max length, which depends on {@code minVers}.
      * @param minVers Minimum client version if this option is set (boolean is true), or -1
      * @param lastModVers Last-modified version for this option, or version which added it
      * @param defaultValue Default int value
      * @param minValue Minimum permissible value
      * @param maxValue Maximum permissible value; the width of the options-dialog
      *                 value field is based on the number of digits in maxValue.
+     * @param flags   Option flags such as {@link #FLAG_DROP_IF_UNUSED}, or 0;
+     *                Remember that older clients won't recognize some gameoption flags.
      * @param desc Descriptive brief text, to appear in the options dialog; may
      *             contain a placeholder character '#' where the int value goes.
      *             If no placeholder is found, the value text field appears at left,
      *             like boolean options.
      * @throws IllegalArgumentException if defaultValue < minValue or is > maxValue,
-     *        or if key length is > 3 or not alphanumeric,
+     *        or if key is not alphanumeric or length is > 8,
+     *        or if key length > 3 and minVers &lt; 2000,
      *        or if desc contains {@link SOCMessage#sep_char} or {@link SOCMessage#sep2_char},
-     *        or if minVers or lastModVers is under 1000 but not -1
+     *        or if minVers or lastModVers is under 1000 but not -1,
+     *        or if flags {@link #FLAG_INACTIVE_HIDDEN} and {@link #FLAG_ACTIVATED} are both set;
+     *        {@link Throwable#getMessage()} will have details
      */
-    public SOCGameOption(String key, int minVers, int lastModVers,
-        int defaultValue, int minValue, int maxValue, String desc)
-        throws IllegalArgumentException 
+    public SOCGameOption(final String key, final int minVers, final int lastModVers,
+        final int defaultValue, final int minValue, final int maxValue,
+        final int flags, final String desc)
+        throws IllegalArgumentException
     {
-	this(OTYPE_INT, key, minVers, lastModVers, false, defaultValue,
-	     minValue, maxValue, false, null, desc);
+        this(OTYPE_INT, key, minVers, lastModVers, false, defaultValue,
+             minValue, maxValue, null, flags, desc);
     }
 
     /**
      * Create a new int+boolean game option ({@link #OTYPE_INTBOOL}).
-     * @param key     Alphanumeric 2-character code for this option;
-     *                see {@link #isAlphanumericUpcaseAscii(String)} for format.
+     * @param key     Alphanumeric short unique key for this option;
+     *                see {@link SOCVersionedItem#isAlphanumericUpcaseAscii(String)} for format.
+     *                See {@link SOCGameOption} class javadoc for max length, which depends on {@code minVers}.
      * @param minVers Minimum client version if this option is set (boolean is true), or -1
      * @param lastModVers Last-modified version for this option, or version which added it
      * @param defaultBoolValue Default value (true if set, false if not set)
@@ -460,194 +512,256 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
      * @param minValue Minimum permissible value
      * @param maxValue Maximum permissible value; the width of the options-dialog
      *                 value field is based on the number of digits in maxValue.
-     * @param dropIfUnused If this option's bool value is unset, and its int value is the default,
-     *           should server not add it to game options
-     *           or send over the network (to reduce overhead)?
-     *           Only recommended if game behavior without the option is well-established
-     *           (for example, trading is allowed unless option NT is present).
+     * @param flags   Option flags such as {@link #FLAG_DROP_IF_UNUSED}, or 0;
+     *                Remember that older clients won't recognize some gameoption flags.
      * @param desc Descriptive brief text, to appear in the options dialog; should
      *             contain a placeholder character '#' where the int value goes.
      * @throws IllegalArgumentException if defaultIntValue < minValue or is > maxValue,
-     *        or if key length is > 3 or not alphanumeric,
+     *        or if key is not alphanumeric or length is > 8,
+     *        or if key length > 3 and minVers &lt; 2000,
      *        or if desc contains {@link SOCMessage#sep_char} or {@link SOCMessage#sep2_char},
-     *        or if minVers or lastModVers is under 1000 but not -1
+     *        or if minVers or lastModVers is under 1000 but not -1,
+     *        or if flags {@link #FLAG_INACTIVE_HIDDEN} and {@link #FLAG_ACTIVATED} are both set;
+     *        {@link Throwable#getMessage()} will have details
      */
-    public SOCGameOption(String key, int minVers, int lastModVers, boolean defaultBoolValue, int defaultIntValue,
-        int minValue, int maxValue, boolean dropIfUnused, String desc)
+    public SOCGameOption(final String key, final int minVers, final int lastModVers,
+        final boolean defaultBoolValue, final int defaultIntValue,
+        final int minValue, final int maxValue, final int flags, final String desc)
         throws IllegalArgumentException
     {
-	this(OTYPE_INTBOOL, key, minVers, lastModVers, defaultBoolValue, defaultIntValue,
-	     minValue, maxValue, dropIfUnused, null, desc);
+        this(OTYPE_INTBOOL, key, minVers, lastModVers, defaultBoolValue, defaultIntValue,
+             minValue, maxValue, null, flags, desc);
     }
 
     /**
      * Create a new enumerated game option ({@link #OTYPE_ENUM}).
      * The {@link #minIntValue} will be 1, {@link #maxIntValue} will be enumVals.length.
-     * There is no dropIfUnused parameter for enum options,
-     * because they have no 'blank' value.
+     *<P>
+     * If {@link #FLAG_DROP_IF_UNUSED} is set, the option will be dropped if == {@link #defaultIntValue}.<BR>
+     * Before v2.0.00, there was no dropIfUnused flag for enum options.
      *
-     * @param key     Alphanumeric 2-character code for this option;
-     *                see {@link #isAlphanumericUpcaseAscii(String)} for format.
+     * @param key     Alphanumeric short unique key for this option;
+     *                see {@link SOCVersionedItem#isAlphanumericUpcaseAscii(String)} for format.
+     *                See {@link SOCGameOption} class javadoc for max length, which depends on {@code minVers}.
      * @param minVers Minimum client version if this option is set (boolean is true), or -1
      * @param lastModVers Last-modified version for this option, or version which added it
      * @param defaultValue Default int value, in range 1 - n (n == number of possible values)
+     * @param flags   Option flags such as {@link #FLAG_DROP_IF_UNUSED}, or 0;
+     *                Remember that older clients won't recognize some gameoption flags.
      * @param enumVals text to display for each possible choice of this option.
-     *                Please see the explanation at {@link #initAllOptions()} about
+     *                Please see the explanation at {@link SOCGameOptionSet#getAllKnownOptions()} about
      *                changing or adding to enumVals in later versions.
      * @param desc Descriptive brief text, to appear in the options dialog; may
      *             contain a placeholder character '#' where the enum's popup-menu goes.
      *             If no placeholder is found, the value field appears at left,
      *             like boolean options.
      * @throws IllegalArgumentException if defaultValue < minValue or is > maxValue,
-     *        or if key length is > 3 or not alphanumeric,
+     *        or if key is not alphanumeric or length is > 8,
+     *        or if key length > 3 and minVers &lt; 2000,
      *        or if desc contains {@link SOCMessage#sep_char} or {@link SOCMessage#sep2_char},
-     *        or if minVers or lastModVers is under 1000 but not -1
+     *        or if minVers or lastModVers is under 1000 but not -1,
+     *        or if flags {@link #FLAG_INACTIVE_HIDDEN} and {@link #FLAG_ACTIVATED} are both set;
+     *        {@link Throwable#getMessage()} will have details
      */
-    public SOCGameOption(String key, int minVers, int lastModVers,
-        int defaultValue, String[] enumVals, String desc)
+    public SOCGameOption(final String key, final int minVers, final int lastModVers,
+        final int defaultValue, final String[] enumVals, final int flags, final String desc)
         throws IllegalArgumentException
     {
         this(OTYPE_ENUM, key, minVers, lastModVers, false, defaultValue,
-             1, enumVals.length, false, enumVals, desc);
+             1, enumVals.length, enumVals, flags, desc);
     }
 
     /**
      * Create a new enumerated + boolean game option ({@link #OTYPE_ENUMBOOL}).
      * The {@link #minIntValue} will be 1, {@link #maxIntValue} will be enumVals.length.
      *
-     * @param key     Alphanumeric 2-character code for this option;
-     *                see {@link #isAlphanumericUpcaseAscii(String)} for format.
+     * @param key     Alphanumeric short unique key for this option;
+     *                see {@link SOCVersionedItem#isAlphanumericUpcaseAscii(String)} for format.
+     *                See {@link SOCGameOption} class javadoc for max length, which depends on {@code minVers}.
      * @param minVers Minimum client version if this option is set (boolean is true), or -1
      * @param lastModVers Last-modified version for this option, or version which added it
      * @param defaultBoolValue Default value (true if set, false if not set)
      * @param defaultIntValue Default int value, in range 1 - n (n == number of possible values)
      * @param enumVals text to display for each possible choice of this option
-     * @param dropIfUnused If this option's bool value is unset, and its int value is the default,
-     *           should server not add it to game options
-     *           or send over the network (to reduce overhead)?
-     *           Only recommended if game behavior without the option is well-established
-     *           (for example, trading is allowed unless option NT is present).
+     * @param flags   Option flags such as {@link #FLAG_DROP_IF_UNUSED}, or 0;
+     *                Remember that older clients won't recognize some gameoption flags.
      * @param desc Descriptive brief text, to appear in the options dialog; may
      *             contain a placeholder character '#' where the enum's popup-menu goes.
      *             If no placeholder is found, the value field appears at left,
      *             like boolean options.
      * @throws IllegalArgumentException if defaultValue < minValue or is > maxValue,
-     *        or if key length is > 3 or not alphanumeric,
+     *        or if key is not alphanumeric or length is > 8,
+     *        or if key length > 3 and minVers &lt; 2000,
      *        or if desc contains {@link SOCMessage#sep_char} or {@link SOCMessage#sep2_char},
-     *        or if minVers or lastModVers is under 1000 but not -1
+     *        or if minVers or lastModVers is under 1000 but not -1,
+     *        or if flags {@link #FLAG_INACTIVE_HIDDEN} and {@link #FLAG_ACTIVATED} are both set;
+     *        {@link Throwable#getMessage()} will have details
      */
-    public SOCGameOption(String key, int minVers, int lastModVers, boolean defaultBoolValue,
-        int defaultIntValue, String[] enumVals, boolean dropIfUnused, String desc)
+    public SOCGameOption(final String key, final int minVers, final int lastModVers, final boolean defaultBoolValue,
+        final int defaultIntValue, final String[] enumVals, final int flags, final String desc)
         throws IllegalArgumentException
     {
         this(OTYPE_ENUMBOOL, key, minVers, lastModVers,
              defaultBoolValue, defaultIntValue,
-             1, enumVals.length, dropIfUnused, enumVals, desc);
+             1, enumVals.length, enumVals, flags, desc);
     }
 
     /**
      * Create a new text game option ({@link #OTYPE_STR} or {@link #OTYPE_STRHIDE}).
-     * The {@link #maxIntValue} will be maxLength.
-     * @param key     Alphanumeric 2-character code for this option;
-     *                see {@link #isAlphanumericUpcaseAscii(String)} for format.
+     * The {@link #maxIntValue} field will hold {@code maxLength}.
+     * @param key     Alphanumeric short unique key for this option;
+     *                see {@link SOCVersionedItem#isAlphanumericUpcaseAscii(String)} for format.
+     *                See {@link SOCGameOption} class javadoc for max length, which depends on {@code minVers}.
      * @param minVers Minimum client version if this option is set (boolean is true), or -1
      * @param lastModVers Last-modified version for this option, or version which added it
-     * @param maxLength   Maximum length, between 1 and 255 (for network bandwidth conservation)
+     * @param maxLength   Maximum length, between 1 and 255 ({@link #TEXT_OPTION_MAX_LENGTH})
+     *                for network bandwidth conservation
      * @param hideTyping  Should type be {@link #OTYPE_STRHIDE} instead of {@link #OTYPE_STR}?
-     * @param dropIfUnused If this option's value is blank, should
-     *           server not add it to game options
-     *           or send over the network (to reduce overhead)?
+     * @param flags   Option flags such as {@link #FLAG_DROP_IF_UNUSED}, or 0;
+     *                Remember that older clients won't recognize some gameoption flags.
      * @param desc Descriptive brief text, to appear in the options dialog; may
      *             contain a placeholder character '#' where the text value goes.
      *             If no placeholder is found, the value text field appears at left,
      *             like boolean options.
-     * @throws IllegalArgumentException if maxLength > 255,
-     *        or if key length is > 3 or not alphanumeric,
+     * @throws IllegalArgumentException if maxLength > {@link #TEXT_OPTION_MAX_LENGTH},
+     *        or if key is not alphanumeric or length is > 8,
+     *        or if key length > 3 and minVers &lt; 2000,
      *        or if desc contains {@link SOCMessage#sep_char} or {@link SOCMessage#sep2_char},
-     *        or if minVers or lastModVers is under 1000 but not -1
+     *        or if minVers or lastModVers is under 1000 but not -1,
+     *        or if flags {@link #FLAG_INACTIVE_HIDDEN} and {@link #FLAG_ACTIVATED} are both set;
+     *        {@link Throwable#getMessage()} will have details
      */
-    public SOCGameOption(String key, int minVers, int lastModVers,
-	int maxLength, boolean hideTyping, boolean dropIfUnused, String desc)
-        throws IllegalArgumentException 
+    public SOCGameOption(final String key, final int minVers, final int lastModVers,
+        final int maxLength, final boolean hideTyping, final int flags, final String desc)
+        throws IllegalArgumentException
     {
-	this( (hideTyping ? OTYPE_STRHIDE : OTYPE_STR ),
-	     key, minVers, lastModVers, false, 0,
-	     0, maxLength, dropIfUnused, null, desc);
-	if ((maxLength < 1) || (maxLength > 255))
-	    throw new IllegalArgumentException("maxLength");
+        this( (hideTyping ? OTYPE_STRHIDE : OTYPE_STR),
+             key, minVers, lastModVers, false, 0,
+             0, maxLength, null, flags, desc);
+        if ((maxLength < 1) || (maxLength > TEXT_OPTION_MAX_LENGTH))
+            throw new IllegalArgumentException("maxLength");
     }
 
     /**
      * Create a new game option - common constructor.
+     *<P>
+     * If {@code key} starts with {@code "_SC_"}, constructor will automatically call
+     * {@link #setClientFeature(String) setClientFeature}({@link SOCFeatureSet#CLIENT_SEA_BOARD}).
+     * If you need a different client feature instead, or none, call that setter afterwards.
+     *
      * @param otype   Option type; use caution, as this is unvalidated against
      *                {@link #OTYPE_MIN} or {@link #OTYPE_MAX}.
-     * @param key     Alphanumeric 2-character code for this option;
-     *                see {@link #isAlphanumericUpcaseAscii(String)} for format.
-     * @param minVers Minimum client version if this option is set (boolean is true), or -1
+     * @param key     Alphanumeric short unique key for this option;
+     *                see {@link SOCVersionedItem#isAlphanumericUpcaseAscii(String)} for format.
+     *                See {@link SOCGameOption} class javadoc for max length, which depends on {@code minVers}.
+     * @param minVers Minimum client version for games where this option is set (its boolean field is true), or -1.
+     *                If <tt>key</tt> is longer than 3 characters, <tt>minVers</tt> must be at least 2000
+     *                ({@link #VERSION_FOR_LONGER_OPTNAMES}).
+     *                For {@link #OTYPE_UNKNOWN}, use {@link Integer#MAX_VALUE}.
      * @param lastModVers Last-modified version for this option, or version which added it
      * @param defaultBoolValue Default value (true if set, false if not set)
      * @param defaultIntValue Default int value, to use if option is set
      * @param minValue Minimum permissible value
      * @param maxValue Maximum permissible value; the width of the options-dialog
      *                 value field is based on the number of digits in maxValue.
-     * @param dropIfUnused If this option's value is blank or unset, should
-     *                 server not add it to game options?
-     *                 See {@link #dropIfUnused} javadoc for more details.
      * @param enumVals Possible choice texts for {@link #OTYPE_ENUM} or {@link #OTYPE_ENUMBOOL}, or null;
      *                 value(s) must pass same checks as desc.
+     * @param flags   Option flags such as {@link #FLAG_DROP_IF_UNUSED}, or 0;
+     *                Remember that older clients won't recognize some gameoption flags.
      * @param desc Descriptive brief text, to appear in the options dialog; should
      *             contain a placeholder character '#' where the int value goes.
      *             Desc must not contain {@link SOCMessage#sep_char} or {@link SOCMessage#sep2_char},
      *             and must evaluate true from {@link SOCMessage#isSingleLineAndSafe(String)}.
      * @throws IllegalArgumentException if defaultIntValue < minValue or is > maxValue,
-     *        or if key length is > 3 or not alphanumeric,
+     *        or if key is not alphanumeric or length is > 8,
+     *        or if key length > 3 and minVers &lt; 2000,
      *        or if desc contains {@link SOCMessage#sep_char} or {@link SOCMessage#sep2_char},
-     *        or if minVers or lastModVers is under 1000 but not -1
+     *        or if minVers or lastModVers is under 1000 but not -1,
+     *        or if flags {@link #FLAG_INACTIVE_HIDDEN} and {@link #FLAG_ACTIVATED} are both set;
+     *        {@link Throwable#getMessage()} will have details
      */
-    protected SOCGameOption(int otype, String key, int minVers, int lastModVers,
+    protected SOCGameOption(int otype, final String key, int minVers, int lastModVers,
         boolean defaultBoolValue, int defaultIntValue,
-        int minValue, int maxValue, boolean dropIfUnused,
-        String[] enumVals, String desc)
+        final int minValue, final int maxValue,
+        final String[] enumVals, final int flags, final String desc)
         throws IllegalArgumentException
     {
-	// validate & set option properties:
+        super(key, minVers, lastModVers, (otype != OTYPE_UNKNOWN), desc);
+            // super checks against these:
+            // (! SOCVersionedItem.isAlphanumericUpcaseAscii(key)) || key.equals("-")
+            // (minVers < 1000) && (minVers != -1)
+            // (lastModVers < 1000) && (lastModVers != -1)
+            // ! SOCMessage.isSingleLineAndSafe(desc)
 
-        if ((key.length() > 3) && ! key.startsWith("DEBUG"))
-            throw new IllegalArgumentException("Key length: " + key);
-        if (! (isAlphanumericUpcaseAscii(key) || key.equals("-")))  // "-" is for server/network use
-            throw new IllegalArgumentException("Key not alphanumeric: " + key);
-        if ((minVers < 1000) && (minVers != -1))
-            throw new IllegalArgumentException("minVers " + minVers + " for key " + key);
-        if ((lastModVers < 1000) && (lastModVers != -1))
-            throw new IllegalArgumentException("lastModVers " + lastModVers + " for key " + key);
-        if (! SOCMessage.isSingleLineAndSafe(desc))
-            throw new IllegalArgumentException("desc fails isSingleLineAndSafe");
+        // validate & set option properties:
+        final int L = key.length();
+        if ((L > 3) && ! key.startsWith("DEBUG"))
+        {
+            if (L > 8)
+                throw new IllegalArgumentException("Key length > 8: " + key);
+            else if (minVers < VERSION_FOR_LONGER_OPTNAMES)
+                throw new IllegalArgumentException("Key length > 3 needs minVers 2000 or newer: " + key);
+        }
+        if ((minVers < VERSION_FOR_LONGER_OPTNAMES) && key.contains("_"))
+            throw new IllegalArgumentException("Key with '_' needs minVers 2000 or newer: " + key);
+        if ((flags & (FLAG_ACTIVATED | FLAG_INACTIVE_HIDDEN)) == (FLAG_ACTIVATED | FLAG_INACTIVE_HIDDEN))
+            throw new IllegalArgumentException("Can't set both FLAG_ACTIVATED and FLAG_INACTIVE_HIDDEN");
 
-	optKey = key;
-	optType = otype;
-	minVersion = minVers;
-	lastModVersion = lastModVers;
-	this.defaultBoolValue = defaultBoolValue;
-	this.defaultIntValue = defaultIntValue;
-	minIntValue = minValue;
-	maxIntValue = maxValue;
-	this.dropIfUnused = dropIfUnused;
+        optType = otype;
+        this.defaultBoolValue = defaultBoolValue;
+        this.defaultIntValue = defaultIntValue;
+        minIntValue = minValue;
+        maxIntValue = maxValue;
+        optFlags = flags;
         this.enumVals = enumVals;
-	optDesc = desc;
 
         if (enumVals != null)
         {
             for (int i = enumVals.length - 1; i>=0; --i)
                 if (! SOCMessage.isSingleLineAndSafe(enumVals[i]))
                     throw new IllegalArgumentException("enumVal fails isSingleLineAndSafe");
-        }    
+        }
 
-	// starting values (= defaults)
-	boolValue = defaultBoolValue;
-	intValue = defaultIntValue;
-	strValue = null;
-	if ((intValue < minIntValue) || (intValue > maxIntValue))
-	    throw new IllegalArgumentException("defaultIntValue");
+        // starting values (= defaults)
+        boolValue = defaultBoolValue;
+        intValue = defaultIntValue;
+        strValue = null;
+        if ((intValue < minIntValue) || (intValue > maxIntValue))
+            throw new IllegalArgumentException("defaultIntValue");
+
+        if (key.startsWith("_SC_"))
+            clientFeat = SOCFeatureSet.CLIENT_SCENARIO_VERSION;
+    }
+
+    /**
+     * Copy constructor for i18n localization of {@link SOCVersionedItem#getDesc() getDesc()}.
+     * @param opt  Option to copy
+     * @param newDesc  Localized option description, or {@code null} to use {@link SOCVersionedItem#getDesc() getDesc()}
+     * @since 2.0.00
+     */
+    public SOCGameOption(final SOCGameOption opt, final String newDesc)
+    {
+        this(opt.optType, opt.key, opt.minVersion, opt.lastModVersion,
+             opt.defaultBoolValue, opt.defaultIntValue, opt.minIntValue, opt.maxIntValue,
+             opt.enumVals, opt.optFlags,
+             (newDesc != null) ? newDesc : opt.desc);
+        copyMiscFields(opt);
+    }
+
+    /**
+     * Copy constructor to change {@link #optFlags} value.
+     * @param opt  Option to copy
+     * @param newFlags  New value for {@link #optFlags}
+     * @since 2.4.50
+     * @throws IllegalArgumentException if flags {@link #FLAG_INACTIVE_HIDDEN} and {@link #FLAG_ACTIVATED} are both set
+     */
+    /*package*/ SOCGameOption(final int newFlags, final SOCGameOption opt)
+        throws IllegalArgumentException
+    {
+        this(opt.optType, opt.key, opt.minVersion, opt.lastModVersion,
+            opt.defaultBoolValue, opt.defaultIntValue, opt.minIntValue, opt.maxIntValue,
+            opt.enumVals, newFlags, opt.desc);
+        copyMiscFields(opt);
     }
 
     /**
@@ -658,18 +772,18 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
      * @param keptEnumVals  Enum values to keep; should be a subset of enumOpt.{@link #enumVals}
      *                 containing the first n values of that list.
      * @see #getMaxEnumValueForVersion(String, int)
-     * @see #optionsNewerThanVersion(int, boolean, boolean, Hashtable)
+     * @see SOCGameOptionSet#optionsNewerThanVersion(int, boolean, boolean)
      * @throws NullPointerException  if keptEnumVals is null
      */
-    protected SOCGameOption(SOCGameOption enumOpt, String[] keptEnumVals)
+    protected SOCGameOption(final SOCGameOption enumOpt, final String[] keptEnumVals)
         throws NullPointerException
     {
         // OTYPE_* - If enum-valued, add to javadoc.
-        this(enumOpt.optType, enumOpt.optKey, enumOpt.minVersion, enumOpt.lastModVersion,
+        this(enumOpt.optType, enumOpt.key, enumOpt.minVersion, enumOpt.lastModVersion,
              enumOpt.defaultBoolValue,
              enumOpt.defaultIntValue <= keptEnumVals.length ? enumOpt.defaultIntValue : keptEnumVals.length,
-             1, keptEnumVals.length, enumOpt.dropIfUnused,
-             keptEnumVals, enumOpt.optDesc);
+             1, keptEnumVals.length, keptEnumVals, enumOpt.optFlags, enumOpt.desc);
+        copyMiscFields(enumOpt);
     }
 
     /**
@@ -679,22 +793,54 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
      *                <tt>maxIntValue</tt>, the default will be reduced to that.
      * @param maxIntValue  Maximum value to keep, in the copy
      * @see #getMaxIntValueForVersion(String, int)
-     * @see #optionsNewerThanVersion(int, boolean, boolean, Hashtable)
+     * @see SOCGameOptionSet#optionsNewerThanVersion(int, boolean, boolean)
      * @since 1.1.08
      */
-    protected SOCGameOption(SOCGameOption intOpt, final int maxIntValue)
+    protected SOCGameOption(final SOCGameOption intOpt, final int maxIntValue)
     {
         // OTYPE_* - If int-valued, add to javadoc.
-        this(intOpt.optType, intOpt.optKey, intOpt.minVersion, intOpt.lastModVersion,
+        this(intOpt.optType, intOpt.key, intOpt.minVersion, intOpt.lastModVersion,
              intOpt.defaultBoolValue,
              intOpt.defaultIntValue <= maxIntValue ? intOpt.defaultIntValue : maxIntValue,
-             intOpt.minIntValue, maxIntValue, intOpt.dropIfUnused,
-             null, intOpt.optDesc);
+             intOpt.minIntValue, maxIntValue,
+             null, intOpt.optFlags, intOpt.desc);
+        copyMiscFields(intOpt);
+    }
+
+    /**
+     * For copy constructors, copy miscellanous fields into the new object from the previous one.
+     * Handles fields which aren't individual parameters of the common constructor: {@link #clientFeat}.
+     * @param copyFrom  Option object to copy fields from
+     * @since 2.4.50
+     */
+    private void copyMiscFields(final SOCGameOption copyFrom)
+    {
+        clientFeat = copyFrom.clientFeat;
+    }
+
+    /**
+     * Is a value currently stored in this option?
+     * Any of:
+     *<UL>
+     * <LI> {@link #getBoolValue()} true
+     * <LI> {@link #getIntValue()} != 0
+     * <LI> {@link #getStringValue()} != ""
+     *</UL>
+     *
+     * @return true if any value field is set
+     * @since 2.4.50
+     */
+    public boolean hasValue()
+    {
+        return (boolValue || (intValue != 0) || ((strValue != null) && ! strValue.isEmpty()));
     }
 
     /**
      * Is this option set, if this option's type has a boolean component?
      * @return current boolean value of this option
+     * @see #hasValue()
+     * @see SOCGame#isGameOptionSet(String)
+     * @see SOCGameOptionSet#isOptionSet(String)
      */
     public boolean getBoolValue() { return boolValue; }
 
@@ -703,6 +849,11 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
     /**
      * This option's integer value, if this option's type has an integer component.
      * @return current integer value of this option
+     * @see #hasValue()
+     * @see SOCGame#getGameOptionIntValue(String)
+     * @see SOCGame#getGameOptionIntValue(String, int, boolean)
+     * @see SOCGameOptionSet#getOptionIntValue(String)
+     * @see SOCGameOptionSet#getOptionIntValue(String, int, boolean)
      */
     public int getIntValue() { return intValue; }
 
@@ -717,19 +868,22 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
         else if (v > maxIntValue)
             intValue = maxIntValue;
         else
-	    intValue = v;
+            intValue = v;
     }
 
     /**
      * @return current string value of this option, or "" (empty string) if not set.
      * Will not contain newlines or otherwise fail {@link SOCMessage#isSingleLineAndSafe(String)}.
+     * @see #hasValue()
+     * @see SOCGame#getGameOptionStringValue(String)
+     * @see SOCGameOptionSet#getOptionStringValue(String)
      */
     public String getStringValue()
     {
-	if (strValue != null)
-	    return strValue;
-	else
-	    return "";
+        if (strValue != null)
+            return strValue;
+        else
+            return "";
     }
 
     /**
@@ -739,12 +893,12 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
      *          if v.length > {@link #maxIntValue}, length will be truncated.
      *          Must not contain {@link SOCMessage#sep_char} or {@link SOCMessage#sep2_char} ('|' or ',').
      * @throws IllegalArgumentException if v contains characters reserved for
-     *          message handling: {@link SOCMessage#sep} or 
+     *          message handling: {@link SOCMessage#sep} or
      *          {@link SOCMessage#sep2} ('|' or ','), or is
      *          multi-line or otherwise fails {@link SOCMessage#isSingleLineAndSafe(String)}.
      */
     public void setStringValue(String v)
-	throws IllegalArgumentException
+        throws IllegalArgumentException
     {
         if (v != null)
         {
@@ -763,55 +917,149 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
     }
 
     /**
+     * If this game option requires one, its client feature from {@link SOCFeatureSet}.
+     * Not set or used at client, or sent over network as part of game option info sync.
+     *<P>
+     * Third-party options should always have a client feature; see {@link #FLAG_3RD_PARTY}.
+     *
+     * @return the client feature required to use this game option,
+     *     like {@link SOCFeatureSet#CLIENT_SEA_BOARD}, or null if none
+     * @see #setClientFeature(String)
+     * @see SOCGameOptionSet#optionsNotSupported(SOCFeatureSet)
+     * @see SOCGameOptionSet#optionsTrimmedForSupport(SOCFeatureSet)
+     * @since 2.4.00
+     */
+    public String getClientFeature()
+    {
+        return clientFeat;
+    }
+
+    /**
+     * Set the client feature required by this game option, if any, at server.
+     * A game option can require at most 1 feature in the current implementation,
+     * not a {@link SOCFeatureSet} with multiple members.
+     *
+     * @param clientFeat Feature to require, like {@link SOCFeatureSet#CLIENT_SEA_BOARD}, or {@code null} for none
+     * @see #getClientFeature()
+     * @since 2.4.00
+     */
+    public void setClientFeature(final String clientFeat)
+    {
+        this.clientFeat = clientFeat;
+    }
+
+    /**
      * Minimum game version supporting this option, given {@link #minVersion} and the option's current value.
      * The current value of an option can change its minimum version.
-     * For example, a 5- or 6-player game will need a newer client than 4 players,
-     * but option "PL"'s {@link #minVersion} is -1, to allow 2- or 3-player games with any client.
+     * For example, option {@code "PL"}'s minVersion is -1 for 2- to 4-player games with any client version,
+     * but a 5- or 6-player game will need client 1.1.08 or newer.
      * For boolean-valued option types ({@link #OTYPE_BOOL}, {@link #OTYPE_ENUMBOOL} and
      * {@link #OTYPE_INTBOOL}), the minimum
      * value is -1 unless {@link #getBoolValue()} is true (that is, unless the option is set).
+     *<P>
+     * Occasionally, an older client version supports a new option, but only by changing
+     * the value of some other options it recognizes.
+     * This method will calculate the minimum client version at which options are unchanged,
+     * if <tt>opts</tt> != null.
      *<P>
      * Because this calculation is hardcoded here, the version returned may be too low when
      * called at an older-version client.  The server will let the client know if it's too
      * old to join or create a game due to options.
      *
+     * @param opts  If null, return the minimum version supporting this option.
+     *               Otherwise, the minimum version at which this option's value isn't changed
+     *               (for compatibility) by the presence of other options.
      * @return minimum version, or -1;
-     *     same format as {@link soc.util.Version#versionNumber() Version.versionNumber()}.
-     * @see #optionsMinimumVersion(Hashtable)
+     *     same format as {@link Version#versionNumber()}.
+     *     If <tt>opts != null</tt>, the returned version will either be -1 or >= 1107
+     *     (the first version with game options).
+     * @see SOCVersionedItem#itemsMinimumVersion(Map)
      * @see #getMaxEnumValueForVersion(String, int)
      * @see #getMaxIntValueForVersion(String, int)
      */
-    public int getMinVersion()
+    @Override
+    public int getMinVersion(final Map<?, ? extends SOCVersionedItem> opts)
     {
-        if ((optType == OTYPE_BOOL) || (optType == OTYPE_INTBOOL)
-            || (optType == OTYPE_ENUMBOOL))  // OTYPE_*: check here if boolean-valued
+        // Check for unset/droppable options
+        switch (optType)
         {
+        case OTYPE_BOOL:      // OTYPE_*: check here if boolean-valued
+        case OTYPE_INTBOOL:
+        case OTYPE_ENUMBOOL:
             if (! boolValue)
                 return -1;  // Option not set: any client version is OK
+            break;
+
+        case OTYPE_INT:
+        case OTYPE_ENUM:
+            if (hasFlag(FLAG_DROP_IF_UNUSED) && (intValue == defaultIntValue))
+                return -1;  // Option not set: any client version is OK
+            break;
+
+        case OTYPE_STR:
+        case OTYPE_STRHIDE:
+            if (hasFlag(FLAG_DROP_IF_UNUSED) && ((strValue == null) || (strValue.length() == 0)))
+                return -1;  // Option not set: any client version is OK
+            break;
         }
+
+        int minVers = minVersion;
+
+        // Any option value checking for minVers is done here.
+
+        if (key.equals("SC"))
+        {
+            SOCScenario sc = SOCScenario.getScenario(getStringValue());
+            if ((sc != null) && (sc.minVersion > minVers))
+                minVers = sc.minVersion;
+        }
+
+        // None of the other current options change minVers based on their value.
 
         // NEW_OPTION:
-        // Any option value checking for minVers is done here.
-        // None of the current options change minVers based on their value.
         // If your option changes the minVers based on its current value,
-        // check the optKey and current value, and return the appropriate version,
-        // instead of just returning minVersion.
+        // check the key and current value and set the appropriate version like "SC" does.
+        //
+        // ADDITIONAL BACKWARDS-COMPATIBLE CHECK (opts != null):
+        // If opts != null, also check if your option is supported in lower versions
+        // (backwards-compatible) only with possible changes to its value.  If this
+        // situation applies and opts != null, return the lowest client version
+        // where you _don't_ need to change the value to be backwards-compatible.
+        // (That version is probably the one in which you introduced the game option.)
+        // To simplify the server-side code, do not return less than 1107 (the first
+        // version with game options) for this backwards-compatible version number
+        // unless you are returning -1.
+        //
+        // EXAMPLE:
+        // For clients below 1.1.13, if game option PLB is set, option
+        // PL must be changed to 5 or 6 to force use of the 6-player board.
+        // For clients 1.1.13 and newer, PLB is recognized at the client,
+        // so PL can be less than 5 and still use the 6-player board.
+        // So, if PLB is set, and PL > 4, return 1113 because client
+        // versions <= 1112 would need PL changed.
+        // If PLB is set, and PL <= 4, return 1108 (the first version with a 6-player board).
 
-        // SAMPLE CODE:
-        /*
-        if (optKey.equals("N7") && (intValue == 42))
+        // Gameopt "PL" has an ADDITIONAL CHECK, this can be used as sample code for a new option:
+
+        if (key.equals("PL"))
         {
-            return 1108;
-        }
-        */
-        // END OF SAMPLE CODE.
+            if ((opts != null) && (intValue <= 4) && opts.containsKey("PLB"))
+            {
+                // For clients below 1.1.13, if PLB is set,
+                // PL must be changed to 5 or 6 to force use of the 6-player board.
+                // For clients 1.1.13 and newer, PLB is recognized at the client,
+                // so PL can be less than 5 and still use the 6-player board.
 
-        if (optKey.equals("PL") && (intValue > 4))
-        {
-            return 1108;  // 5 or 6 players
+                SOCVersionedItem plb = opts.get("PLB");
+                if ((plb instanceof SOCGameOption) && ((SOCGameOption) plb).boolValue)
+                    return 1113;
+            }
+
+            if (intValue > 4)
+                return 1108;  // 5 or 6 players
         }
 
-        return minVersion;
+        return minVers;
     }
 
     /**
@@ -821,7 +1069,8 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
      * and send only the permitted values to an older client.
      *
      * @param optKey Option's keyname
-     * @param vers   Version of client, same format as {@link SOCVersion#getVersionNumber()}
+     * @param vers   Version of client, same format as {@link soc.message.SOCVersion#getVersionNumber()}
+     *               and {@link Version#versionNumber()}
      * @return  Maximum permitted value for this version, or {@link Integer#MAX_VALUE}
      *          if this option has no restriction.
      *          Enum values range from 1 to n, not from 0 to n-1.
@@ -850,10 +1099,12 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
      * The server, when giving option info to a connecting client, can remove the too-new values.
      *
      * @param optKey Option's keyname
-     * @param vers   Version of client, same format as {@link SOCVersion#getVersionNumber()}
+     * @param vers   Version of client, same format as {@link soc.message.SOCVersion#getVersionNumber()}
+     *               and {@link Version#versionNumber()}
      * @return  Maximum permitted value for this version, or {@link Integer#MAX_VALUE}
      *          if this option has no restriction.
      * @since 1.1.08
+     * @see SOCGameOptionSet#optionsTrimmedForSupport(SOCFeatureSet)
      */
     public static final int getMaxIntValueForVersion(final String optKey, final int vers)
     {
@@ -869,200 +1120,168 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
     }
 
     /**
-     * @return a deep copy of all known option objects
-     * @see #addKnownOption(SOCGameOption)
-     */
-    public static Hashtable getAllKnownOptions()
-    {
-	return cloneOptions(allOptions);
-    }
-
-    /**
-     * Add a new known option (presumably received from a server of newer or older version),
-     * or update the option's information.
-     * @param onew New option, or a changed version of an option we already know.
-     *             If onew.optType == {@link #OTYPE_UNKNOWN}, will remove from the known table.
-     * @return true if it's new, false if we already had that key and it was updated
-     * @see #getAllKnownOptions()
-     */
-    public static boolean addKnownOption(SOCGameOption onew)
-    {
-	final String oKey = onew.optKey;
-	final boolean hadIt = allOptions.containsKey(oKey);
-	if (hadIt)
-	    allOptions.remove(oKey);
-	if (onew.optType != OTYPE_UNKNOWN)
-	    allOptions.put(oKey, onew);
-	return ! hadIt;
-    }
-
-    /**
-     * Set the current value of a known option, based on the current value of
-     * another object with the same {@link #optKey}.
-     * If there is no known option with oCurr.{@link #optKey}, it is ignored and nothing is set.
-     * @param ocurr Option with the requested current value
-     * @throws  IllegalArgumentException if value is not permitted; note that
-     *            intValues outside of range are silently clipped, and will not
-     *            throw this exception.
-     */
-    public static void setKnownOptionCurrentValue(SOCGameOption ocurr)
-        throws IllegalArgumentException
-    {
-        final String oKey = ocurr.optKey;
-        SOCGameOption oKnown = (SOCGameOption) allOptions.get(oKey);
-        if (oKnown == null)
-            return;
-        switch (oKnown.optType)  // OTYPE_*
-        {
-        case OTYPE_BOOL:
-            oKnown.boolValue = ocurr.boolValue;
-            break;
-
-        case OTYPE_INT:
-        case OTYPE_ENUM:
-            oKnown.setIntValue(ocurr.intValue);
-            break;
-
-        case OTYPE_INTBOOL:
-        case OTYPE_ENUMBOOL:
-            oKnown.boolValue = ocurr.boolValue;
-            oKnown.setIntValue(ocurr.intValue);
-            break;
-
-        case OTYPE_STR:
-        case OTYPE_STRHIDE:
-            oKnown.setStringValue(ocurr.strValue);
-            break;
-        }
-    }
-
-    /**
-     * @param opts  a hashtable of SOCGameOptions, or null
-     * @return a deep copy of all option objects within opts, or null if opts is null
-     */
-    public static Hashtable cloneOptions(Hashtable opts)
-    {
-	if (opts == null)
-	    return null;
-
-	Hashtable opts2 = new Hashtable();
-	for (Enumeration e = opts.keys(); e.hasMoreElements(); )
-	{
-	    SOCGameOption op = (SOCGameOption) opts.get(e.nextElement());
-	    try
-	    {
-	        opts2.put(op.optKey, (SOCGameOption) op.clone());
-	    } catch (CloneNotSupportedException ce) {}
-	}
-	return opts2;
-    }
-
-    /**
-     * @return information about a known option, or null if none with that key
-     */
-    public static SOCGameOption getOption(String key)
-    {
-	return (SOCGameOption) allOptions.get(key);  // null is ok
-    }
-
-    /**
-     * Search these options and find any unknown ones (type {@link #OTYPE_UNKNOWN})
-     * @param opts hashtable of SOCGameOption
-     * @return vector(SOCGameOption) of unknown options, or null if all are known
-     */
-    public static Vector findUnknowns(Hashtable opts)
-    {
-        Vector unknowns = null;
-        for (Enumeration e = opts.keys(); e.hasMoreElements(); )
-        {
-            SOCGameOption op = (SOCGameOption) opts.get((String) e.nextElement());
-            if (op.optType == SOCGameOption.OTYPE_UNKNOWN)
-            {
-                if (unknowns == null)
-                    unknowns = new Vector();
-                unknowns.addElement(op.optKey);
-            }
-        }
-        return unknowns;
-    }
-
-    /**
-     * Utility - build a string of option name-value pairs from the
-     *           {@link #getAllKnownOptions() known options}' current values.
+     * Utility - build a string of option name-value pairs from the Known Options' current values.
      *
+     * @param knownOpts  Known Options, from {@link SOCGameOptionSet#getAllKnownOptions()}; not null
      * @param hideEmptyStringOpts omit string-valued options which are empty?
      *            Suitable only for sending defaults.
-     * @return string of name-value pairs, same format as {@link #packOptionsToString(Hashtable, boolean)};
+     * @param hideLongNameOpts omit options with long key names or underscores?
+     *            Set true if client's version &lt; {@link #VERSION_FOR_LONGER_OPTNAMES}.
+     * @return string of name-value pairs, same format as
+     *         {@link #packOptionsToString(Map, boolean, boolean) packOptionsToString(Map, hideEmptyStringOpts, false)};
      *         any gameoptions of {@link #OTYPE_UNKNOWN} will not be
      *         part of the string.
-     * @see #parseOptionsToHash(String)
+     * @see #parseOptionsToMap(String, SOCGameOptionSet)
+     * @see #parseOptionsToSet(String, SOCGameOptionSet)
      */
-    public static String packKnownOptionsToString(boolean hideEmptyStringOpts)
+    public static String packKnownOptionsToString
+        (final SOCGameOptionSet knownOpts, final boolean hideEmptyStringOpts, final boolean hideLongNameOpts)
     {
-	return packOptionsToString(allOptions, hideEmptyStringOpts);
+        return packOptionsToString(knownOpts.getAll(), hideEmptyStringOpts, false, (hideLongNameOpts) ? -3 : -2);
     }
 
     /**
      * Utility - build a string of option name-value pairs.
-     * This can be unpacked with {@link #parseOptionsToHash(String)}.
+     * This can be unpacked with {@link #parseOptionsToMap(String, SOCGameOptionSet)}
+     * or {@link #parseOptionsToSet(String, SOCGameOptionSet)}.
+     *<P>
+     * For sending options to a client, use {@link #packOptionsToString(Map, boolean, boolean, int)} instead.
      *
-     * @param ohash Hashtable of SOCGameOptions, or null
+     * @param omap  Map of SOCGameOptions, or null
      * @param hideEmptyStringOpts omit string-valued options which are empty?
      *            Suitable only for sending defaults.
-     * @return string of name-value pairs, or "-" for an empty or null ohash;
-     *         any gameoptions of {@link #OTYPE_UNKNOWN} will not be
-     *         part of the string. Format: k1=t,k2=f,k3=10,k4=t7,k5=f7.
-     * The format for each value depends on its type:
-     *<UL>
-     *<LI>OTYPE_BOOL: t or f
-     *<LI>OTYPE_ENUM: int in range 1-n
-     *<LI>OTYPE_INTBOOL: t or f followed immediately by int value, as in: t7 or f9
-     *<LI>All other optTypes: int value or string value, as appropriate
-     *</UL>
+     * @param sortByKey  If true, sort the options by {@link SOCVersionedItem#key}
+     *            (using {@link String#compareTo(String)}) to make the returned string stable and canonical
+     * @return string of name-value pairs, or "-" for an empty or null {@code omap};
+     *     any gameoptions of {@link #OTYPE_UNKNOWN} will not be part of the string.
+     *     Also skips any option which has {@link #FLAG_INACTIVE_HIDDEN}.
+     *     <P>
+     *     Format: k1=t,k2=f,k3=10,k4=t7,k5=f7. <BR>
+     *     Pair separator is the ordinary comma character {@link SOCMessage#sep2_char}.
+     *     <P>
+     *     The format for each value depends on its type:
+     *     <UL>
+     *       <LI> OTYPE_BOOL: t or f
+     *       <LI> OTYPE_ENUM: int in range 1-n
+     *       <LI> OTYPE_INTBOOL: t or f followed immediately by int value, as in: t7 or f9
+     *       <LI> All other optTypes: int value or string value, as appropriate
+     *     </UL>
      *
-     * @throws ClassCastException if hashtable contains anything other
-     *         than SOCGameOptions
-     * @see #parseOptionNameValue(String, boolean)
-     * @see #packValue(StringBuffer)
+     * @see #parseOptionNameValue(String, boolean, SOCGameOptionSet)
+     * @see #parseOptionNameValue(String, String, boolean, SOCGameOptionSet)
+     * @see #packValue(StringBuilder)
      */
-    public static String packOptionsToString(Hashtable ohash, boolean hideEmptyStringOpts)
-	throws ClassCastException
+    public static String packOptionsToString
+        (final Map<String, SOCGameOption> omap, boolean hideEmptyStringOpts, final boolean sortByKey)
     {
-	if ((ohash == null) || ohash.size() == 0)
-	    return "-";
+        return packOptionsToString(omap, hideEmptyStringOpts, sortByKey, -2);
+    }
 
-	StringBuffer sb = new StringBuffer();
-	boolean hadAny = false;
-	for (Enumeration e = ohash.keys(); e.hasMoreElements(); )
-	{
-	    SOCGameOption op = (SOCGameOption) ohash.get(e.nextElement());
-	    if (op.optType == OTYPE_UNKNOWN)
-		continue;  // <-- Skip this one --
-	    if (hideEmptyStringOpts
-	        && ((op.optType == OTYPE_STR) || (op.optType == OTYPE_STRHIDE))  // OTYPE_* - add here if string-valued
-	        && op.getStringValue().length() == 0)
-                continue;  // <-- Skip this one --       
+    /**
+     * Utility - build a string of option name-value pairs,
+     * adjusting for old clients if necessary.
+     * This can be unpacked with {@link #parseOptionsToMap(String, SOCGameOptionSet)}
+     * or {@link #parseOptionsToSet(String, SOCGameOptionSet)}.
+     * See {@link #packOptionsToString(Map, boolean, boolean)} javadoc for details.
+     *
+     * @param omap  Map of SOCGameOptions, or null
+     * @param hideEmptyStringOpts omit string-valued options which are empty?
+     *            Suitable only for sending defaults.
+     * @param sortByKey  If true, sort the options by {@link SOCVersionedItem#key}
+     *            (using {@link String#compareTo(String)}) to make the returned string stable and canonical
+     * @param cliVers  Client version; assumed >= {@link soc.message.SOCNewGameWithOptions#VERSION_FOR_NEWGAMEWITHOPTIONS}.
+     *            If any game's options need adjustment for an older client, cliVers triggers that.
+     *            Use -2 if the client version doesn't matter, or if adjustment should not be done.
+     *            Use -3 to omit options with long names, and do no other adjustment;
+     *               for use with clients older than {@link SOCGameOption#VERSION_FOR_LONGER_OPTNAMES}.
+     * @return string of name-value pairs, or "-" for an empty or null omap;
+     *         see {@link #packOptionsToString(Map, boolean, boolean)} javadoc for details.
+     * @see #packValue(StringBuilder)
+     */
+    public static String packOptionsToString
+        (final Map<String, SOCGameOption> omap, boolean hideEmptyStringOpts, final boolean sortByKey, final int cliVers)
+    {
+        if ((omap == null) || omap.size() == 0)
+            return "-";
 
-	    if (hadAny)
-		sb.append(SOCMessage.sep2_char);
-	    else
-		hadAny = true;
-	    sb.append(op.optKey);
-	    sb.append('=');
-            op.packValue(sb);
-	}
-	return sb.toString();
+        // If the "PLB" option is set, old client versions
+        //  may need adjustment of the "PL" option.
+        final boolean hasOptPLB = (cliVers > -2) && omap.containsKey("PLB")
+            && omap.get("PLB").boolValue;
+
+        // Pack all non-unknown options:
+        StringBuilder sb = new StringBuilder();
+        boolean hadAny = false;
+        Collection<SOCGameOption> opts = omap.values();
+        if (sortByKey)
+        {
+            ArrayList<SOCGameOption> olist = new ArrayList<>(opts);
+            Collections.sort(olist, new Comparator<SOCGameOption>()
+            {
+                public int compare(SOCGameOption a, SOCGameOption b)
+                {
+                    return a.key.compareTo(b.key);
+                }
+            });
+            opts = olist;
+        }
+        for (SOCGameOption op : opts)
+        {
+            if (op.optType == OTYPE_UNKNOWN)
+                continue;  // <-- Skip this one --
+            if (hideEmptyStringOpts
+                && ((op.optType == OTYPE_STR) || (op.optType == OTYPE_STRHIDE))  // OTYPE_* - add here if string-valued
+                && op.getStringValue().length() == 0)
+                    continue;  // <-- Skip this one --
+            if ((cliVers == -3) && ((op.key.length() > 3) || op.key.contains("_")))
+                continue;  // <-- Skip this one -- (VERSION_FOR_LONGER_OPTNAMES)
+            if (op.hasFlag(FLAG_INACTIVE_HIDDEN))
+                continue;
+
+            if (hadAny)
+                sb.append(SOCMessage.sep2_char);
+            else
+                hadAny = true;
+            sb.append(op.key);
+            sb.append('=');
+
+            boolean wroteValueAlready = false;
+            if (cliVers > -2)
+            {
+                if (hasOptPLB && op.key.equals("PL")
+                    && (cliVers < 1113) && (op.intValue < 5))
+                {
+                    // When "PLB" is used (Use 6-player board)
+                    // but the client is too old to recognize PLB,
+                    // make sure "PL" is large enough to make the
+                    // client use that board.
+
+                    sb.append('5');  // big enough for 6-player
+                    wroteValueAlready = true;
+                }
+
+                // NEW_OPTION - Check your option vs old clients here.
+            }
+
+            if (! wroteValueAlready)
+                op.packValue(sb);
+        }
+
+        return sb.toString();
     }
 
     /**
      * Pack current value of this option into a string.
-     * This is used in {@link #packOptionsToString(Hashtable, boolean)} and
-     * read in {@link #parseOptionNameValue(String, boolean)} and {@link #parseOptionsToHash(String)}.
-     * See {@link #packOptionsToString(Hashtable, boolean)} for the string's format.
+     * This is used in {@link #packOptionsToString(Map, boolean, boolean)} and
+     * read in {@link #parseOptionNameValue(String, boolean, SOCGameOptionSet)}
+     * and {@link #parseOptionsToMap(String, SOCGameOptionSet)} / {@link #parseOptionsToSet(String, SOCGameOptionSet)}.
+     * See {@link #packOptionsToString(Map, boolean, boolean)} for the string's format.
      *
      * @param sb Pack into (append to) this buffer
+     * @eee #getPackedValue()
+     * @see #toString()
      */
-    public void packValue(StringBuffer sb)
+    public void packValue(StringBuilder sb)
     {
         switch (optType)  // OTYPE_* - update this switch, and javadoc of packOptionsToString and of parseOptionNameValue.
         {                 //           The format produced must match that expected in parseOptionNameValue.
@@ -1093,56 +1312,104 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
     }
 
     /**
-     * Utility - build a hashtable by parsing a list of option name-value pairs.
+     * Utility - build a map of keys to {@link SOCGameOption}s by parsing a list of option name-value pairs.
+     * For each pair in {@code ostr}, calls
+     * {@link #parseOptionNameValue(String, boolean, SOCGameOptionSet) parseOptionNameValue(pair, false, knownOpts)}.
+     *<P>
+     * Before v2.0.00, this was {@code parseOptionsToHash}.
      *
      * @param ostr string of name-value pairs, as created by
-     *             {@link #packOptionsToString(Hashtable, boolean)}.
+     *             {@link #packOptionsToString(Map, boolean, boolean)}.
      *             A leading comma is OK (possible artifact of StringTokenizer
      *             coming from over the network).
-     *             If ostr=="-", hashtable will be null.
-     * @return hashtable of SOCGameOptions, or null if ostr==null or empty ("-")
-     *         or if ostr is malformed.  Any unrecognized options
-     *         will be in the hashtable as type {@link #OTYPE_UNKNOWN}.
-     * @see #parseOptionNameValue(String, boolean)
+     *             If ostr is "-", returned map will be null.
+     * @param knownOpts  all Known Options
+     * @return map of SOCGameOptions, or null if ostr is null or empty ("-")
+     *         or malformed.  Any unrecognized options
+     *         will be in the map as type {@link #OTYPE_UNKNOWN}.
+     *         The returned known SGOs are clones from the set of all known options.
+     * @see #parseOptionsToSet(String, SOCGameOptionSet)
+     * @see #parseOptionNameValue(String, boolean, SOCGameOptionSet)
+     * @see #parseOptionNameValue(String, String, boolean, SOCGameOptionSet)
+     * @throws IllegalArgumentException if any game option keyname in {@code ostr} is unknown
+     *     and not a valid alphanumeric keyname by the rules listed at {@link #SOCGameOption(String)}
      */
-    public static Hashtable parseOptionsToHash(String ostr)
+    public static Map<String,SOCGameOption> parseOptionsToMap(final String ostr, final SOCGameOptionSet knownOpts)
     {
-	if ((ostr == null) || ostr.equals("-"))
-	    return null;
+        if ((ostr == null) || ostr.equals("-"))
+            return null;
 
-	Hashtable ohash = new Hashtable();
+        HashMap<String, SOCGameOption> ohash = new HashMap<>();
 
-	StringTokenizer st = new StringTokenizer(ostr, SOCMessage.sep2);
-	String nvpair;
-	while (st.hasMoreTokens())
-	{
-	    nvpair = st.nextToken();  // skips any leading commas or doubled commas
-            SOCGameOption copyOpt = parseOptionNameValue(nvpair, false);
+        StringTokenizer st = new StringTokenizer(ostr, SOCMessage.sep2);
+        String nvpair;
+        while (st.hasMoreTokens())
+        {
+            nvpair = st.nextToken();  // skips any leading commas or doubled commas
+            SOCGameOption copyOpt = parseOptionNameValue(nvpair, false, knownOpts);
             if (copyOpt == null)
                 return null;  // parse error
-            ohash.put(copyOpt.optKey, copyOpt);
-	}  // while (moreTokens)
+            ohash.put(copyOpt.key, copyOpt);
+        }  // while (moreTokens)
 
-	return ohash;
+        return ohash;
+    }
+
+    /**
+     * Utility - build a set of {@link SOCGameOption}s by parsing a list of option name-value pairs.
+     * For each pair in {@code ostr}, calls
+     * {@link #parseOptionNameValue(String, boolean, SOCGameOptionSet) parseOptionNameValue(pair, false, knownOpts)}.
+     *
+     * @param ostr string of name-value pairs, as created by {@link #packOptionsToString(Map, boolean, boolean)}.
+     *     A leading comma is OK (possible artifact of StringTokenizer coming from over the network).
+     *     If ostr is "-", returned map will be null.
+     * @param knownOpts  all Known Options
+     * @return set of SOCGameOptions, or null if ostr is null or empty ("-") or malformed.
+     *     Any unrecognized options will be in the map as type {@link #OTYPE_UNKNOWN}.
+     *     The returned known SGOs are clones from the set of all known options.
+     * @see #parseOptionsToMap(String, SOCGameOptionSet)
+     * @see #parseOptionNameValue(String, boolean, SOCGameOptionSet)
+     * @see #parseOptionNameValue(String, String, boolean, SOCGameOptionSet)
+     * @throws IllegalArgumentException if any game option keyname in {@code ostr} is unknown
+     *     and not a valid alphanumeric keyname by the rules listed at {@link #SOCGameOption(String)}
+     * @since 2.4.50
+     */
+    public static SOCGameOptionSet parseOptionsToSet(final String ostr, final SOCGameOptionSet knownOpts)
+    {
+        final Map<String, SOCGameOption> omap = parseOptionsToMap(ostr, knownOpts);
+        if (omap == null)
+            return null;
+
+        return new SOCGameOptionSet(omap);
     }
 
     /**
      * Utility - parse a single name-value pair produced by packOptionsToString.
      * Expected format of nvpair: "optname=optvalue".
      * Expected format of optvalue depends on its type.
-     * See {@link #packOptionsToString(Hashtable, boolean)} for the format.
+     * See {@link #packOptionsToString(Map, boolean, boolean)} for the format.
      *
      * @param nvpair Name-value pair string, as created by
-     *               {@link #packOptionsToString(Hashtable, boolean)}.
-     *               'T' or 't' is always allowed for bool value, regardless of forceNameUpcase.
+     *               {@link #packOptionsToString(Map, boolean, boolean)}.
+     *               <BR>
+     *               'T', 't', 'Y', 'y' are always allowed for bool true values, regardless of {@code forceNameUpcase}.
+     *               'F', 'f', 'N', 'n' are the valid bool false values.
      * @param forceNameUpcase Call {@link String#toUpperCase()} on keyname within nvpair?
      *               For friendlier parsing of manually entered (command-line) nvpair strings.
+     * @param knownOpts  All Known Options
      * @return Parsed option, or null if parse error;
+     *         if known, the returned object is a clone of the SGO from the set of all known options.
      *         if nvpair's option keyname is not a known option, returned optType will be {@link #OTYPE_UNKNOWN}.
-     * @see #parseOptionsToHash(String)
-     * @see #packValue(StringBuffer)
+     * @throws IllegalArgumentException if {@code optkey} is unknown and not a valid alphanumeric keyname
+     *         by the rules listed at {@link #SOCGameOption(String)}
+     * @see #parseOptionNameValue(String, String, boolean, SOCGameOptionSet)
+     * @see #parseOptionsToMap(String, SOCGameOptionSet)
+     * @see #parseOptionsToSet(String, SOCGameOptionSet)
+     * @see #packValue(StringBuilder)
      */
-    public static SOCGameOption parseOptionNameValue(final String nvpair, final boolean forceNameUpcase)
+    public static SOCGameOption parseOptionNameValue
+        (final String nvpair, final boolean forceNameUpcase, final SOCGameOptionSet knownOpts)
+        throws IllegalArgumentException
     {
         int i = nvpair.indexOf('=');  // don't just tokenize for this (efficiency, and param value may contain a "=")
         if (i < 1)
@@ -1150,13 +1417,46 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
 
         String optkey = nvpair.substring(0, i);
         String optval = nvpair.substring(i+1);
+        return parseOptionNameValue(optkey, optval, forceNameUpcase, knownOpts);
+    }
+
+    /**
+     * Utility - parse an option name-value pair produced by {@link #packValue(StringBuilder)} or
+     * {@link #packOptionsToString(Map, boolean, boolean)}. Expected format of {@code optval} depends on its type.
+     * See {@code packOptionsToString(..)} for the format.
+     *
+     * @param optkey  Game option's alphanumeric keyname, known or unknown.
+     *               Optkey must be a valid key by the rules listed at {@link #SOCGameOption(String)}.
+     * @param optval  Game option's value, as created by {@link #packOptionsToString(Map, boolean, boolean)}.
+     *               <BR>
+     *               'T', 't', 'Y', 'y' are always allowed for bool true values, regardless of {@code forceNameUpcase}.
+     *               'F', 'f', 'N', 'n' are the valid bool false values.
+     * @param forceNameUpcase  Call {@link String#toUpperCase()} on {@code optkey}?
+     *               For friendlier parsing of manually entered (command-line) name=value pairs.
+     * @param knownOpts  All Known Options
+     * @return Parsed option, or null if parse error;
+     *         if known, the returned object is a clone of the SGO from the set of all known options.
+     *         if {@code optkey} is not a known option, returned optType will be {@link #OTYPE_UNKNOWN}.
+     * @throws IllegalArgumentException if {@code optkey} is unknown and not a valid alphanumeric keyname
+     *         by the rules listed at {@link #SOCGameOption(String)}; {@link Throwable#getMessage()} will have details
+     * @see #parseOptionNameValue(String, boolean, SOCGameOptionSet)
+     * @see #parseOptionsToMap(String, SOCGameOptionSet)
+     * @see #parseOptionsToSet(String, SOCGameOptionSet)
+     * @see #packValue(StringBuilder)
+     * @since 2.0.00
+     */
+    public static SOCGameOption parseOptionNameValue
+        (String optkey, final String optval, final boolean forceNameUpcase, final SOCGameOptionSet knownOpts)
+        throws IllegalArgumentException
+    {
         if (forceNameUpcase)
             optkey = optkey.toUpperCase();
-        SOCGameOption knownOpt = (SOCGameOption) allOptions.get(optkey);
+
+        SOCGameOption knownOpt = knownOpts.get(optkey);
         SOCGameOption copyOpt;
         if (knownOpt == null)
         {
-            copyOpt = new SOCGameOption(optkey);  // OTYPE_UNKNOWN
+            copyOpt = new SOCGameOption(optkey);  // OTYPE_UNKNOWN; may throw IllegalArgumentException
         }
         else
         {
@@ -1177,7 +1477,32 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
             switch (copyOpt.optType)  // OTYPE_* - update this switch, must match format produced
             {                         //           in packValue / packOptionsToString
             case OTYPE_BOOL:
-                copyOpt.setBoolValue(optval.equals("t") || optval.equals("T"));
+                if (optval.length() == 1)
+                {
+                    final boolean bv;
+                    switch (optval.charAt(0))
+                    {
+                    case 't':  // fall through
+                    case 'T':
+                    case 'y':
+                    case 'Y':
+                        bv = true;
+                        break;
+
+                    case 'f':  // fall through
+                    case 'F':
+                    case 'n':
+                    case 'N':
+                        bv = false;
+                        break;
+
+                    default:
+                        return null;  // malformed
+                    }
+                    copyOpt.setBoolValue(bv);
+                } else {
+                    return null;  // malformed
+                }
                 break;
 
             case OTYPE_INT:
@@ -1186,7 +1511,7 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
                 {
                     copyOpt.setIntValue(Integer.parseInt(optval));
                 } catch (NumberFormatException e)
-                { 
+                {
                     return null;  // malformed
                 }
                 break;
@@ -1195,11 +1520,30 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
             case OTYPE_ENUMBOOL:
                 try
                 {
-                    final char ch0 = optval.charAt(0);
-                    copyOpt.setBoolValue((ch0 == 't') || (ch0 == 'T'));
+                    final boolean bv;
+                    switch (optval.charAt(0))
+                    {
+                    case 't':  // fall through
+                    case 'T':
+                    case 'y':
+                    case 'Y':
+                        bv = true;
+                        break;
+
+                    case 'f':  // fall through
+                    case 'F':
+                    case 'n':
+                    case 'N':
+                        bv = false;
+                        break;
+
+                    default:
+                        return null;  // malformed
+                    }
+                    copyOpt.setBoolValue(bv);
                     copyOpt.setIntValue(Integer.parseInt(optval.substring(1)));
                 } catch (NumberFormatException e)
-                { 
+                {
                     return null;  // malformed
                 }
                 break;
@@ -1213,111 +1557,8 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
                 copyOpt = new SOCGameOption(optkey);  // OTYPE_UNKNOWN
             }
         }
+
         return copyOpt;
-    }
-
-    /**
-     * Examine this set of options, finding the minimum required version to support
-     * a game with these options.  The current value of an option can change its minimum version.
-     * For example, a 5- or 6-player game will need a newer client than 4 players,
-     * but option "PL"'s minVersion is -1, to allow 2- or 3-player games with any client.
-     *<P>
-     * This calculation is done at the server when creating a new game.  Although the client's
-     * version and options (and thus its copy of optionsMinimumVersion) may be newer or older,
-     * and would give a different result if called, the server is authoritative for game options.
-     * Calls at the client to optionsMinimumVersion should keep this in mind, especially if
-     * a client's game option's {@link #lastModVersion} is newer than the server.
-     *
-     * @return the highest 'minimum version' among these options, or -1
-     * @throws ClassCastException if values contain a non-{@link SOCGameOption}
-     * @see #getMinVersion()
-     */
-    public static int optionsMinimumVersion(Hashtable opts)
-	throws ClassCastException
-    {
-	int minVers = -1;
-	for (Enumeration e = opts.keys(); e.hasMoreElements(); )
-	{
-	    SOCGameOption op = (SOCGameOption) opts.get(e.nextElement());
-            int opMin = op.getMinVersion();  // includes any option value checking for minVers
-	    if (opMin > minVers)
-		minVers = opMin;
-	}
-	return minVers;
-    }
-
-    /**
-     * Compare a set of options against the specified version.
-     * Make a list of all which are new or changed since that version.
-     *<P>
-     * This method has 2 modes, because it's called for 2 different purposes:
-     *<UL>
-     * <LI> sync client-server known-option info, in general: <tt>checkValues</tt> == false
-     * <LI> check if client can create game with a specific set of option values: <tt>checkValues</tt> == true
-     *</UL>
-     * See <tt>checkValues</tt> for method's behavior in each mode.
-     *
-     * @param vers  Version to compare known options against
-     * @param checkValues  Which mode: Check options' current values and {@link #minVersion},
-     *              not their {@link #lastModVersion}?
-     *              An option's minimum version can increase based
-     *              on its value; see {@link #getMinVersion()}.
-     * @param trimEnums  For enum-type options where minVersion changes based on current value,
-     *              should we remove too-new values from the returned option info?
-     *              This lets us send only the permitted values to an older client.
-     * @param opts  Set of {@link SOCGameOption}s to check current values;
-     *              if null, use the "known option" set
-     * @return Vector of the newer {@link SOCGameOption}s, or null
-     *     if all are known and unchanged since <tt>vers</tt>.
-     */
-    public static Vector optionsNewerThanVersion(final int vers, final boolean checkValues, final boolean trimEnums, Hashtable opts)
-    {
-        if (opts == null)
-            opts = allOptions;
-        Vector uopt = null;  // add problems to uopt
-        
-        for (Enumeration e = opts.elements(); e.hasMoreElements(); )
-        {
-            SOCGameOption opt = (SOCGameOption) e.nextElement();
-
-            if (checkValues)
-            {
-                if (opt.getMinVersion() <= vers)
-                    opt = null;  // not too new
-            } else {
-                if (opt.lastModVersion <= vers)
-                    opt = null;  // not modified since vers
-            }
-
-            if (trimEnums && (opt != null)
-                && (opt.minVersion <= vers))  // vers is new enough to use this opt
-            {
-                if (opt.enumVals != null)
-                {
-                    // Possibly trim enum values. (OTYPE_ENUM, OTYPE_ENUMBOOL)
-                    // OTYPE_* - Add here in comment if enum-valued option type
-                    final int ev = getMaxEnumValueForVersion(opt.optKey, vers);
-                    if (ev < opt.enumVals.length)
-                        opt = trimEnumForVersion(opt, vers);
-                } else if (opt.maxIntValue != opt.minIntValue)
-                {
-                    // Possibly trim max int value. (OTYPE_INT, OTYPE_INTBOOL)
-                    // OTYPE_* - Add here in comment if int-valued option type
-                    final int iv = getMaxIntValueForVersion(opt.optKey, vers);
-                    if ((iv != opt.maxIntValue) && (iv != Integer.MAX_VALUE))
-                        opt = new SOCGameOption(opt, iv);
-                }
-            }
-
-            if (opt != null)
-            {
-                if (uopt == null)
-                    uopt = new Vector();
-                uopt.addElement(opt);                
-            }
-        }
-
-        return uopt;
     }
 
     /**
@@ -1330,116 +1571,14 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
      *       values permitted at <tt>vers</tt>.
      *       If no restriction is needed, return <tt>opt</tt>.
      */
-    public static SOCGameOption trimEnumForVersion(SOCGameOption opt, final int vers)
+    public static SOCGameOption trimEnumForVersion(final SOCGameOption opt, final int vers)
     {
-        final int ev = getMaxEnumValueForVersion(opt.optKey, vers);
+        final int ev = getMaxEnumValueForVersion(opt.key, vers);
         if ((ev == Integer.MAX_VALUE) || (ev == opt.enumVals.length))
             return opt;
         String[] evkeep = new String[ev];
         System.arraycopy(opt.enumVals, 0, evkeep, 0, ev);
         return new SOCGameOption(opt, evkeep);  // Copy option and restrict enum values
-    }
-
-    /**
-     * Compare a set of options with known-good values.
-     * If any are above/below maximum/minimum, clip to the max/min value in knownOpts.
-     * If any are unknown, return false. Will still check (and clip) the known ones.
-     * If any boolean or string-valued options are default, and unset/blank, and
-     * their {@link #dropIfUnused} flag is set, remove them from newOpts.
-     * For {@link #OTYPE_INTBOOL} and {@link #OTYPE_ENUMBOOL}, both the integer and
-     * boolean values are checked against defaults.
-     *
-     * @param newOpts Set of SOCGameOptions to check against knownOpts;
-     *            an option's current value will be changed if it's outside of
-     *            the min/max for that option in knownOpts.
-     *            Must not be null.
-     * @param knownOpts Set of known SOCGameOptions to check against, or null to use
-     *            the server's static copy
-     * @return true if all are known; false if any of newOpts are unknown
-     *            or if an opt's type differs from that in knownOpts,
-     *            or if opt's {@link #lastModVersion} differs from in knownOpts.
-     * @throws IllegalArgumentException if newOpts contains a non-SOCGameOption
-     */
-    public static boolean adjustOptionsToKnown(Hashtable newOpts, Hashtable knownOpts)
-        throws IllegalArgumentException
-    {
-        if (knownOpts == null)
-            knownOpts = allOptions;
-
-        // OTYPE_* - adj javadoc above (re dropIfUnused) if a string-type or bool-type is added.
-
-        // use Iterator in loop, so we can remove from the hash if needed
-        boolean allKnown = true;
-	for (Iterator ikv = newOpts.entrySet().iterator();
-	     ikv.hasNext(); )
-	{
-	    Map.Entry okv = (Map.Entry) ikv.next();
-
-	    SOCGameOption op;
-	    try {
-	        op = (SOCGameOption) okv.getValue();
-	    }
-	    catch (ClassCastException ce)
-	    {
-                throw new IllegalArgumentException("wrong class, expected gameoption");
-	    }
-	    SOCGameOption knownOp = (SOCGameOption) knownOpts.get(op.optKey);
-	    if ((knownOp == null) || (knownOp.optType != op.optType))
-	    {
-		allKnown = false;
-	    } else {
-	        // Clip int values, check default values, check dropIfUnused
-
-		if (knownOp.lastModVersion != op.lastModVersion)
-		    allKnown = false;
-
-		switch (op.optType)  // OTYPE_*
-		{
-		case OTYPE_INT:
-		case OTYPE_INTBOOL:
-		case OTYPE_ENUM:
-                case OTYPE_ENUMBOOL:
-		    {
-			int iv = op.intValue;
-			if (iv < knownOp.minIntValue)
-			{
-			    iv = knownOp.minIntValue;
-			    op.setIntValue(iv);
-			}
-			else if (iv > knownOp.maxIntValue)
-			{
-			    iv = knownOp.maxIntValue;
-			    op.setIntValue(iv);
-			}
-
-                        // integer-type options are not subject to dropIfUnused,
-                        // except when also boolean-type: OTYPE_INTBOOL and OTYPE_ENUMBOOL.
-                        if (((op.optType == OTYPE_INTBOOL) || (op.optType == OTYPE_ENUMBOOL))
-                               && knownOp.dropIfUnused
-                               && (iv == knownOp.defaultIntValue)
-                               && (! op.boolValue))
-                             ikv.remove();
-		    }
-		    break;
-
-		case OTYPE_BOOL:
-                    if (knownOp.dropIfUnused && ! op.boolValue)
-                        ikv.remove();
-		    break;
-
-                case OTYPE_STR:
-                case OTYPE_STRHIDE:
-                    if (knownOp.dropIfUnused &&
-                          ((op.strValue == null) || (op.strValue.length() == 0)))
-                        ikv.remove();
-                    break;
-
-                // no default: all types should be handled above.
-
-		}  // endsw
-	    }
-	}
-	return allKnown;
     }
 
     /**
@@ -1458,7 +1597,7 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
             otname = "UNKNOWN";  break;
 
         case OTYPE_BOOL:
-            otname = "BOOL";  break; 
+            otname = "BOOL";  break;
 
         case OTYPE_INT:
             otname = "INT";  break;
@@ -1485,64 +1624,232 @@ public class SOCGameOption implements Cloneable, Comparable, Serializable
     }
 
     /**
-     * Test whether a string's characters are all within the strict
-     * ranges 0-9, A-Z. The first character must be A-Z. Option name keys
-     * must start with a letter and contain only ASCII uppercase letters
-     * ('A' through 'Z') and digits ('0' through '9'), in order to normalize
-     * handling and network message formats.
-     * @param s string to test
-     * @return true if all characters are OK, false otherwise
+     * Get the list of {@link SOCGameOption}s whose {@link #refreshDisplay()}
+     * methods have been called, and clear the internal static copy.
+     * Not thread-safe, assumes only 1 GUI thread or 1 NewGameOptionsFrame at a time.
+     * @return the list, or null if refreshDisplay wasn't called on any option
+     * @since 1.1.13
      */
-    public static final boolean isAlphanumericUpcaseAscii(String s)
+    public static final List<SOCGameOption> getAndClearRefreshList()
     {
-        for (int i = s.length()-1; i>=0; --i)
-        {
-            final char c = s.charAt(i);
-            if (((c < '0') || (c > '9'))
-                && (c < 'A') || (c > 'Z'))
-                return false;
-            if ((i == 0) && (c < 'A'))
-                return false;
+        List<SOCGameOption> refr = refreshList;
+        refreshList = null;
+        if ((refr != null) && (refr.size() == 0))
+            refr = null;
 
-            // We use range checks, and not methods such as
-            // Character.isLetterOrDigit(ch), because those
-            // methods also permit unicode characters beyond
-            // what we'd like to accept here.
-        }
-        return true;
+        return refr;
+    }
+
+    /**
+     * If this game option is displayed on-screen, refresh it;
+     * call this after changing the value.
+     *<P>
+     * Should be called when value has changed programatically through setters or other methods,
+     * not when user has changed the value on-screen in client GUI code.
+     *
+     * @since 1.1.13
+     */
+    public void refreshDisplay()
+    {
+        if (refreshList == null)
+            refreshList = new ArrayList<SOCGameOption>();
+        else if (refreshList.contains(this))
+            return;
+
+        refreshList.add(this);
+    }
+
+    /**
+     * Does this game option have these specified flag(s)?
+     * @param flagMask  Option flag such as {@link #FLAG_DROP_IF_UNUSED}, or multiple flags or'd together
+     * @return  True if {@link #optFlags} contains all flags in {@code flagMask}
+     * @since 2.0.00
+     */
+    public final boolean hasFlag(final int flagMask)
+    {
+        return ((optFlags & flagMask) == flagMask);
+    }
+
+    /**
+     * Add or remove this option's change listener.
+     * Does not support multiple listeners, so if it's already set, it will
+     * be changed to the new value.
+     * @param cl  Change listener to add, or null to remove.
+     * @see #hasChangeListener()
+     * @since 1.1.13
+     */
+    public void addChangeListener(ChangeListener cl)
+    {
+        optCL = cl;
+    }
+
+    /**
+     * Does this option have a non-null {@link ChangeListener}?
+     * @see #getChangeListener()
+     * @since 1.1.13
+     */
+    public boolean hasChangeListener()
+    {
+        return (optCL != null);
+    }
+
+    /**
+     * Get this option's {@link ChangeListener}, if any
+     * @return the changelistener, or null if none
+     * @see #hasChangeListener()
+     * @see #addChangeListener(ChangeListener)
+     * @since 1.1.13
+     */
+    public ChangeListener getChangeListener()
+    {
+        return optCL;
     }
 
     /**
      * Form a string with the key and current value, useful for debugging purposes.
      * @return string such as "PL=4" or "BC=t3", with the same format
-     *    as {@link #packKnownOptionsToString(boolean)}.
+     *    as {@link #packKnownOptionsToString(SOCGameOptionSet, boolean, boolean)}
+     * @see #packValue(StringBuilder)
+     * @see #getPackedValue()
+     * @see #optionTypeName(int)
      */
     public String toString()
     {
-        StringBuffer sb = new StringBuffer(optKey);
+        StringBuilder sb = new StringBuilder(key);
         sb.append('=');
         packValue(sb);
         return sb.toString();
     }
 
     /**
+     * Form a StringBuilder containing the current value. This is a convenience method.
+     * @return stringbuffer such as "4" or "t3", with the same value format
+     *    as {@link #packKnownOptionsToString(SOCGameOptionSet, boolean, boolean)}
+     * @since 1.1.20
+     * @see #packValue(StringBuilder)
+     * @see #toString()
+     */
+    public final StringBuilder getPackedValue()
+    {
+        StringBuilder sb = new StringBuilder();
+        packValue(sb);
+        return sb;
+    }
+
+    /**
      * Compare two options, for display purposes. ({@link Comparable} interface)
-     * Two gameoptions are considered equal if they have the same {@link #optKey}.
-     * Greater/lesser is determined by {@link #optDesc}.{@link String#compareTo(String) compareTo()}.
+     * Two gameoptions are considered equal if they have the same {@link SOCVersionedItem#key key}.
+     * Greater/lesser is determined by
+     * {@link SOCVersionedItem#getDesc() desc}.{@link String#toLowerCase() toLowercase()}.{@link String#compareTo(String) compareTo(otherDesc.toLowercase())}.
      * @param other A SOCGameOption to compare, or another object;  if other isn't a
      *              gameoption, the {@link #hashCode()}s are compared.
+     * @see #equals(Object)
      */
     public int compareTo(Object other)
     {
         if (other instanceof SOCGameOption)
         {
             SOCGameOption oopt = (SOCGameOption) other;
-            if (optKey.equals(oopt.optKey))
+            if (key.equals(oopt.key))
                 return 0;
-            else
-                return optDesc.compareTo(oopt.optDesc);
+            return desc.toLowerCase().compareTo(oopt.desc.toLowerCase());
+        } else {
+            return hashCode() - other.hashCode();
         }
-        return hashCode() - other.hashCode();
+    }
+
+    /**
+     * Check for equality to another {@link SOCGameOption} or other object.
+     *
+     * @return true if {@code other} is a {@link SOCGameOption} having the same {@link #key},
+     *     {@link #optType}, {@link #optFlags}, {@link #getBoolValue()},
+     *     {@link #getIntValue()}, and {@link #getStringValue()} as this option.
+     * @see Object#equals(Object)
+     * @see #compareTo(Object)
+     * @since 2.4.50
+     */
+    public boolean equals(final Object other)
+    {
+        if (! (other instanceof SOCGameOption))
+            return false;
+
+        final SOCGameOption oopt = (SOCGameOption) other;
+        return (optType == oopt.optType) && (optFlags == oopt.optFlags) && key.equals(oopt.key)
+            && (boolValue == oopt.boolValue) && (intValue == oopt.intValue)
+            && ((strValue == null)
+                ? (oopt.strValue == null)
+                : strValue.equals(oopt.strValue));
+    }
+
+    /**
+     * Call {@link Object#clone()}; added here for access by {@link SOCGameOptionSet}.
+     * @since 2.4.50
+     */
+    @Override
+    protected Object clone()
+        throws CloneNotSupportedException
+    {
+        return super.clone();
+    }
+
+    /**
+     * Listener for option value changes <em>at the client</em> during game creation.
+     * When the user changes an option, allows a related option to change.
+     * For example, when the max players is changed to 5 or 6,
+     * the listener can check the box for "use 6-player board".
+     *<P>
+     * Once written, a newer server can't do anything to update an older client's
+     * ChangeListener code, so be careful and write them defensively.
+     *<P>
+     * Callback method is {@link #valueChanged(SOCGameOption, Object, Object, SOCGameOptionSet, SOCGameOptionSet)}.
+     * Called from <tt>NewGameOptionsFrame</tt>.
+     *<P>
+     * For <em>server-side</em> consistency adjustment of values before creating games,
+     * add code to {@link SOCGameOptionSet#adjustOptionsToKnown(SOCGameOptionSet, boolean, SOCFeatureSet)}
+     * that's equivalent to your ChangeListener.
+     *
+     * @see SOCGameOption#addChangeListener(ChangeListener)
+     * @since 1.1.13
+     */
+    public interface ChangeListener
+    {
+        /**
+         * Called when the user changes <tt>opt</tt>'s value during game creation.
+         * Not called when a game option's setters are called.
+         *<P>
+         * If you change any other <tt>currentOpts</tt> values,
+         * be sure to call {@link SOCGameOption#refreshDisplay()} to update the GUI.
+         * Do not call <tt>refreshDisplay()</tt> on <tt>opt</tt>.
+         *<P>
+         * Remember that the related option may not be present in <tt>currentOpts</tt>
+         * because different servers may have different default options, or different versions.
+         *<P>
+         * Write this method carefully, because the server can't update a client's
+         * buggy version.  Although calls to this method are surrounded by a try/catch({@link Throwable})
+         * block, a bug-free version is best for the user.
+         *<P>
+         * For {@link SOCGameOption#OTYPE_STR} or <tt>OTYPE_STRHIDE</tt>, this method is
+         * called once for each character entered or deleted.
+         *<P>
+         * For {@link SOCGameOption#OTYPE_INT} or <tt>OTYPE_INTBOOL</tt>, this method is
+         * called once for each digit typed or deleted, so long as the resulting number
+         * is parsable and within the min/max range for the option.
+         *<P>
+         * For {@link SOCGameOption#OTYPE_ENUMBOOL} or <tt>OTYPE_INTBOOL</tt>, if both the
+         * boolean and int value fields are set at once, then after updating both fields,
+         * <tt>valueChanged</tt> will be called twice (boolean and then int).
+         * If the boolean value is cleared to false, there won't be a second call for the
+         * int value, because when cleared the game option has no effect.
+         *
+         * @param opt  Option that has changed, already updated to new value
+         * @param oldValue  Old value; an Integer, Boolean, or String.
+         * @param newValue  New value; always the same class as <tt>oldValue</tt>
+         * @param currentOpts  The current value of all {@link SOCGameOption}s in this set
+         * @param knownOpts  All of server's Known Options
+         */
+        public void valueChanged
+            (final SOCGameOption opt, final Object oldValue, final Object newValue,
+             final SOCGameOptionSet currentOpts, final SOCGameOptionSet knownOpts);
     }
 
 }

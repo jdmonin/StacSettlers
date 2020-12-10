@@ -9,8 +9,21 @@ lib/DeepCatan*
 .factorypath
 .settings
 
+# python
+__pycache__
+*.pyc
+
+# eclipse
+/.classpath
+/.project
+
+# IDEA
+/.idea
+/.settings
+
 # vscode
 .vscode
 
 # OSX
 .DS_Store
+

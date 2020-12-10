@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * This file copyright (C) 2007 Jeremy D Monin <jeremy@nand.net>
+ * This file copyright (C) 2007,2013,2016-2017,2019-2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -21,18 +21,15 @@
 package soc.client;
 
 import java.awt.BorderLayout;
-import java.awt.Button;
 import java.awt.Color;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.Frame;
 import java.awt.GridLayout;
 import java.awt.Insets;
-import java.awt.Label;
-import java.awt.Panel;
-import java.awt.Scrollbar;
+import java.awt.MouseInfo;
+import java.awt.Point;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.AdjustmentEvent;
@@ -42,30 +39,40 @@ import java.awt.event.KeyListener;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
 
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollBar;
+import javax.swing.SwingConstants;
+import javax.swing.WindowConstants;
+import javax.swing.border.EmptyBorder;
+
 import soc.game.SOCGame;
 
 
 /**
- * Popup window for the user to browse and choose a face icon.
+ * A popup dialog with all available {@link SOCFaceButton} icons
+ * for the user to browse and change to.
+ *<P>
+ * To adjust the grid's size in rows and columns, set {@link FaceChooserList#rowFacesWidth}
+ * and {@link FaceChooserList#faceRowsHeight}.
  *
- * To adjust size, set FaceChooserList.rowFacesWidth and .faceRowsHeight .
- *
- * @see soc.client.FaceChooserFrame.FaceChooserList#rowFacesWidth
- * @see soc.client.FaceChooserFrame.FaceChooserList#faceRowsHeight
- * @see soc.client.SOCFaceButton
- *
- * @author Jeremy D Monin <jeremy@nand.net>
+ * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
+ * @since 1.1.00
  */
-public class FaceChooserFrame extends Frame implements ActionListener, WindowListener, KeyListener
+@SuppressWarnings("serial")
+/*package*/ class FaceChooserFrame
+    extends JFrame implements ActionListener, WindowListener, KeyListener
 {
     /** Face button that launched us. Passed to constructor, not null. */
-    protected SOCFaceButton fb;
+    protected final SOCFaceButton fb;
 
     /** Player client. Passed to constructor, not null */
-    protected SOCPlayerClient pcli;
+    protected final SOCPlayerClient pcli;
 
     /** Player interface. Passed to constructor, not null */
-    protected SOCPlayerInterface pi;
+    protected final SOCPlayerInterface pi;
 
     /** Player number. Needed for bg color. */
     protected int pNumber;
@@ -73,23 +80,26 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
     /** Width,height of one face, in pixels. Assumes icon is square. */
     protected int faceWidthPx;
 
-    /** Scrolling choice of faces */
+    /** Scrolling choice of faces; takes up most of the Frame */
     protected FaceChooserList fcl;
 
     /** Button for confirm change */
-    protected Button changeFaceBut;
+    protected JButton changeFaceBut;
 
     /** Button for cancel */
-    protected Button cancelBut;
+    protected JButton cancelBut;
 
     /** Label to prompt to choose a new face */
-    protected Label promptLbl;
+    protected JLabel promptLbl;
 
-    /** Is this still visible and interactive? (vs already dismissed)
-     *
+    /**
+     * Is this still visible and interactive? (vs already dismissed)
      * @see #isStillAvailable()
      */
     private boolean stillAvailable;
+
+    /** i18n text strings */
+    private static final soc.util.SOCStringManager strings = soc.util.SOCStringManager.getClientManager();
 
     /**
      * Creates a new FaceChooserFrame.
@@ -100,23 +110,19 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
      * @param pnum     Player number in game
      * @param faceWidth Width and height of one face button, in pixels. Assumes icon is square.
      *
-     * @throws IllegalArgumentException If fbutton, cli, or gamePI is null, or faceWidth is 0 or negative,
+     * @throws IllegalArgumentException If fbutton is null, or faceWidth is 0 or negative,
      *    or pnum is negative or more than SOCGame.MAXPLAYERS.
+     * @throws NullPointerException if cli or gamePI is null
      */
     public FaceChooserFrame(SOCFaceButton fbutton, SOCPlayerClient cli,
             SOCPlayerInterface gamePI, int pnum, int faceID, int faceWidth)
         throws IllegalArgumentException
     {
-        super("Choose Face Icon: "
-                + gamePI.getGame().getName() + " ["
-                + cli.getNickname() + "]");
+        super(strings.get("facechooser.title", gamePI.getGame().getName(), gamePI.getClientNickname()));
+            // "Choose Face Icon: {0} [{1}]"
 
         if (fbutton == null)
             throw new IllegalArgumentException("fbutton cannot be null");
-        if (cli == null)
-            throw new IllegalArgumentException("cli cannot be null");
-        if (gamePI == null)
-            throw new IllegalArgumentException("gamePI cannot be null");
         if ((pnum < 0) || (pnum >= SOCGame.MAXPLAYERS))
             throw new IllegalArgumentException("pnum out of range: " + pnum);
         if (faceWidth <= 0)
@@ -128,25 +134,53 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
         pNumber = pnum;
         faceWidthPx = faceWidth;
         stillAvailable = true;
+        final int displayScale = pi.displayScale;
 
-        setBackground(new Color(255, 230, 162));  // Actual face-icon backgrounds will match player.
-        setForeground(Color.black);
-        setFont(new Font("Dialog", Font.PLAIN, 12));
+        final boolean isOSHighContrast = SwingMainDisplay.isOSColorHighContrast();
+        if (! isOSHighContrast)
+        {
+            final Color[] colors = SwingMainDisplay.getForegroundBackgroundColors(true, false);
 
-        changeFaceBut = new Button("Change");
-        cancelBut = new Button("Cancel");
+            setBackground(colors[2]);  // SwingMainDisplay.DIALOG_BG_GOLDENROD; face-icon backgrounds will match player
+            setForeground(colors[0]);  // Color.BLACK
+
+            getRootPane().setBackground(null);  // inherit
+            getContentPane().setBackground(null);
+        }
+        setFont(new Font("Dialog", Font.PLAIN, 12 * displayScale));
+
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+
+        changeFaceBut = new JButton(strings.get("base.change"));
+        cancelBut = new JButton(strings.get("base.cancel"));
+        if (SOCPlayerClient.IS_PLATFORM_WINDOWS && ! isOSHighContrast)
+        {
+            // avoid gray corners on win32 JButtons
+            changeFaceBut.setBackground(null);
+            cancelBut.setBackground(null);
+        }
         setLayout (new BorderLayout());
 
-        promptLbl = new Label("Choose your face icon.", Label.LEFT);
+        final int bsize = 4 * displayScale;
+        promptLbl = new JLabel(strings.get("facechooser.prompt"), SwingConstants.LEFT);  // "Choose your face icon."
+        promptLbl.setBorder(new EmptyBorder(bsize, bsize, bsize, bsize));
         add(promptLbl, BorderLayout.NORTH);
 
         fcl = new FaceChooserList(this, faceID);
         add(fcl, BorderLayout.CENTER);
 
-        setLocation(150, 100);
+        try
+        {
+            Point mloc = MouseInfo.getPointerInfo().getLocation();
+            setLocation(mloc.x + 20 * displayScale, mloc.y + 10 * displayScale);
+        } catch (RuntimeException e) {
+            // in case of SecurityException, etc
+            setLocationRelativeTo(gamePI);
+        }
 
-        Panel pBtns = new Panel();
+        JPanel pBtns = new JPanel();
         pBtns.setLayout(new FlowLayout(FlowLayout.CENTER));
+        pBtns.setBackground(null);
 
         pBtns.add(changeFaceBut);
         changeFaceBut.addActionListener(this);
@@ -156,14 +190,27 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
 
         add(pBtns, BorderLayout.SOUTH);
 
-        // Now that we've added buttons to the dialog layout,
-        // we can get their font and adjust style of default button.
-        AskDialog.styleAsDefault(changeFaceBut);
+        getRootPane().setDefaultButton(changeFaceBut);
 
         addWindowListener(this);  // To handle close-button
         addKeyListener(this);     // To handle Enter, Esc keys.
         changeFaceBut.addKeyListener(this);
         cancelBut.addKeyListener(this);
+    }
+
+    /**
+     * Show or hide this Frame.
+     * If {@code vis} is true, requests keyboard focus on {@link FaceChooserList}
+     * for arrow key controls / Enter / Escape; this is especially helpful on OSX.
+     * @param vis True to make visible, false to hide
+     * @since 1.2.00
+     */
+    @Override
+    public void setVisible(boolean vis)
+    {
+        super.setVisible(vis);
+        if (vis)
+            fcl.requestFocusInWindow();
     }
 
     /**
@@ -196,6 +243,7 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
      * Is this chooser still visible and interactive?
      *
      * @return True if still interactive (vs already dismissed).
+     * @see #isVisible()
      */
     public boolean isStillAvailable()
     {
@@ -203,13 +251,17 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
     }
 
     /**
-     * Dispose of this window. Overrides to clear stillAvailable flag,
+     * Dispose of this window. Overrides to clear stillAvailable flag
      * and call faceButton.clearFacePopupPreviousChooser.
      */
+    @Override
     public void dispose()
     {
-        stillAvailable = false;
-        fb.clearFacePopupPreviousChooser();
+        if (stillAvailable)
+        {
+            stillAvailable = false;
+            fb.clearFacePopupPreviousChooser();
+        }
         super.dispose();
     }
 
@@ -257,7 +309,7 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
      */
     public void changeButtonChosen()
     {
-        pcli.changeFace(pi.getGame(), fcl.currentFaceId);
+        pcli.getGameMessageSender().changeFace(pi.getGame(), fcl.currentFaceId);
     }
 
     /**
@@ -273,7 +325,7 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
      *
      * @see soc.client.FaceChooserFrame.FaceChooserList#moveCursor(int, int, KeyEvent)
      *
-     * @param dr Delta row: -3 jumps to very top; -2 is PageUp; -1 is one row; same for +. 
+     * @param dr Delta row: -3 jumps to very top; -2 is PageUp; -1 is one row; same for +.
      * @param dc Delta column: -2 jumps to far-left, -1 is one to left, +1 is one to right, +2 jumps to far-right.
      * @param e  KeyEvent to be consumed, or null.
      */
@@ -358,14 +410,14 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
             break;
 
         case KeyEvent.VK_HOME:
-            if (0 != (e.getModifiers() & KeyEvent.CTRL_MASK))
+            if (0 != (e.getModifiersEx() & KeyEvent.CTRL_DOWN_MASK))
                 fcl.moveCursor (-3, -2, e);
             else
                 fcl.moveCursor (0, -2, e);
             break;
 
         case KeyEvent.VK_END:
-            if (0 != (e.getModifiers() & KeyEvent.CTRL_MASK))
+            if (0 != (e.getModifiersEx() & KeyEvent.CTRL_DOWN_MASK))
                 fcl.moveCursor (+3, +2, e);
             else
                 fcl.moveCursor (0, +2, e);
@@ -401,7 +453,7 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
          */
         protected static int faceRowsHeight = 6;
 
-        protected FaceChooserFrame fcf;
+        protected final FaceChooserFrame fcf;
         private int currentRow;     // upper-left row #, first row is 0
         private int currentOffset;  // upper-left, from faceid==0
         private int rowCount;       // how many rows total
@@ -425,7 +477,7 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
         private FaceChooserRow[] visibleFaceGrid;
 
         private boolean needsScroll;  // Scrollbar required?
-        private Scrollbar faceSB;
+        private JScrollBar faceSB;
 
         /** Desired size (visible size inside of insets; not incl scrollW) **/
         protected int wantW, wantH;
@@ -491,7 +543,8 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
             }
             if (needsScroll)
             {
-                faceSB = new Scrollbar(Scrollbar.VERTICAL, currentRow,
+                faceSB = new JScrollBar
+                       (JScrollBar.VERTICAL, currentRow,
                         /* number-rows-visible */ faceRowsHeight,
                         0, rowCount );
                     // Range 0 to rowCount per API note: "actual maximum value is
@@ -502,10 +555,11 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
                 faceSB.addKeyListener(fcf);  // Handle Enter, Esc keys on window's behalf
             }
 
-            wantW = rowFacesWidth * SOCFaceButton.FACE_WIDTH_BORDERED_PX;
-            wantH = faceRowsHeight * SOCFaceButton.FACE_WIDTH_BORDERED_PX;
+            final int displayScale = fcf.pi.displayScale;
+            wantW = rowFacesWidth * SOCFaceButton.FACE_WIDTH_BORDERED_PX * displayScale;
+            wantH = faceRowsHeight * SOCFaceButton.FACE_WIDTH_BORDERED_PX * displayScale;
             scrollW = 0;  // unknown before is visible
-            padW = 10;  padH = 30;  // assumes. Will get actual at doLayout.
+            padW = 10 * displayScale;  padH = 30 * displayScale;  // assumed; will get actual at doLayout.
             wantSize = new Dimension (wantW + padW, wantH + padH);
         }
 
@@ -554,7 +608,7 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
         {
             if ((newRow < 0) || (newRow >= rowCount))
                 throw new IllegalArgumentException
-                ("newRow not in range (0 to " + (rowCount-1) + "): " + newRow);
+                    ("newRow not in range (0 to " + (rowCount-1) + "): " + newRow);
             if ((newRow >= currentRow) && (newRow < (currentRow + faceRowsHeight)))
             {
                 return;  // <--- Early return: Already showing ---
@@ -899,7 +953,7 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
                 faceSB.setSize(scrollW, height);
             }
 
-            int rowHeightPx = SOCFaceButton.FACE_WIDTH_BORDERED_PX;
+            final int rowHeightPx = SOCFaceButton.FACE_WIDTH_BORDERED_PX * fcf.pi.displayScale;
             for (int r = 0; r < faceRowsHeight; ++r)
             {
                 visibleFaceGrid[r].setLocation(x, y);
@@ -915,11 +969,10 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
         /**
          * Within FaceChooserList, one row of faces.
          * Takes its width (number of faces) from FaceChooserList.rowFacesWidth.
-         * 
          */
         private class FaceChooserRow extends Container
         {
-            private int startFaceId;
+            private final int startFaceId;
 
             /** Will not go past SOCFaceButton.NUM_FACES */
             private SOCFaceButton[] faces;
@@ -932,7 +985,7 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
              * @param startId  Starting face ID (ID of first face in row)
              * @throws IllegalArgumentException if startId<=0 or startId >= SOCFaceButton.NUM_FACES
              */
-            public FaceChooserRow (int startId)
+            public FaceChooserRow (final int startId)
                 throws IllegalArgumentException
             {
                 if ((startId <= 0) || (startId >= SOCFaceButton.NUM_FACES))
@@ -958,14 +1011,17 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
                     fb.addKeyListener(fcf);
                     add (fb);
                 }
+
                 if (numFaces < FaceChooserList.rowFacesWidth)
                 {
                     // The grid will be left-justified by FaceChooserList's layout.
                     // Fill blanks with the proper background color.
+                    final Color bg = faces[0].getBackground();
                     for (int i = numFaces; i < FaceChooserList.rowFacesWidth; ++i)
                     {
-                        Label la = new Label("");
-                        la.setBackground(faces[0].getBackground());
+                        JLabel la = new JLabel();
+                        la.setBackground(bg);
+                        la.setOpaque(true);
                         add (la);
                     }
                 }
@@ -989,7 +1045,7 @@ public class FaceChooserFrame extends Frame implements ActionListener, WindowLis
 
             /**
              * setVisible - overrides to call each face's setVisible
-             * 
+             *
              * @param vis  Make visible?
              */
             public void setVisible (boolean vis)

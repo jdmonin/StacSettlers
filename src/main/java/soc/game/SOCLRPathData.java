@@ -1,6 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,6 +23,7 @@ package soc.game;
 import java.io.Serializable;
 import java.util.Vector;
 
+import soc.util.IntPair;
 
 /**
  * DOCUMENT ME!
@@ -33,7 +35,7 @@ public class SOCLRPathData implements Serializable
     private int beginningCoord;
     private int endCoord;
     private int length;
-    private Vector nodePairs;
+    private Vector<IntPair> nodePairs;
 
     /**
      * Creates a new SOCLRPathData object.
@@ -43,7 +45,7 @@ public class SOCLRPathData implements Serializable
      * @param len DOCUMENT ME!
      * @param pairs DOCUMENT ME!
      */
-    public SOCLRPathData(int start, int end, int len, Vector pairs)
+    public SOCLRPathData(int start, int end, int len, Vector<IntPair> pairs)
     {
         beginningCoord = start;
         endCoord = end;
@@ -76,7 +78,7 @@ public class SOCLRPathData implements Serializable
      *
      * @return DOCUMENT ME!
      */
-    public Vector getNodePairs()
+    public Vector<IntPair> getNodePairs()
     {
         return nodePairs;
     }
@@ -96,6 +98,7 @@ public class SOCLRPathData implements Serializable
      *
      * @return DOCUMENT ME!
      */
+    @Override
     public String toString()
     {
         String s = "SOCLRPathData:";

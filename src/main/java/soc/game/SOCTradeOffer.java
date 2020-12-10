@@ -1,7 +1,8 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2009 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2009,2014,2017,2019-2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2017-2018 Strategic Conversation (STAC Project) https://www.irit.fr/STAC/
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,41 +17,60 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.game;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import soc.disableDebug.D;
 
 
 /**
  * This class represents a trade offer in Settlers of Catan
+ * and/or is part of a network message about trades.
  */
+@SuppressWarnings("serial")
 public class SOCTradeOffer implements Serializable, Cloneable
 {
-    public String game;
-    public SOCResourceSet give;
-    public SOCResourceSet get;
-    public int from;
-    public boolean[] to;
+    public final String game;
+    public final SOCResourceSet give;
+    public final SOCResourceSet get;
+
+    /**
+     * Player number making this offer, or a value &lt; 0 See {@link #getFrom()}.
+     */
+    public final int from;
+
+    /**
+     * Player numbers this offer is made to; see {@link #getTo()} for details.
+     * Replies are tracked in {@link #waitingReply}.
+     */
+    public final boolean[] to;
+
+    /**
+     * Player numbers this offer is made to, who haven't replied yet (reject or accept);
+     * see {@link #getWaitingReply()} for details.
+     * @since 2.0.00
+     */
+    public final boolean[] waitingReply;
 
     /**
      * The constructor for a SOCTradeOffer
      *
      * @param  game  the name of the game in which this offer was made
      * @param  from  the number of the player making the offer
-     * @param  to    a boolean array where 'true' means that the offer
-     *               is being made to the player with the same number as
-     *               the index of the 'true'
-     * @param  give  the set of resources being given
-     * @param  get   the set of resources being asked for
+     * @param  to    a boolean array with the set of player numbers this offer is made to;
+     *               see {@link #getTo()} for details. Not null.
+     * @param  give  the set of resources being given (offered) by the {@code from} player; not null
+     * @param  get   the set of resources being asked for; not null
      */
     public SOCTradeOffer(String game, int from, boolean[] to, SOCResourceSet give, SOCResourceSet get)
     {
         this.game = game;
         this.from = from;
         this.to = to;
+        waitingReply = Arrays.copyOf(to, to.length);
         this.give = give;
         this.get = get;
     }
@@ -65,13 +85,8 @@ public class SOCTradeOffer implements Serializable, Cloneable
         game = offer.game;
         from = offer.from;
         final int maxPlayers = offer.to.length;
-        to = new boolean[maxPlayers];
-
-        for (int i = 0; i < maxPlayers; i++)
-        {
-            to[i] = offer.to[i];
-        }
-
+        to = Arrays.copyOf(offer.to, maxPlayers);
+        waitingReply = Arrays.copyOf(offer.waitingReply, maxPlayers);
         give = offer.give.copy();
         get = offer.get.copy();
     }
@@ -85,6 +100,9 @@ public class SOCTradeOffer implements Serializable, Cloneable
     }
 
     /**
+     * Player number making this offer.
+     * In v2.4.50 and higher, can be &lt; 0 to convey situations/conditions if sent as part of a network message,
+     * such as a server's reply to client that their trade offer is not allowed.
      * @return the number of the player that made the offer
      */
     public int getFrom()
@@ -93,11 +111,67 @@ public class SOCTradeOffer implements Serializable, Cloneable
     }
 
     /**
-     * @return the boolean array representing to whom this offer was made
+     * Get the set of player numbers this offer is made to:
+     * An array with {@link SOCGame#maxPlayers} elements, where
+     * {@code to[pn]} is true for each player number to whom the offer was made.
+     * For reply status, see {@link #getWaitingReply()} or {@link #isWaitingReplyFrom(int)}.
+     * @return the array showing to which player numbers this offer was made
      */
     public boolean[] getTo()
     {
         return to;
+    }
+
+    /**
+     * Get the set of player numbers this offer is made to,
+     * who haven't replied yet (reject or accept). A subset of {@link #getTo()}.
+     *<P>
+     * For individual players, see {@link #isWaitingReplyFrom(int)}.
+     *
+     * @return the boolean array representing player numbers to whom this offer was made:
+     *    An array with {@link SOCGame#maxPlayers} elements, set true for
+     *    the {@link SOCPlayer#getPlayerNumber()} of each player to whom
+     *    the offer was made but no reject/accept reply has been received.
+     * @since 2.0.00
+     */
+    public boolean[] getWaitingReply()
+    {
+        return waitingReply;
+    }
+
+    /**
+     * Is offer still waiting for a reply from this player?
+     *<P>
+     * For all players, see {@link #getWaitingReply()}.
+     *<P>
+     *<B>Threads:</B> Not synchronized; caller must synchronize if needed.
+     *
+     * @param pn  Player number to check
+     * @return  True if waiting for a reply from {@code pn}
+     * @since 2.0.00
+     */
+    public boolean isWaitingReplyFrom(final int pn)
+    {
+        return (pn >= 0) && (pn < waitingReply.length) && waitingReply[pn];
+    }
+
+    /**
+     * Clear this player's "waiting for reply" flag within {@link #getWaitingReply()}.
+     *<P>
+     *<B>Threads:</B> Not synchronized; caller must synchronize if needed.
+     *
+     * @param pn  Player number to clear flag
+     * @throws IllegalArgumentException if <tt>pn &lt; 0</tt> or <tt>&gt;= {@link SOCGame#MAXPLAYERS}</tt>
+     * @since 2.0.00
+     */
+    public void clearWaitingReplyFrom(final int pn)
+        throws IllegalArgumentException
+    {
+        if ((pn < 0) || (pn >= SOCGame.MAXPLAYERS))
+            throw new IllegalArgumentException("pn: " + pn);
+
+        if (pn < waitingReply.length)
+            waitingReply[pn] = false;
     }
 
     /**
@@ -117,23 +191,26 @@ public class SOCTradeOffer implements Serializable, Cloneable
     }
 
     /**
-     * @return a human readable string of data
+     * Get a readable representation of this data for debugging;
+     * omits {@link #getWaitingReply()} for brevity.
+     * @return a human readable string of data, of the form:
+     *     <tt>game=gname|from=pn|to=true,false,true,false|give={SOCResourceSet.toString}|get={SOCResourceSet.toString}</tt>
      */
     @Override
     public String toString()
     {
-        String str = "game=" + game + "|from=" + from + "|to=" + to[0];
-
-        for (int i = 1; i < to.length; i++)
+        StringBuilder str = new StringBuilder
+            ("game=" + game + "|from=" + from + "|to=" + to[0]);
+        for (int pn = 1; pn < to.length; ++pn)
         {
-            str += ("," + to[i]);
+            str.append(',');
+            str.append(to[pn]);
         }
+        str.append("|give=" + give + "|get=" + get);
 
-        str += ("|give=" + give + "|get=" + get);
-
-        return str;
+        return str.toString();
     }
-    
+
     // Note: Trade offer message has something like this, but that logic should have been here
     public static SOCTradeOffer parse(String s) {    	
         //game=Practice 0|from=0|to=false,false,true,true|give=clay=0|ore=0|sheep=1|wheat=0|wood=0|unknown=0|get=clay=0|ore=0|sheep=0|wheat=1|wood=0|unknown=0
@@ -176,24 +253,43 @@ public class SOCTradeOffer implements Serializable, Cloneable
         return new SOCTradeOffer(game, from, to, giveSet, getSet);
     }
     
+    /**
+     * Compare this trade offer to another object or trade offer.
+     * @return true if {@code o} is a {@link SOCTradeOffer}
+     *     with the same To, From, Give and Get field contents.
+     *     Ignores {@link #getGame()} field.
+     * @since 2.4.50
+     */
     @Override
-    public boolean equals(Object o) {
-    	if (o instanceof SOCTradeOffer) {
-    		SOCTradeOffer offer = (SOCTradeOffer) o;
-    		for (int i=0; i<to.length; i++) {
-    			if (to[i]!=offer.to[i]) {
-    				return false;
-    			}
-    		}
-    		return (from == offer.from
-    				&& give.equals(offer.give)
-    				&& get.equals(offer.get));
-    	}
-    	else {
-    		return false;
-    	}
+    public boolean equals(Object o)
+    {
+        if (o instanceof SOCTradeOffer)
+        {
+            SOCTradeOffer offer = (SOCTradeOffer) o;
+            for (int i = 0; i < to.length; i++)
+                if (to[i] != offer.to[i])
+                    return false;
+
+            return (from == offer.from
+                && give.equals(offer.give)
+                && get.equals(offer.get));
+        } else {
+            return false;
+        }
     }
-    
+
+    /**
+     * @return a hashCode for this trade offer based on field contents,
+     *     ignoring {@link #getGame()} because {@link #equals(Object)} does
+     * @since 2.4.50
+     */
+    @Override
+    public int hashCode()
+    {
+        return give.hashCode() ^ get.hashCode()
+            ^ from ^ Arrays.hashCode(to) ^ Arrays.hashCode(waitingReply);
+    }
+
     /**
      * Create a new SOCTradeOffer where 'to' is the original 'from' and give and get sets are exchanged.
      * @param newFrom       the number of the new offering player

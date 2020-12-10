@@ -1,6 +1,8 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2011-2015,2018,2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,28 +17,32 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.robot;
 
 import soc.game.SOCGame;
 import soc.game.SOCPlayer;
+import soc.game.SOCPlayingPiece;
 import soc.game.SOCResourceSet;
 
-import java.io.Serializable;
-import java.util.Vector;
+import java.util.ArrayList;
+import java.util.List;
 
 
 /**
- * This is a possible road that we can build
+ * This is a possible road that we can build.
+ * Note that {@link SOCPossibleShip} is a subclass.
  *
  * @author Robert S Thomas
- *
  */
-public class SOCPossibleRoad extends SOCPossiblePiece implements Serializable
+public class SOCPossibleRoad extends SOCPossiblePiece
 {
-    protected Vector necessaryRoads;
-    protected Vector newPossibilities;
+    /** Last structural change v2.0.00 (2000) */
+    private static final long serialVersionUID = 2000L;
+
+    protected final List<SOCPossibleRoad> necessaryRoads;
+    protected final List<SOCPossiblePiece> newPossibilities;
     protected int longestRoadValue;
     protected int longestRoadPotential;
     protected int numberOfNecessaryRoads;
@@ -45,19 +51,18 @@ public class SOCPossibleRoad extends SOCPossiblePiece implements Serializable
      * constructor
      *
      * @param pl  the owner
-     * @param co  coordinates
-     * @param nr  necessaryRoads
+     * @param co  coordinates; not validated
+     * @param nr  necessaryRoads list reference to use (not to copy!), or {@code null} to create a new empty list here
      */
-    public SOCPossibleRoad(SOCPlayer pl, int co, Vector nr)
+    public SOCPossibleRoad(SOCPlayer pl, int co, List<SOCPossibleRoad> nr)
     {
-        pieceType = SOCPossiblePiece.ROAD;
-        player = pl;
-        coord = co;
+        super(SOCPossiblePiece.ROAD, pl, co);
+
+        if (nr == null)
+            nr = new ArrayList<SOCPossibleRoad>();
         necessaryRoads = nr;
         eta = 0;
-        threats = new Vector();
-        biggestThreats = new Vector();
-        newPossibilities = new Vector();
+        newPossibilities = new ArrayList<SOCPossiblePiece>();
         longestRoadValue = 0;
         longestRoadPotential = 0;
         threatUpdatedFlag = false;
@@ -66,23 +71,20 @@ public class SOCPossibleRoad extends SOCPossiblePiece implements Serializable
     }
 
     /**
-     * copy constructor
+     * copy constructor.
      *
-     * Note: This will not copy the vectors, just make empty ones
+     * Note: This will not copy {@code pr}'s lists, only make empty ones.
      *
      * @param pr  the possible road to copy
      */
     public SOCPossibleRoad(SOCPossibleRoad pr)
     {
         //D.ebugPrintln(">>>> Copying possible road: "+pr);
-        pieceType = SOCPossiblePiece.ROAD;
-        player = pr.getPlayer();
-        coord = pr.getCoordinates();
-        necessaryRoads = new Vector(pr.getNecessaryRoads().size());
+        super(SOCPossiblePiece.ROAD, pr.getPlayer(), pr.getCoordinates());
+
+        necessaryRoads = new ArrayList<SOCPossibleRoad>(pr.getNecessaryRoads().size());
         eta = pr.getETA();
-        threats = new Vector();
-        biggestThreats = new Vector();
-        newPossibilities = new Vector(pr.getNewPossibilities().size());
+        newPossibilities = new ArrayList<SOCPossiblePiece>(pr.getNewPossibilities().size());
         longestRoadValue = pr.getLRValue();
         longestRoadPotential = pr.getLRPotential();
         threatUpdatedFlag = false;
@@ -91,15 +93,23 @@ public class SOCPossibleRoad extends SOCPossiblePiece implements Serializable
     }
 
     /**
-     * @return the list of necessary roads
+     * Get this possible road/ship's list of necessary roads, from
+     * constructor and/or {@link #addNecessaryRoad(SOCPossibleRoad)}.
+     * @return the list of necessary roads or ships
      */
-    public Vector getNecessaryRoads()
+    public List<SOCPossibleRoad> getNecessaryRoads()
     {
         return necessaryRoads;
     }
 
     /**
-     * @return the minimum number of necessary roads
+     * Get the minimum number of necessary roads and/or ships.
+     * Note that for routes with both roads and ships,
+     * this will be +2 for every coastal-settlement
+     * transition between roads and ships, for the
+     * effort of building the settlement.
+     *
+     * @return the minimum number of necessary roads or ships
      */
     public int getNumberOfNecessaryRoads()
     {
@@ -107,7 +117,11 @@ public class SOCPossibleRoad extends SOCPossiblePiece implements Serializable
     }
 
     /**
-     * set the minimum number of necessary roads
+     * Set the minimum number of necessary roads and/or ships.
+     * Note that for routes with both roads and ships,
+     * this will be +2 for every coastal-settlement
+     * transition between roads and ships, for the
+     * effort of building the settlement.
      *
      * @param num  the minimum number of necessary roads
      */
@@ -117,9 +131,10 @@ public class SOCPossibleRoad extends SOCPossiblePiece implements Serializable
     }
 
     /**
+     * Get the list of any possibilities added by {@link #addNewPossibility(SOCPossiblePiece)}.
      * @return the list of new possibilities
      */
-    public Vector getNewPossibilities()
+    public List<SOCPossiblePiece> getNewPossibilities()
     {
         return newPossibilities;
     }
@@ -147,7 +162,7 @@ public class SOCPossibleRoad extends SOCPossiblePiece implements Serializable
      */
     public void addNecessaryRoad(SOCPossibleRoad rd)
     {
-        necessaryRoads.addElement(rd);
+        necessaryRoads.add(rd);
     }
 
     /**
@@ -157,7 +172,7 @@ public class SOCPossibleRoad extends SOCPossiblePiece implements Serializable
      */
     public void addNewPossibility(SOCPossiblePiece piece)
     {
-        newPossibilities.addElement(piece);
+        newPossibilities.add(piece);
     }
 
     /**
@@ -178,6 +193,16 @@ public class SOCPossibleRoad extends SOCPossiblePiece implements Serializable
     public void setLRPotential(int value)
     {
         longestRoadPotential = value;
+    }
+
+    /**
+     * Is this piece really a road on land, and not a ship on water (subclass {@link SOCPossibleShip})?
+     * @return True for roads (pieceType {@link SOCPlayingPiece#ROAD}), false otherwise
+     * @since 2.0.00
+     */
+    public final boolean isRoadNotShip()
+    {
+        return (pieceType == SOCPlayingPiece.ROAD);
     }
 
     @Override

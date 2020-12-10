@@ -36,7 +36,7 @@ import soc.util.SOCRobotParameters;
 public class SOCRobotBrainImpl extends SOCRobotBrain<SOCRobotDMImpl, SOCRobotNegotiatorImpl, SOCBuildPlanStack> {
 
 	public SOCRobotBrainImpl(SOCRobotClient rc, SOCRobotParameters params,
-			SOCGame ga, CappedQueue mq) {
+			SOCGame ga, CappedQueue<SOCMessage> mq) {
 		super(rc, params, ga, mq); 
 	}
 
@@ -59,6 +59,21 @@ public class SOCRobotBrainImpl extends SOCRobotBrain<SOCRobotDMImpl, SOCRobotNeg
 	protected SOCRobotNegotiatorImpl createNegotiator() {
 		return new SOCRobotNegotiatorImpl(this);
 	}
+
+	@Override
+        protected SOCBuildingSpeedEstimateFactory createEstimatorFactory() {
+		return new SOCBuildingSpeedEstimateFactory(this) {
+                    public SOCBuildingSpeedEstimate getEstimator() {
+                        return new SOCBuildingSpeedFast();
+                    }
+                    public SOCBuildingSpeedEstimate getEstimator(final SOCPlayerNumbers numbers) {
+                        return new SOCBuildingSpeedFast(numbers);
+                    }
+                    public final int[] getRollsForResourcesSorted(final SOCPlayer pl) {
+                        return SOCBuildingSpeedFast.getRollsForResourcesSorted(pl);
+                    }
+		};
+        }
 
 	@Override
 	protected SOCBuildPlanStack createBuildPlan() {
@@ -86,7 +101,7 @@ public class SOCRobotBrainImpl extends SOCRobotBrain<SOCRobotDMImpl, SOCRobotNeg
 
 	@Override
     // Default behaviour: no special action at beginning of turn
-    protected void startTurnActions(int player) { }
+    protected void startTurnMainActions() { }
 
 	@Override
     // Default behaviour: brain never forces waiting
@@ -102,7 +117,7 @@ public class SOCRobotBrainImpl extends SOCRobotBrain<SOCRobotDMImpl, SOCRobotNeg
 	@Override
     protected int considerOffer(SOCTradeOffer offer)
     {
-        int response = -1;
+        int response = SOCRobotNegotiator.IGNORE_OFFER;
 
         SOCPlayer offeringPlayer = game.getPlayer(offer.getFrom());
 
@@ -110,7 +125,7 @@ public class SOCRobotBrainImpl extends SOCRobotBrain<SOCRobotDMImpl, SOCRobotNeg
         {
             boolean[] offeredTo = offer.getTo();
 
-            if (offeredTo[ourPlayerData.getPlayerNumber()])
+            if (offeredTo[ourPlayerNumber])
             {
             	//---MG
             	if (offer.getGiveSet().getTotal() == 0) //check whether it's a partial offer in which what we are getting is unspecified
@@ -118,7 +133,7 @@ public class SOCRobotBrainImpl extends SOCRobotBrain<SOCRobotDMImpl, SOCRobotNeg
             		response = negotiator.handlePartialOffer(offer);
             	}
             	else {            	
-            		response = negotiator.considerOffer(offer, ourPlayerData.getPlayerNumber());
+            		response = negotiator.considerOffer(offer, ourPlayerNumber);
             	}
             }
         }

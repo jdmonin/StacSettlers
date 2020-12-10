@@ -1,6 +1,8 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
+ * Portions of this file Copyright (C) 2018 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.util;
 
@@ -23,21 +25,23 @@ import java.util.Vector;
 
 
 /**
- * DOCUMENT ME!
- *
- * @author $author$
+ * A thread-safe synchronized FIFO queue.
  */
-public class Queue
+public class Queue<T>
 {
-    // Internal storage for the queue'd objects
-    private Vector vec = new Vector();
+    /** Internal storage for the queued objects */
+    private final Vector<T> vec = new Vector<T>();
 
     /**
-     * DOCUMENT ME!
+     * Add a new element to the end of the queue.
+     *<P>
+     * If any threads are blocked waiting in {@link #get()}, they are all notified and may unblock
+     * (via {@link Object#notifyAll()}). Only one will get the newly added element;
+     * the rest will see an empty queue and return to blocking (via {@link Object#wait()}).
      *
-     * @param o DOCUMENT ME!
+     * @param o  Object to add to the end of the queue
      */
-    synchronized public void put(Object o)
+    synchronized public void put(T o)
     {
         //D.ebugPrintln(">put-> "+o);
         // Add the element
@@ -49,26 +53,21 @@ public class Queue
     }
 
     /**
-     * DOCUMENT ME!
+     * Get first (oldest) element in the queue; if empty, block waiting for an element to be added.
      *
-     * @return DOCUMENT ME!
+     * @return First (oldest) element previously added by {@link #put(Object)}
      */
-    synchronized public Object get()
+    synchronized public T get()
     {
         while (true)
         {
-            if (vec.size() > 0)
+            if (! vec.isEmpty())
             {
                 // There's an available object!
-                Object o = vec.elementAt(0);
-
-                //D.ebugPrintln("<-get< "+o); 
                 // Remove it from our internal list, so someone else
                 // doesn't get it.
-                vec.removeElementAt(0);
 
-                // Return the object
-                return o;
+                return vec.remove(0);
             }
             else
             {
@@ -85,9 +84,10 @@ public class Queue
     }
 
     /**
-     * DOCUMENT ME!
+     * Is the queue currently empty?
      *
-     * @return DOCUMENT ME!
+     * @return true if empty
+     * @see #size()
      */
     synchronized public boolean empty()
     {
@@ -95,7 +95,7 @@ public class Queue
     }
 
     /**
-     * DOCUMENT ME!
+     * Remove all elements from the queue.
      */
     synchronized public void clear()
     {
@@ -103,12 +103,14 @@ public class Queue
     }
 
     /**
-     * DOCUMENT ME!
+     * Get current size of the queue.
      *
-     * @return DOCUMENT ME!
+     * @return This queue's current size
+     * @see #empty()
      */
     synchronized public int size()
     {
         return vec.size();
     }
+
 }

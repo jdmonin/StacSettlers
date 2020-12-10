@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2010 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2010,2013-2014,2016-2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
@@ -27,41 +27,56 @@ import java.util.StringTokenizer;
  * This message means that the player is accepting an offer.
  *<P>
  * Sent from accepting player's client to server.
- * If the trade is allowed, also sent from server to all players so
- * that robots can learn that news.
+ * If the trade is allowed, announced from server to all players.
  *<UL>
- * <LI> Message to server is in response to a {@link SOCMakeOffer} sent earlier this turn to client.
- * <LI> Followed by (to all from server) {@link SOCPlayerElement}s, {@link SOCGameTextMsg}, {@link SOCClearOffer}s,
- *      and (for robots' benefit) the received ACCEPTOFFER is re-sent from
- *      server to all clients.
+ * <LI> Client message to server is in response to a {@link SOCMakeOffer} announced earlier this turn
+ *      with client as an offered-to player.
+ * <LI> Server's response (announced to game) is {@link SOCPlayerElement}s, {@link SOCGameServerText},
+ *      {@code AcceptOffer}, then {@link SOCClearOffer}s.
  *</UL>
+ *<P>
+ * Before v2.0.00 the server announced the {@code SOCClearOffer}s before {@code SOCAcceptOffer}. The old
+ * non-robot clients ignored that {@code SOCAcceptOffer}, so changing the order has no effect on them.
+ *<P>
+ * The server disallows any unacceptable trade by sending the client a
+ * {@code SOCAcceptOffer} with reason code {@link SOCBankTrade#PN_REPLY_CANNOT_MAKE_TRADE}
+ * in the {@link #getAcceptingNumber()} field.
+ * Servers before v2.4.50 ({@link SOCBankTrade#VERSION_FOR_REPLY_REASONS}) disallowed by
+ * sending an explanatory {@link SOCGameServerText}.
+ *
  * @author Robert S. Thomas
  * @see SOCRejectOffer
  */
 public class SOCAcceptOffer extends SOCMessage
     implements SOCMessageForGame
 {
+    private static final long serialVersionUID = 1111L;  // last structural change v1.1.11
+
     /**
      * Name of game
      */
     private String game;
 
     /**
-     * The number of the accepting player
+     * The accepting player number from server, or indication that the trade could not occur:
+     * see {@link #getAcceptingNumber()}.
      */
     private int accepting;
 
     /**
-     * The number of the offering player
+     * The offering player number; see {@link #getOfferingNumber()}.
      */
     private int offering;
 
     /**
-     * Create a AcceptOffer message.
+     * Create an AcceptOffer message.
      *
      * @param ga  the name of the game
-     * @param ac  the number of the accepting player
-     * @param of  the number of the offering player
+     * @param ac  the player number of the accepting player,
+     *     or indication the trade could not occur,
+     *     when sent from server; always ignored if sent from client.
+     *     See {@link #getAcceptingNumber()}.
+     * @param of  the player number of the offering player
      */
     public SOCAcceptOffer(String ga, int ac, int of)
     {
@@ -80,7 +95,13 @@ public class SOCAcceptOffer extends SOCMessage
     }
 
     /**
-     * @return the number of the accepting player
+     * When sent from server, get the player number accepting the trade offered by
+     * {@link #getOfferingNumber()}, or a value &lt; 0 indicating that the trade could not occur:
+     * {@link SOCBankTrade#PN_REPLY_CANNOT_MAKE_TRADE}.
+     * From client, server has always ignored this field; could be any value.
+     * @return the number of the accepting player from server,
+     *     or a disallowing reply reason &lt; 0,
+     *     or any value sent from client (server has always ignored this field)
      */
     public int getAcceptingNumber()
     {
@@ -88,6 +109,8 @@ public class SOCAcceptOffer extends SOCMessage
     }
 
     /**
+     * Get the player number offering this trade which is
+     * being accepted by {@link #getAcceptingNumber()}.
      * @return the number of the offering player
      */
     public int getOfferingNumber()
@@ -109,8 +132,9 @@ public class SOCAcceptOffer extends SOCMessage
      * ACCEPTOFFER sep game sep2 accepting sep2 offering
      *
      * @param ga  the name of the game
-     * @param ac  the number of the accepting player
-     * @param of  the number of the offering player
+     * @param ac  the player number of the accepting player
+     *     when sent from server; always ignored if sent from client
+     * @param of  the player number of the offering player
      * @return the command string
      */
     public static String toCmd(String ga, int ac, int of)
@@ -119,10 +143,10 @@ public class SOCAcceptOffer extends SOCMessage
     }
 
     /**
-     * Parse the command String into a StartGame message
+     * Parse the command String into an ACCEPTOFFER message.
      *
      * @param s   the String to parse
-     * @return    a StartGame message, or null of the data is garbled
+     * @return    an ACCEPTOFFER message, or null if the data is garbled
      */
     public static SOCAcceptOffer parseDataStr(String s)
     {
@@ -153,4 +177,5 @@ public class SOCAcceptOffer extends SOCMessage
     {
         return "SOCAcceptOffer:game=" + game + "|accepting=" + accepting + "|offering=" + offering;
     }
+
 }

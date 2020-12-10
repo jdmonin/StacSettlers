@@ -1,6 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2014,2016-2018,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
@@ -25,13 +26,16 @@ import java.util.StringTokenizer;
 
 
 /**
- * This message means that the robot client needs to update
- * the robot parameters with the contained information
+ * This message from server tells the robot client to update its
+ * {@link SOCRobotParameters robot parameters} to these values.
+ * Sent in response to bot's {@link SOCImARobot}.
  *
  * @author Robert S. Thomas
  */
 public class SOCUpdateRobotParams extends SOCMessage
 {
+    private static final long serialVersionUID = 100L;  // last structural change v1.0.0 or earlier
+
     private SOCRobotParameters params;
 
     /**
@@ -54,43 +58,36 @@ public class SOCUpdateRobotParams extends SOCMessage
     }
 
     /**
-     * UPDATEROBOTPARAMS sep maxGameLength sep2 maxETA sep2 etaBonusFactor sep2 adversarialFactor sep2 leaderAdversarialFactor sep2 devCardMultiplier sep2 threatMultiplier sep2 strategyType sep2 tradeFlag
+     * UPDATEROBOTPARAMS sep maxGameLength sep2 maxETA sep2 etaBonusFactor sep2 adversarialFactor
+     *   sep2 leaderAdversarialFactor sep2 devCardMultiplier sep2 threatMultiplier sep2 strategyType sep2 tradeFlag
      *
      * @return the command string
      */
     public String toCmd()
     {
-        return toCmd(params);
-    }
-
-    /**
-     * UPDATEROBOTPARAMS sep maxGameLength sep2 maxETA sep2 etaBonusFactor sep2 adversarialFactor sep2 leaderAdversarialFactor sep2 devCardMultiplier sep2 threatMultiplier sep2 strategyType sep2 tradeFlag
-     *
-     * @param par  the robot parameters
-     * @return the command string
-     */
-    public static String toCmd(SOCRobotParameters par)
-    {
-        return UPDATEROBOTPARAMS + sep + par.getMaxGameLength() + sep2 + par.getMaxETA() + sep2 + par.getETABonusFactor() + sep2 + par.getAdversarialFactor() + sep2 + par.getLeaderAdversarialFactor() + sep2 + par.getDevCardMultiplier() + sep2 + par.getThreatMultiplier() + sep2 + par.getStrategyType() + sep2 + par.getTradeFlag();
+        return UPDATEROBOTPARAMS + sep + params.getMaxGameLength() + sep2 + params.getMaxETA()
+            + sep2 + params.getETABonusFactor() + sep2 + params.getAdversarialFactor()
+            + sep2 + params.getLeaderAdversarialFactor() + sep2 + params.getDevCardMultiplier()
+            + sep2 + params.getThreatMultiplier() + sep2 + params.getStrategyType() + sep2 + params.getTradeFlag();
     }
 
     /**
      * Parse the command String into a UpdateRobotParams message
      *
      * @param s   the String to parse
-     * @return    a UpdateRobotParams message, or null of the data is garbled
+     * @return    a UpdateRobotParams message, or null if the data is garbled
      */
     public static SOCUpdateRobotParams parseDataStr(String s)
     {
-        int mgl; // maxGameLength
-        int me; // maxETA
+        int mgl;   // maxGameLength
+        int me;    // maxETA
         float ebf; // etaBonusFactor
-        float af; // adversarialFactor
+        float af;  // adversarialFactor
         float laf; // leaderAdversarialFactor
         float dcm; // devCardMultiplier
-        float tm; // threatMultiplier
-        int st; // strategyType
-        int tf; // trade flag
+        float tm;  // threatMultiplier
+        int st;    // strategyType
+        int tf;    // trade flag
 
         StringTokenizer stok = new StringTokenizer(s, sep2);
 
@@ -115,10 +112,11 @@ public class SOCUpdateRobotParams extends SOCMessage
     }
 
     /**
-     * @return a human readable form of the message
+     * @return a human readable form of the message, calling {@link SOCRobotParameters#toString()} for field contents
      */
     public String toString()
     {
-        return "SOCUpdateRobotParams:params=" + params;
+        return "SOCUpdateRobotParams:" + params;
     }
+
 }

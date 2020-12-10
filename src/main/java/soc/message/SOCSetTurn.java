@@ -1,6 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2014,2017-2018,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
@@ -26,12 +27,22 @@ import java.util.StringTokenizer;
  * This message from server to client says whose turn it is.
  * Only the game's current player number should change; no other
  * game state is updated.
+ *<P>
+ * In games where all clients are v2.0.00 or newer, send {@link SOCGameElements.GEType#CURRENT_PLAYER}
+ * instead: Check {@link soc.game.SOCGame#clientVersionLowest} or client connection's version
+ * against {@link SOCGameElements#MIN_VERSION}.
  *
  * @author Robert S. Thomas
  * @see SOCTurn
  */
 public class SOCSetTurn extends SOCMessageTemplate1i
 {
+    /**
+     * Class converted for v1.1.00 to use SOCMessageTemplate1i.
+     * Over the network, fields are unchanged since v1.0.0 or earlier, per git and old cvs history. -JM
+     */
+    private static final long serialVersionUID = 1100L;
+
     /**
      * Create a SetTurn message.
      *

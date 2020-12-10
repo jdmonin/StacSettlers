@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2010 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2010,2015-2017,2019-2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,14 +20,20 @@ package soc.server;
 
 
 /**
- * Wakes up every few seconds to check for turns that have expired,
- * and every 5 minutes to check for games that have expired,
- * by calling {@link SOCServer#checkForExpiredGames(long)}
- * and {@link SOCServer#checkForExpiredTurns(long)}.
+ * Wakes up every few seconds* to check for turns that have expired
+ * by calling {@link SOCServer#checkForExpiredTurns(long)},
+ * and every 5 minutes to check for games that have expired
+ * with {@link SOCServer#checkForExpiredGames(long)}.
+ *<P>
+ * Keeps the game moving if a robot is stuck or indecisive because of a bug.
+ *<P>
+ * * "Every few seconds" is roughly {@link SOCServer#ROBOT_FORCE_ENDTURN_STUBBORN_SECONDS}.
  *
  * @author Robert S Thomas
+ * @see SOCServer#ROBOT_FORCE_ENDTURN_SECONDS
+ * @see SOCServer#GAME_TIME_EXPIRE_CHECK_MINUTES
  */
-public class SOCGameTimeoutChecker extends Thread
+/*package*/ class SOCGameTimeoutChecker extends Thread
 {
     private SOCServer server;
     private boolean alive;
@@ -48,11 +54,13 @@ public class SOCGameTimeoutChecker extends Thread
     /**
      * Wakes up every few seconds to check for turns that have expired,
      * and every 5 minutes to check for games that have expired.
+     * See {@link SOCGameTimeoutChecker class javadoc}.
      */
     public void run()
     {
-        // check every few seconds; should be about half of ROBOT_FORCE_ENDTURN_SECONDS
-        final int sleepMillis = SOCServer.ROBOT_FORCE_ENDTURN_SECONDS * 600;
+        // check every few seconds; should be about ROBOT_FORCE_ENDTURN_STUBBORN_SECONDS
+        // (about half as long as ROBOT_FORCE_ENDTURN_SECONDS)
+        final int sleepMillis = SOCServer.ROBOT_FORCE_ENDTURN_STUBBORN_SECONDS * 1100;
 
         // Holds time of next check for game expiry, not just turn expiry
         long gameExpireCheckTime = 0L;
@@ -65,17 +73,18 @@ public class SOCGameTimeoutChecker extends Thread
             long now = System.currentTimeMillis();
             if (gameExpireCheckTime == 0L)
                 gameExpireCheckTime = now;
+
             if (now >= gameExpireCheckTime)
             {
                 server.checkForExpiredGames(now);
 
-                // check every 5 minutes; must be at most half of SOCServer.GAME_EXPIRE_WARN_MINUTES
-                gameExpireCheckTime = now + 300000;
-                yield();
+                // check every 5 minutes
+                gameExpireCheckTime = now + (SOCServer.GAME_TIME_EXPIRE_CHECK_MINUTES * 60 * 1000);
+                Thread.yield();
             }
 
             server.checkForExpiredTurns(now);
-            yield();
+            Thread.yield();
 
             try
             {

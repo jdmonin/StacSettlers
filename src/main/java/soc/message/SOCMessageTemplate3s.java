@@ -1,7 +1,8 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * This file Copyright (C) 2008,2010 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2008,2010-2012,2014,2019 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2017-2018 Strategic Conversation (STAC Project) https://www.irit.fr/STAC/
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,13 +27,16 @@ package soc.message;
 /**
  * Template for per-game message types with 3 string parameters.
  * The second and third parameters can be optional.
+ * Your class javadoc should explain the meaning of param1, param2, and param3,
+ * so that you won't need to write getters for those.
+ *<P>
  * You will have to write parseDataStr, because of its return
  * type and because it's static.
  *<P>
  * Sample implementation:
- *<code>
+ *<code><pre>
  *   // format of s: REJECTCARDID sep game sep2 cardid sep2 cardname sep2 cardname2
- *   public static SOCRejectCardID parseDataStr(String s)
+ *   public static SOCRejectCardID parseDataStr(final String s)
  *   {
  *       String ga; // the game name
  *       String cid; // the card id
@@ -55,13 +59,16 @@ package soc.message;
  *
  *        return new SOCRejectCardID(ga, cid, cname, cname2);
  *   }
- *</code>
+ *</pre></code>
  *
- * @author Jeremy D Monin <jeremy@nand.net>
+ * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
+ * @since 1.1.00
  */
 public abstract class SOCMessageTemplate3s extends SOCMessage
     implements SOCMessageForGame
 {
+    private static final long serialVersionUID = 2000L;
+
     /**
      * Name of the game.
      */
@@ -153,7 +160,7 @@ public abstract class SOCMessageTemplate3s extends SOCMessage
      * @param param3 The third parameter, or null
      * @return    the command string
      */
-    public static String toCmd(int messageType, String ga, String param1, String param2, String param3)
+    protected static String toCmd(final int messageType, String ga, String param1, String param2, String param3)
     {
         return Integer.toString(messageType) + sep + ga + sep2 + param1
         + sep2 + (param2 != null ? param2 : "")
@@ -165,7 +172,7 @@ public abstract class SOCMessageTemplate3s extends SOCMessage
      *
      * @param s   the String to parse
      * @return    a RejectCardID message, or null if parsing errors
-    public static SOCRejectCardID parseDataStr(String s)
+    public static SOCRejectCardID parseDataStr(final String s)
     {
         String ga; // the game name
         String cid; // the card id
@@ -195,9 +202,10 @@ public abstract class SOCMessageTemplate3s extends SOCMessage
      */
     public String toString()
     {
-        return getClassNameShort() + ":game=" + game
+        return getClass().getSimpleName() + ":game=" + game
             + "|param1=" + p1
             + "|param2=" + (p2 != null ? p2 : "")
             + "|param3=" + (p3 != null ? p3 : "");
     }
+
 }

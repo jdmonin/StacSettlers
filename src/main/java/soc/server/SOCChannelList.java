@@ -1,7 +1,8 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2009-2010 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2009-2010,2016-2017,2019-2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,13 +17,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.server;
 
 import soc.disableDebug.D;
 
-import soc.server.genericServer.StringConnection;
+import soc.server.genericServer.Connection;
 
 import soc.util.MutexFlag;
 
@@ -36,20 +37,27 @@ import java.util.Vector;
  * The list itself, and each channel, has a monitor for synchronization.
  *
  * @author Robert S. Thomas
+ * @see SOCGameListAtServer
  */
-public class SOCChannelList
+/*package*/ class SOCChannelList
 {
     /** key = string, value = Vector of MutexFlags */
-    protected Hashtable channelMutexes;
+    protected final Hashtable<String, MutexFlag> channelMutexes;
 
-    /** key = string, value = Vector of StringConnections */
-    protected Hashtable channelMembers;
+    /** Clients talking in this channel. key = string, value = Vector of {@link Connection}s */
+    protected final Hashtable<String,Vector<Connection>> channelMembers;
+
+    /**
+     * Each channel's buffer of recent chat text.
+     * @since 2.0.00
+     */
+    protected final Hashtable<String, SOCChatRecentBuffer> channelChatBuffer;
 
     /** Each channel's creator/owner name.
      * key = string, value = Vector of Strings.
      * @since 1.1.10
      */
-    protected Hashtable channelOwners;
+    protected final Hashtable<String, String> channelOwners;
 
     /** track the monitor for this channel list */
     protected boolean inUse;
@@ -59,9 +67,10 @@ public class SOCChannelList
      */
     public SOCChannelList()
     {
-        channelMutexes = new Hashtable();
-        channelMembers = new Hashtable();
-        channelOwners = new Hashtable();
+        channelMutexes = new Hashtable<String, MutexFlag>();
+        channelMembers = new Hashtable<String, Vector<Connection>>();
+        channelChatBuffer = new Hashtable<String, SOCChatRecentBuffer>();
+        channelOwners = new Hashtable<String, String>();
         inUse = false;
     }
 
@@ -76,7 +85,7 @@ public class SOCChannelList
         {
             try
             {
-                wait(1000);
+                wait(1000);  // timeout to help avoid deadlock
             }
             catch (InterruptedException e)
             {
@@ -107,7 +116,7 @@ public class SOCChannelList
     {
         D.ebugPrintlnINFO("SOCChannelList : TAKE MONITOR FOR " + channel);
 
-        MutexFlag mutex = (MutexFlag) channelMutexes.get(channel);
+        MutexFlag mutex = channelMutexes.get(channel);
 
         if (mutex == null)
         {
@@ -118,7 +127,7 @@ public class SOCChannelList
 
         while (!done)
         {
-            mutex = (MutexFlag) channelMutexes.get(channel);
+            mutex = channelMutexes.get(channel);
 
             if (mutex == null)
             {
@@ -131,7 +140,7 @@ public class SOCChannelList
                 {
                     try
                     {
-                        mutex.wait(1000);
+                        mutex.wait(1000);  // timeout to help avoid deadlock
                     }
                     catch (InterruptedException e)
                     {
@@ -160,7 +169,7 @@ public class SOCChannelList
     {
         D.ebugPrintlnINFO("SOCChannelList : RELEASE MONITOR FOR " + channel);
 
-        MutexFlag mutex = (MutexFlag) channelMutexes.get(channel);
+        MutexFlag mutex = channelMutexes.get(channel);
 
         if (mutex == null)
         {
@@ -179,7 +188,7 @@ public class SOCChannelList
     /**
      * @return an enumeration of channel names (Strings)
      */
-    public Enumeration getChannels()
+    public Enumeration<String> getChannels()
     {
         return channelMembers.keys();
     }
@@ -192,20 +201,32 @@ public class SOCChannelList
      */
     public synchronized String getOwner(final String chName)
     {
-        return (String) channelOwners.get(chName);
+        return channelOwners.get(chName);
     }
 
     /**
+     * Get a channel's recent-chat buffer.
+     * @param chName  channel name
+     * @return  Channel's chat buffer
+     * @since 2.0.00
+     */
+    public SOCChatRecentBuffer getChatBuffer(final String chName)
+    {
+        return channelChatBuffer.get(chName);
+    }
+
+    /**
+     * Get a channel's members (client connections).
      * @param   chName  channel name
      * @return  list of members
      */
-    public synchronized Vector getMembers(String chName)
+    public synchronized Vector<Connection> getMembers(String chName)
     {
-        Vector result = (Vector) channelMembers.get(chName);
+        Vector<Connection> result = channelMembers.get(chName);
 
         if (result == null)
         {
-            result = new Vector();
+            result = new Vector<Connection>();
         }
 
         return result;
@@ -216,18 +237,14 @@ public class SOCChannelList
      * @param  conn     the member's connection
      * @return  true if memName is a member of the channel
      */
-    public synchronized boolean isMember(StringConnection conn, String chName)
+    public synchronized boolean isMember(Connection conn, String chName)
     {
-        Vector members = getMembers(chName);
+        Vector<?> members = getMembers(chName);
 
         if ((members != null) && (members.contains(conn)))
-        {
             return true;
-        }
         else
-        {
             return false;
-        }
     }
 
     /**
@@ -236,9 +253,9 @@ public class SOCChannelList
      * @param  chName   the name of the channel
      * @param  conn     the member's connection
      */
-    public synchronized void addMember(StringConnection conn, String chName)
+    public synchronized void addMember(Connection conn, String chName)
     {
-        Vector members = getMembers(chName);
+        Vector<Connection> members = getMembers(chName);
 
         if ((members != null) && (!members.contains(conn)))
         {
@@ -252,9 +269,9 @@ public class SOCChannelList
      * @param  chName   the name of the channel
      * @param  conn     the member's connection
      */
-    public synchronized void removeMember(StringConnection conn, String chName)
+    public synchronized void removeMember(Connection conn, String chName)
     {
-        Vector members = getMembers(chName);
+        Vector<Connection> members = getMembers(chName);
 
         if ((members != null))
         {
@@ -266,15 +283,15 @@ public class SOCChannelList
      * Replace member from all chat channels, with a new connection (after a network problem).
      *
      * @param  oldConn  the member's old connection
-     * @param  oldConn  the member's new connection
+     * @param  newConn  the member's new connection
      * @since 1.1.08
      */
-    public synchronized void replaceMemberAllChannels(StringConnection oldConn, StringConnection newConn)
+    public synchronized void replaceMemberAllChannels(Connection oldConn, Connection newConn)
     {
-        Enumeration allCh = getChannels();
+        Enumeration<String> allCh = getChannels();
         while (allCh.hasMoreElements())
         {
-            Vector members = (Vector) channelMembers.get((String) allCh.nextElement());
+            Vector<Connection> members = channelMembers.get(allCh.nextElement());
             if ((members != null) && members.contains(oldConn))
             {
                 members.remove(oldConn);
@@ -298,21 +315,14 @@ public class SOCChannelList
      */
     public synchronized boolean isChannelEmpty(String chName)
     {
-        boolean result;
-        Vector members;
+        Vector<Connection> members;
 
-        members = (Vector) channelMembers.get(chName);
+        members = channelMembers.get(chName);
 
         if ((members != null) && (members.isEmpty()))
-        {
-            result = true;
-        }
+            return true;
         else
-        {
-            result = false;
-        }
-
-        return result;
+            return false;
     }
 
     /**
@@ -325,16 +335,16 @@ public class SOCChannelList
     public synchronized void createChannel(final String chName, final String chOwner)
         throws NullPointerException
     {
-        if (!isChannel(chName))
-        {
-            MutexFlag mutex = new MutexFlag();
-            channelMutexes.put(chName, mutex);
+        if (isChannel(chName))
+            return;
 
-            Vector members = new Vector();
-            channelMembers.put(chName, members);
+        channelMutexes.put(chName, new MutexFlag());
 
-            channelOwners.put(chName, chOwner);  // throws NullPointerException
-        }
+        channelMembers.put(chName, new Vector<Connection>());
+
+        channelChatBuffer.put(chName, new SOCChatRecentBuffer());
+
+        channelOwners.put(chName, chOwner);  // throws NullPointerException if chOwner null
     }
 
     /**
@@ -347,7 +357,11 @@ public class SOCChannelList
         D.ebugPrintlnINFO("SOCChannelList : deleteChannel(" + chName + ")");
         channelMembers.remove(chName);
 
-        MutexFlag mutex = (MutexFlag) channelMutexes.get(chName);
+        SOCChatRecentBuffer buf = channelChatBuffer.remove(chName);
+        if (buf != null)
+            buf.clear();
+
+        MutexFlag mutex = channelMutexes.get(chName);
         channelMutexes.remove(chName);
 
         if (mutex != null)

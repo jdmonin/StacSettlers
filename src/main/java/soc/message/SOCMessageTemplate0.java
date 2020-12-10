@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * This file Copyright (C) 2008,2010 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2008,2010-2012,2014 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,18 +27,21 @@ package soc.message;
  * type and because it's static.
  *<P>
  * Sample implementation:
- *<code>
- *   public static SOCAdminPing parseDataStr(String s)
+ *<code><pre>
+ *   public static SOCAdminPing parseDataStr(final String s)
  *   {
  *       return new SOCAdminPing(s);
  *   }
- *</code>
+ *</pre></code>
  *
- * @author Jeremy D Monin <jeremy@nand.net>
+ * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
+ * @since 1.1.00
  */
 public abstract class SOCMessageTemplate0 extends SOCMessage
     implements SOCMessageForGame
 {
+    private static final long serialVersionUID = 2000L;
+
     /**
      * Name of the game.
      */
@@ -76,12 +79,14 @@ public abstract class SOCMessageTemplate0 extends SOCMessage
 
     /**
      * MESSAGETYPE sep game
+     *<P>
+     * Public method only because there are no parameters, so this is easy to call.
      *
      * @param messageType The message type id
      * @param ga  the game name
      * @return    the command string
      */
-    public static String toCmd(int messageType, String ga)
+    public static String toCmd(final int messageType, final String ga)
     {
         return Integer.toString(messageType) + sep + ga;
     }
@@ -91,9 +96,9 @@ public abstract class SOCMessageTemplate0 extends SOCMessage
      *
      * @param s   the String to parse
      * @return    an AdminPing message
-    public static SOCAdminPing parseDataStr(String s)
+    public static SOCAdminPing parseDataStr(final String s)
     {
-        return new SOCAdminPing(Integer.parseInt(s));
+        return new SOCAdminPing(s);
     }
      */
 
@@ -102,6 +107,7 @@ public abstract class SOCMessageTemplate0 extends SOCMessage
      */
     public String toString()
     {
-        return getClassNameShort() + ":game=" + game;
+        return getClass().getSimpleName() + ":game=" + game;
     }
+
 }

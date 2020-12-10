@@ -1,7 +1,8 @@
 /**
- * Testing for cross-platform context-click (right-click)
+ * Testing for click events and context-click (right-click)
  *
- * This file copyright (C) 2007-2010 Jeremy D Monin <jeremy@nand.net>
+ * This file copyright (C) 2007-2010,2016,2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at jeremy@nand.net
+ * The maintainer of this program can be reached at jsettlers@nand.net
  */
 package soc.client;
 
@@ -24,20 +25,24 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Frame;
 import java.awt.Graphics;
+import java.awt.event.InputEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 
 /**
- * Testing for cross-platform context-click (right-click); standalone class.
- * @author Jeremy D Monin <jeremy@nand.net>
+ * Standalone class to test for per-platform differences
+ * of click events and context-click (right-click).
  *
+ * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
+ * @since 1.1.00
  */
-public class AWTClickTester extends java.awt.Canvas implements MouseListener
+@SuppressWarnings("serial")
+/*package*/ class AWTClickTester extends java.awt.Canvas implements MouseListener
 {
     int lastX, lastY;
     int wid, ht;
     Dimension sz;
-    
+
     public AWTClickTester()
     {
         lastX = -1;  lastY = -1;
@@ -46,20 +51,24 @@ public class AWTClickTester extends java.awt.Canvas implements MouseListener
         setBackground(Color.WHITE);
         addMouseListener(this);
     }
-    
+
+    @Override
     public void update(Graphics g) { paint(g); }
-    
+
+    @Override
     public Dimension getPreferredSize() { return sz; }
-    
+
+    @Override
     public Dimension getMinimumSize() { return sz; }
-    
+
     public void setLastClick (int x, int y)
     {
         lastX = x;
         lastY = y;
         repaint();
     }
-    
+
+    @Override
     public void paint(Graphics g)
     {
         g.clearRect(0, 0, wid, ht);
@@ -103,12 +112,12 @@ public class AWTClickTester extends java.awt.Canvas implements MouseListener
     {
         report("rele ", e);
     }
-    
+
     protected void report (String etype, MouseEvent e)
     {
         int x = e.getX();
         int y = e.getY();
-        String popclick;        
+        String popclick;
         if (e.isPopupTrigger())
             popclick = " isPopupTrigger";
         else
@@ -118,22 +127,25 @@ public class AWTClickTester extends java.awt.Canvas implements MouseListener
             + e.getWhen() + " button=0x"
             + Integer.toHexString(e.getButton())
             + " mods=0x"
-            + Integer.toHexString(e.getModifiers())
+            + Integer.toHexString(e.getModifiersEx())
             + popclick);
         setLastClick (x, y);
     }
-    
+
     public void printButtonsMods()
     {
         System.out.println("BUTTON:");
-        System.out.println("  1:  0x" + Integer.toHexString(MouseEvent.BUTTON1) + " mask 0x" + Integer.toHexString(MouseEvent.BUTTON1_MASK));
-        System.out.println("  2:  0x" + Integer.toHexString(MouseEvent.BUTTON2) + " mask 0x" + Integer.toHexString(MouseEvent.BUTTON2_MASK));
-        System.out.println("  3:  0x" + Integer.toHexString(MouseEvent.BUTTON3) + " mask 0x" + Integer.toHexString(MouseEvent.BUTTON3_MASK));
+        System.out.println("  1:  0x" + Integer.toHexString(MouseEvent.BUTTON1)
+            + " mask 0x" + Integer.toHexString(InputEvent.BUTTON1_DOWN_MASK));
+        System.out.println("  2:  0x" + Integer.toHexString(MouseEvent.BUTTON2)
+            + " mask 0x" + Integer.toHexString(InputEvent.BUTTON2_DOWN_MASK));
+        System.out.println("  3:  0x" + Integer.toHexString(MouseEvent.BUTTON3)
+            + " mask 0x" + Integer.toHexString(InputEvent.BUTTON3_DOWN_MASK));
         System.out.println("MODS:");
-        System.out.println("  Shift: 0x" + Integer.toHexString(MouseEvent.SHIFT_MASK));
-        System.out.println("  Ctrl:  0x" + Integer.toHexString(MouseEvent.CTRL_MASK));
-        System.out.println("  Alt:   0x" + Integer.toHexString(MouseEvent.ALT_MASK));
-        System.out.println("  Meta:  0x" + Integer.toHexString(MouseEvent.META_MASK));
+        System.out.println("  Shift: 0x" + Integer.toHexString(InputEvent.SHIFT_DOWN_MASK));
+        System.out.println("  Ctrl:  0x" + Integer.toHexString(InputEvent.CTRL_DOWN_MASK));
+        System.out.println("  Alt:   0x" + Integer.toHexString(InputEvent.ALT_DOWN_MASK));
+        System.out.println("  Meta:  0x" + Integer.toHexString(InputEvent.META_DOWN_MASK));
         System.out.println();
     }
 
@@ -143,10 +155,10 @@ public class AWTClickTester extends java.awt.Canvas implements MouseListener
     public static void main(String[] args)
     {
         Frame f = new Frame("Click tester");
-        AWTClickTester ct = new AWTClickTester();        
+        AWTClickTester ct = new AWTClickTester();
         f.add(ct);
         f.pack();
-        f.show();
+        f.setVisible(true);
         ct.printButtonsMods();
     }
 

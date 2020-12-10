@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * This file Copyright (C) 2008-2010 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2008-2012,2014-2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,164 +20,226 @@
  **/
 package soc.message;
 
+import java.util.List;
+import java.util.ListIterator;
+
 // import java.util.StringTokenizer;
 
 
 /**
  * Template for message types with variable number of string parameters.
  * You will have to write parseDataStr, because of its subclass return
- * type and because it's static.
+ * type and because it's static. Each parameter (separated by SEP) is
+ * passed to parseDataStr as a string in the list.
  *<P>
  * Sample implementation:
- *<code>
- *   // format of s: POTENTIALSETTLEMENTS sep game sep2 settlement {sep2 settlement}*...
- *   // Must have at least game + 1 settlement param.
- *   public static SOCPotentialSettlements parseDataStr(String[] s)
+ *<pre><code>
+ *   // Format of s: GAMESWITHOPTIONS { SEP gameName SEP gameOptStr }*
+ *   // A game with empty options has "-" as its gameOptStr.
+ *   public static SOCGamesWithOptions parseDataStr(List<String> s)
  *   {
- *       String ga; // the game name
- *       String[] sett; // the settlements
+ *       if (s == null)
+ *           s = new ArrayList<String>();
+ *       else if ((s.size() % 2) != 0)
+ *           return null;  // must have an even # of strings
  *
- *       if ((s == null) || (s.length < 2))
- *           return null;  // must have at least game + 1 settlement param
+ *       // parseData_FindEmptyStrs(s);  // EMPTYSTR -> "" -- not needed for this type
  *
- *       ga = s[0];
- *       sett = new String[s.length - 1];
- *       for (int i = 1; i < s.length; ++i)
- *           sett[i-1] = s[i];
- *
- *       return new SOCPotentialSettlements(ga, sett);
+ *       return new SOCGamesWithOptions(s);
  *   }
- *</code>
+ *</code></pre>
  *<P>
  * For notes on the section you must add to {@link SOCMessage#toMsg(String)},
  * see {@link SOCMessageMulti}.
+ *<P>
+ * Before v2.0.00 this template class also implemented {@link SOCMessageForGame} for use by future subclasses,
+ * but none of its actual subclasses were game-specific.
  *
- * @author Jeremy D Monin <jeremy@nand.net>
+ * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
+ * @since 1.1.00
  */
 public abstract class SOCMessageTemplateMs extends SOCMessageMulti
-    implements SOCMessageForGame
 {
-    /**
-     * Name of the game, or null if none.
-     */
-    protected String game;
+    private static final long serialVersionUID = 2000L;
 
     /**
-     * Array of string parameters, or null if none.
+     * List of string parameters, or null if none.
+     * Blank field values must be sent over network as {@link SOCMessage#EMPTYSTR}
+     * because empty {@code pa} elements can't be parsed. This List itself should contain "" instead of
+     * an {@code EMPTYSTR} token; {@link #toCmd()} will translate "" and {@code null} to {@code EMPTYSTR}.
+     *<P>
+     * Before v2.0.00, this was an array of Strings.
      */
-    protected String[] pa;
+    protected List<String> pa;
 
     /**
      * Create a new multi-message with string parameters.
      *
      * @param id  Message type ID
-     * @param ga  Name of game this message is for, or null if none
-     * @param parr   Parameters, or null if none
+     * @param pal List of parameters, or null if none.
+     *     Sets {@link #pa} field to {@code pal}: Afterwards method calls on {@code pa} or {@code pal}
+     *     will affect the same List object.
+     *     <P>
+     *     This constructor does not convert {@link SOCMessage#EMPTYSTR} field values to "";
+     *     see {@link #parseData_FindEmptyStrs(List)}.
      */
-    protected SOCMessageTemplateMs(int id, String ga, String[] parr)
+    protected SOCMessageTemplateMs(final int id, final List<String> pal)
     {
         messageType = id;
-        game = ga;
-        pa = parr;
-    }
-
-    /**
-     * @return the name of the game, or null if none
-     */
-    public String getGame()
-    {
-        return game;
+        pa = pal;
     }
 
     /**
      * @return the parameters, or null if none
      */
-    public String[] getParams()
+    public List<String> getParams()
     {
         return pa;
     }
 
     /**
-     * MESSAGETYPE [sep game] sep param1 sep param2 sep ...
+     * MESSAGETYPE sep param1 sep param2 sep ...
      *
      * @return the command String
      */
     public String toCmd()
     {
-        return toCmd(messageType, game, pa);
+        return toCmd(messageType, pa);
     }
 
     /**
      * MESSAGETYPE [sep game] sep param1 sep param2 sep ...
      *
      * @param messageType The message type id
-     * @param ga  the game name, or null
-     * @param parr The parameter array, or null if no additional parameters;
-     *             elements of parr can be null.
+     * @param gaName  the game name, or null
+     * @param pal  The parameter list, or null if no additional parameters.
+     *     Blank or null values in this list are automatically sent as the {@link SOCMessage#EMPTYSTR} token
+     *     and must be converted back on the receiving end: See {@link #parseData_FindEmptyStrs(List)}.
      * @return    the command string
      */
-    public static String toCmd(int messageType, String ga, String[] parr)
+    protected static String toCmd(final int messageType, final List<String> pal)
     {
-        StringBuffer sb = new StringBuffer(Integer.toString(messageType));
-        if (ga != null)
+        StringBuilder sb = new StringBuilder(Integer.toString(messageType));
+
+        if (pal != null)
         {
-            sb.append(sep);
-            sb.append(ga);
-        }
-        if (parr != null)
-        {
-            for (int i = 0; i < parr.length; ++i)
+            for (final String p : pal)
             {
                 sb.append(sep);
-                if (parr[i] != null)
-                    sb.append(parr[i]);
+                if ((p != null) && (p.length() > 0))
+                    sb.append(p);
+                else
+                    sb.append(EMPTYSTR);
             }
         }
+
         return sb.toString();
     }
 
     /**
-     * Parse the command String into a MessageType message
+     * Parse the command String into a MessageType message.
+     * Calls {@link #MessageType(gaName, List)} constructor,
+     * see its javadoc for parameter details.
      *
      * @param s   the String parameters
-     * @return    a PotentialSettlements message, or null if parsing errors
-    public static SOCPotentialSettlements parseDataStr(String[] s)
+     * @return    a DiceResultResources message, or null if parsing errors
+    public static SOCDiceResultResources parseDataStr(List<String> s)
     {
-        String ga; // the game name
-        String[] sett; // the settlements
+        String gaName;  // the game name
+        String[] pa;    // the parameters
 
-        if ((s == null) || (s.length < 2))
-            return null;  // must have at least game + 1 settlement param
+        if ((s == null) || (s.size() < 2))
+            return null;  // must have at least game name + 1 more param
 
-        ga = s[0];
-        sett = new String[s.length - 1];
-        for (int i = 1; i < s.length; ++i)
-            sett[i-1] = s[i];
+        parseData_FindEmptyStrs(s);  // EMPTYSTR -> ""
+        gaName = s.get(0);
+        pa = new String[s.size() - 1];
+        for (int i = 0; i < pa.length; ++i)
+            pa[i] = s.get(i + 1);
 
-        return new SOCPotentialSettlements(ga, sett);
+        return new SOCDiceResultResources(gaName, pa);
     }
     */
 
     /**
+     * Parse helper method: Iterate over the received parameter list
+     * and replace any {@link SOCMessage#EMPTYSTR} in place with "".
+     * Used in child classes' {@code parseDataStr(..)} methods.
+     * Ignores {@link #GAME_NONE}.
+     * @param slist  The String parameters received over the network, or {@code null} to do nothing
+     * @return {@code slist}, for convenience during constructor calls to {@code super(..)}
+     * @since 2.0.00
+     */
+    public static List<String> parseData_FindEmptyStrs(final List<String> slist)
+    {
+        if (slist == null)
+            return null;  // unlikely to occur
+
+        final ListIterator<String> li = slist.listIterator();
+        while (li.hasNext())
+            if (EMPTYSTR.equals(li.next()))
+                li.set("");
+
+        return slist;
+    }
+
+    /**
+     * Get a human-readable form of this message.
+     * Starts with {@link Class#getSimpleName() getClass().getSimpleName()} {@code + ":"}, then one of:
+     *<UL>
+     *  <LI> each parameter, as {@code "p=value"} or {@code "(p null)"},
+     *       separated by {@code "|"}
+     *  <LI> {@code "(pa empty)"}
+     *  <LI> {@code "(pa null)"}
+     *</UL>
      * @return a human readable form of the message
+     * @see #toString(List, String[])
      */
     public String toString()
     {
-        StringBuffer sb = new StringBuffer(getClassNameShort());
-        if (game != null)
+        return toString(pa, null);
+    }
+
+    /**
+     * Get a human-readable form of this message after changing parameter values for readability.
+     * Produces same format as {@link #toString()}, optionally with named parameters.
+     * @param params  Parameters to include
+     * @param fieldNames  Field names, or {@code null} for generic {@code "p="}.
+     *     Can be longer or shorter than {@code params}: Extra entries are ignored,
+     *     uses {@code "p="} after end of a too-short list.
+     * @return a human readable form of the message and parameters
+     * @since 2.4.50
+     */
+    protected String toString(final List<String> params, final String[] fieldNames)
+    {
+        StringBuilder sb = new StringBuilder(getClass().getSimpleName());
+        sb.append(':');
+
+        if (params != null)
         {
-            sb.append (":game=");
-            sb.append (game);
-        }
-        if (pa != null)
-        {
-            for (int i = 0; i < pa.length; ++i)
+            if (params.isEmpty())
             {
-                sb.append("|p=");
-                if (pa[i] != null)
-                    sb.append(pa[i]);
+                sb.append("(pa empty)");
+            } else {
+                int S = params.size();
+                for (int i = 0; i < S; ++i)
+                {
+                    if (i > 0)
+                        sb.append('|');
+
+                    String p = params.get(i);
+                    String name = ((fieldNames != null) && (i < fieldNames.length)) ? fieldNames[i] : "p";
+                    if (p != null)
+                        sb.append(name).append('=').append(p);
+                    else
+                        sb.append('(').append(name).append(" null)");
+                }
             }
+        } else {
+            sb.append("(pa null)");
         }
+
         return sb.toString();
     }
+
 }

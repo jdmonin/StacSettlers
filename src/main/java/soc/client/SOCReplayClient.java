@@ -799,7 +799,7 @@ public class SOCReplayClient extends SOCPlayerClient {
 	        	if(actionTypes.length == 1)
 		        	actionType = actionTypes[0];
 	        	else{ //there is only one case(just before moving the robber) when it is difficult to determine what the previous action was
-	        		if(ga.getOldGameState()==SOCGame.PLAY){
+	        		if(ga.getOldGameState()==SOCGame.ROLL_OR_CARD){
 		        		if(ga.getCurrentDice() == 7)
 		        			actionType = GameActionRow.ROLL;
 		        		else//if dice result is 0

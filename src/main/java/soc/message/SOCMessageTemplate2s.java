@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * This file Copyright (C) 2008,2010 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2008,2010-2012 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,13 +26,16 @@ package soc.message;
 /**
  * Template for per-game message types with 2 string parameters.
  * The second parameter can be optional.
+ * Your class javadoc should explain the meaning of param1 and param2,
+ * so that you won't need to write getters for those.
+ *<P>
  * You will have to write parseDataStr, because of its return
  * type and because it's static.
  *<P>
  * Sample implementation:
- *<code>
+ *<code><pre>
  *   // format of s: REJECTCARDNAME sep game sep2 cardid sep2 cardname
- *   public static SOCRejectCardName parseDataStr(String s)
+ *   public static SOCRejectCardName parseDataStr(final String s)
  *   {
  *       String ga; // the game name
  *       String cid; // the card id
@@ -53,13 +56,16 @@ package soc.message;
  *
  *        return new SOCRejectCardName(ga, cid, cname);
  *   }
- *</code>
+ *</pre></code>
  *
- * @author Jeremy D Monin <jeremy@nand.net>
+ * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
+ * @since 1.1.00
  */
 public abstract class SOCMessageTemplate2s extends SOCMessage
     implements SOCMessageForGame
 {
+    private static final long serialVersionUID = 2000L;
+
     /**
      * Name of the game.
      */
@@ -135,7 +141,7 @@ public abstract class SOCMessageTemplate2s extends SOCMessage
      * @param param2 The second parameter, or null
      * @return    the command string
      */
-    public static String toCmd(int messageType, String ga, String param1, String param2)
+    protected static String toCmd(final int messageType, String ga, String param1, String param2)
     {
         return Integer.toString(messageType) + sep + ga + sep2 + param1
         + sep2 + (param2 != null ? param2 : "");
@@ -146,7 +152,7 @@ public abstract class SOCMessageTemplate2s extends SOCMessage
      *
      * @param s   the String to parse
      * @return    a RejectCardName message, or null if parsing errors
-    public static SOCRejectCardName parseDataStr(String s)
+    public static SOCRejectCardName parseDataStr(final String s)
     {
         String ga; // the game name
         String cid; // the card id
@@ -174,7 +180,7 @@ public abstract class SOCMessageTemplate2s extends SOCMessage
      */
     public String toString()
     {
-        return getClassNameShort() + ":game=" + game
+        return getClass().getSimpleName() + ":game=" + game
             + "|param1=" + p1
             + "|param2=" + (p2 != null ? p2 : "");
     }

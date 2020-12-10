@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * Portions of this file Copyright (C) 2010-2011 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2010-2011,2014,2017,2019-2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,15 +24,20 @@ import java.util.StringTokenizer;
 
 
 /**
- * This message means that the server wants the trade message cleared.
+ * This message means that the server wants any trade messages/responses cleared in the client UI.
  *<P>
- * Version 1.1.12: If <tt>playerNumber</tt> is -1, all players are clearing trade messages.
+ * Note: When a player makes a new trade offer, the server announces that with a {@link SOCMakeOffer} message
+ * followed immediately by a {@code SOCClearTradeMsg} to clear responses from any previous offer.
+ *<P>
+ * Version 1.1.12 and newer: If <tt>playerNumber</tt> is -1, all players are clearing trade messages.
  *
  * @author Robert S. Thomas
  */
 public class SOCClearTradeMsg extends SOCMessage
     implements SOCMessageForGame
 {
+    private static final long serialVersionUID = 1112L;  // last structural change v1.1.12
+
     /**
      * Minimum version (1.1.12) which supports playerNumber -1 for clear all.
      * @since 1.1.12
@@ -101,10 +106,10 @@ public class SOCClearTradeMsg extends SOCMessage
     }
 
     /**
-     * Parse the command String into a StartGame message
+     * Parse the command String into a CLEARTRADEMSG message
      *
      * @param s   the String to parse
-     * @return    a StartGame message, or null of the data is garbled
+     * @return    a CLEARTRADEMSG message, or null if the data is garbled
      */
     public static SOCClearTradeMsg parseDataStr(String s)
     {

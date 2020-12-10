@@ -1,6 +1,6 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * This file Copyright (C) 2007-2008,2010 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2007-2008,2010,2013,2016-2017 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,14 +23,37 @@ import java.util.StringTokenizer;
 
 
 /**
- * This message from server informs all players whose turn it is,
- * so they may roll the dice, or take other action allowable at that time.
+ * This message from server to game reminds the current player that their turn is starting
+ * and they may roll the dice, or take other action allowable at that time.
+ * For example, the player's hand panel can start an auto-roll countdown timer.
+ *<P>
+ * Also may be sent during initial placement when it's a player's turn to place.
+ *<P>
+ * If the player is rolling the dice they will respond with {@link SOCRollDice},
+ * or {@link SOCPlayDevCardRequest} to play a development card instead.
+ *<P>
+ * This message was most useful before v2.0.00, because v1.x.xx servers didn't
+ * send a {@link SOCTurn} message at the start of the first player's normal turn
+ * after initial placement.
+ *<P>
+ * If the client is older than v1.1.00 (1.0.6 for example) it will ignore this prompt.
+ *<P>
+ * Before v2.0.00 this message was preceded by a {@link SOCGameTextMsg} announcing the same information:
+ * "It's Joe's turn to roll the dice." Clients v2.0.00 and newer print this announcement when they
+ * receive a {@code SOCRollDicePrompt}, because server v2.0.00 and newer won't send that redundant text.
+ * Check version against {@link soc.util.SOCStringManager#VERSION_FOR_I18N}.
  *
- * @author Jeremy D. Monin <jeremy@nand.net>
+ * @author Jeremy D. Monin &lt;jeremy@nand.net&gt;
+ * @since 1.1.00
  */
 public class SOCRollDicePrompt extends SOCMessage
     implements SOCMessageForGame
 {
+    /** Class marked for v1.1.11 with SOCMessageForGame.
+     *  Introduced at v1.1.00.
+     */
+    private static final long serialVersionUID = 1111L;
+
     /**
      * Name of game
      */
@@ -93,10 +116,10 @@ public class SOCRollDicePrompt extends SOCMessage
     }
 
     /**
-     * Parse the command String into a RollDiceRequest message
+     * Parse the command String into a ROLLDICEPROMPT message.
      *
      * @param s   the String to parse
-     * @return    a DiceResult message, or null of the data is garbled
+     * @return    a ROLLDICEPROMPT message, or null if the data is garbled
      */
     public static SOCRollDicePrompt parseDataStr(String s)
     {
@@ -131,9 +154,6 @@ public class SOCRollDicePrompt extends SOCMessage
      * ROLLDICEPROMPT introduced in 1.1.00 for automatic rolling after x seconds.
      * @return Version number, 1100 for JSettlers 1.1.00.
      */
-    public int getMinimumVersion()
-    {
-        return 1100;
-    }
+    public int getMinimumVersion() { return 1100; }
 
 }

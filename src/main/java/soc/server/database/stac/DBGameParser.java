@@ -421,7 +421,7 @@ public class DBGameParser implements NumericalFeatureVectorOffsets,GameStateCons
 				startIndex = i - 1; //start before the first roll
 				ogsr = dbh.selectOGSR(gameID, startIndex);
 				egsr = dbh.selectEGSR(gameID, startIndex);
-				ogsr.setGameState(SOCGame.PLAY);
+				ogsr.setGameState(SOCGame.ROLL_OR_CARD);
 				
 				actionFeatures = generateActionVector(gameID, ogsr, egsr, gar);
 				//Note: there are some errors due to bugs in JSettlers logging, just ignore the samples with errors but try to gather as much as possible of the remaining ones
@@ -455,7 +455,7 @@ public class DBGameParser implements NumericalFeatureVectorOffsets,GameStateCons
 				ogsr = dbh.selectOGSR(gameID, i);
 				egsr = dbh.selectEGSR(gameID, i);
 				if(dbh.selectGAR(gameID, i+1).getType() <= GameActionRow.PLAYKNIGHT){//ignore playing other dev cards in that moment
-					ogsr.setGameState(SOCGame.PLAY);
+					ogsr.setGameState(SOCGame.ROLL_OR_CARD);
 					actionFeatures = generateActionVector(gameID, ogsr, egsr, dbh.selectGAR(gameID, i + 1));
 					//Note: there are some errors due to bugs in JSettlers logging, just ignore the samples with errors but try to gather as much as possible of the remaining ones
 					try {

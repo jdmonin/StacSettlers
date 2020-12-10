@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2009,2010 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2009,2010,2012,2014,2017-2018,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,45 +16,69 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
+import java.util.Arrays;
 import java.util.StringTokenizer;
+
+import soc.game.SOCGameOptionSet;  // for javadocs only
 
 
 /**
- * This message asks a player to choose a player to
- * steal from.
+ * This message from server to a client prompts that player to choose another
+ * player to steal from.  The client responds with {@link SOCChoosePlayer}.
+ *<P>
+ * In some game scenarios like {@link SOCGameOptionSet#K_SC_PIRI SC_PIRI},
+ * the player might have the option to not steal from anyone: Message will
+ * have its {@link #canChooseNone()} flag set.
+ * If the player makes that choice, their response to server is {@link SOCChoosePlayer}
+ * ({@link SOCChoosePlayer#CHOICE_NO_PLAYER CHOICE_NO_PLAYER}).
  *
  * @author Robert S. Thomas
  */
 public class SOCChoosePlayerRequest extends SOCMessage
     implements SOCMessageForGame
 {
+    private static final long serialVersionUID = 2000L;  // last structural change v2.0.00
+
     /**
      * Name of game
      */
-    private String game;
+    private final String game;
 
     /**
-     * The possible choices
-     * True means that the player with a matching index is a
-     * possible choice.
+     * True if can choose to not steal from anyone.
+     * @see #canChooseNone()
+     * @see #choices
+     * @since 2.0.00
      */
-    private boolean[] choices;
+    private final boolean allowChooseNone;
+
+    /**
+     * The possible choices; an array with 1 element per player number
+     * (0 to <tt>game.maxPlayers - 1</tt>).
+     * True means that the player with a matching index is a possible choice.
+     * @see #allowChooseNone
+     */
+    private final boolean[] choices;
 
     /**
      * Create a ChoosePlayerRequest message.
      *
      * @param ga  the name of the game
-     * @param ch  the possible choices
+     * @param ch  the possible choices; an array with 1 element per player number
+     *     (0 to <tt>game.maxPlayers - 1</tt>)
+     * @param canChooseNone  true if can choose to not steal from anyone.
+     *     This is used with some game scenarios; all scenarios require version 2.0.00 or newer.
      */
-    public SOCChoosePlayerRequest(String ga, boolean[] ch)
+    public SOCChoosePlayerRequest(final String ga, final boolean[] ch, final boolean canChooseNone)
     {
         messageType = CHOOSEPLAYERREQUEST;
         game = ga;
         choices = ch;
+        allowChooseNone = canChooseNone;
     }
 
     /**
@@ -66,7 +90,8 @@ public class SOCChoosePlayerRequest extends SOCMessage
     }
 
     /**
-     * @return the choices
+     * @return the choices; an array with 1 element per player number (0 to <tt>game.maxPlayers - 1</tt>)
+     * @see #canChooseNone()
      */
     public boolean[] getChoices()
     {
@@ -74,43 +99,67 @@ public class SOCChoosePlayerRequest extends SOCMessage
     }
 
     /**
-     * CHOOSEPLAYERREQUEST sep game sep2 choices[0] sep2 choices[1] ...
+     * Can the player choose to not steal from anyone?
+     * This is used with some game scenarios; all scenarios require version 2.0.00 or newer.
+     * @return true if can make that choice
+     * @see #getChoices()
+     * @since 2.0.00
+     */
+    public boolean canChooseNone()
+    {
+        return allowChooseNone;
+    }
+
+    /**
+     * CHOOSEPLAYERREQUEST sep game sep2 [ "NONE" sep2 ] choices[0] sep2 choices[1] ...
+     *<BR>
+     * Each {@code choices} element is lowercase "true" or "false".
      *
      * @return the command string
      */
     public String toCmd()
     {
-        return toCmd(game, choices);
+        return toCmd(game, choices, allowChooseNone);
     }
 
     /**
-     * CHOOSEPLAYERREQUEST sep game sep2 choices[0] sep2 choices[1] ...
+     * CHOOSEPLAYERREQUEST sep game sep2 [ "NONE" sep2 ] choices[0] sep2 choices[1] ...
+     *<BR>
+     * Each {@code choices} element is lowercase "true" or "false".
      *
      * @param ga  the name of the game
-     * @param ch  the choices
+     * @param ch  the choices; an array with 1 element per player number
+     *     (0 to <tt>game.maxPlayers - 1</tt>)
+     * @param canChooseNone  true if can choose to not steal from anyone.
+     *     This is used with some game scenarios; all scenarios require version 2.0.00 or newer.
      * @return the command string
      */
-    public static String toCmd(String ga, boolean[] ch)
+    public static String toCmd(final String ga, final boolean[] ch, final boolean canChooseNone)
     {
-        String mes = CHOOSEPLAYERREQUEST + sep + ga;
+        StringBuilder mes = new StringBuilder(CHOOSEPLAYERREQUEST + sep + ga);
+
+        if (canChooseNone)
+            mes.append(sep2 + "NONE");
 
         for (int i = 0; i < ch.length; i++)
         {
-            mes += (sep2 + ch[i]);
+            mes.append(sep2_char);
+            mes.append(ch[i] ? "true" : "false");
         }
 
-        return mes;
+        return mes.toString();
     }
 
     /**
      * Parse the command String into a ChoosePlayerRequest message
      *
      * @param s   the String to parse
-     * @return    a ChoosePlayerRequest message, or null of the data is garbled
+     * @return    a ChoosePlayerRequest message, or null if the data is garbled
      */
     public static SOCChoosePlayerRequest parseDataStr(String s)
     {
         String ga; // the game name
+        boolean canChooseNone = false;
         boolean[] ch; // the choices
 
         StringTokenizer st = new StringTokenizer(s, sep2);
@@ -119,13 +168,27 @@ public class SOCChoosePlayerRequest extends SOCMessage
         {
             ga = st.nextToken();
 
-            ch = new boolean[st.countTokens()];
-            int count = 0;
+            int n = st.countTokens();
+            if (n == 0)
+                return null;
 
-            while (st.hasMoreTokens())
+            String tok = st.nextToken();
+            if (tok.equals("NONE"))
             {
-                ch[count] = (Boolean.valueOf(st.nextToken())).booleanValue();
-                count++;
+                canChooseNone = true;
+                --n;
+                if (n == 0)
+                    return null;
+                tok = st.nextToken();
+            }
+
+            ch = new boolean[n];
+            for (int count = 0; ; ++count)
+            {
+                ch[count] = (tok.equals("true"));
+                if (! st.hasMoreTokens())
+                    break;
+                tok = st.nextToken();
             }
         }
         catch (Exception e)
@@ -133,7 +196,47 @@ public class SOCChoosePlayerRequest extends SOCMessage
             return null;
         }
 
-        return new SOCChoosePlayerRequest(ga, ch);
+        return new SOCChoosePlayerRequest(ga, ch, canChooseNone);
+    }
+
+    /**
+     * Parse the parameters/attributes from {@link #toString()}'s format,
+     * returning message parameters as a comma-delimited list for {@link SOCMessage#parseMsgStr(String)}.
+     * @param messageStrParams Params part of a message string formatted by {@link #toString()}; not {@code null}
+     * @return Message parameters without attribute names, or {@code null} if params are malformed
+     * @since 2.4.50
+     */
+    public static String stripAttribNames(String messageStrParams)
+    {
+        String[] pieces = messageStrParams.split(sepRE);
+        if (pieces.length < 2)
+            return null;
+
+        StringBuilder ret = new StringBuilder();
+
+        if (pieces[0].startsWith("game="))
+            ret.append(pieces[0].substring(5));
+        else
+            return null;
+
+        int i = 1;
+        if (pieces[1].startsWith("canChooseNone="))
+        {
+            ++i;
+            if (! pieces[1].equals("canChooseNone=true"))
+                return null;
+
+            ret.append(",NONE");
+        }
+
+        String s = pieces[i];  // "choices=[true, false, false, true]"
+        int L = s.length();
+        if (! ((s.charAt(8) == '[') && (s.charAt(L - 1) == ']')))
+            return null;
+        for (String piece : s.substring(9, L - 1).split(", "))
+            ret.append(sep2_char).append(piece);
+
+        return ret.toString();
     }
 
     /**
@@ -141,13 +244,11 @@ public class SOCChoosePlayerRequest extends SOCMessage
      */
     public String toString()
     {
-        String mes = "SOCChoosePlayerRequest:game=" + game + "|choices=" + choices[0];
-
-        for (int i = 1; i < choices.length; i++)
-        {
-            mes += (", " + choices[i]);
-        }
-
-        return mes;
+        StringBuilder sb = new StringBuilder("SOCChoosePlayerRequest:game=" + game);
+        if (canChooseNone())
+            sb.append("|canChooseNone=true");
+        sb.append("|choices=" + Arrays.toString(choices));  // "[true, false, ...]"
+        return sb.toString();
     }
+
 }

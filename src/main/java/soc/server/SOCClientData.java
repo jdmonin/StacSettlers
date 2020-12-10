@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas
- * This file copyright (C) 2008-2010 Jeremy D Monin <jeremy@nand.net>
+ * This file copyright (C) 2008-2010,2013,2015,2017-2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,31 +18,129 @@
  **/
 package soc.server;
 
+import java.util.Locale;
+import java.util.Map;
 import java.util.TimerTask;
 
+import soc.message.SOCGameOptionGetInfos;  // for javadoc
 import soc.message.SOCMessage;  // for javadoc
-import soc.server.genericServer.StringConnection;
+import soc.server.genericServer.Connection;
+import soc.util.SOCFeatureSet;
 import soc.util.SOCGameList;
+import soc.util.SOCStringManager;  // for javadoc
 
 /**
- * The server's place to track client-specific information across games.
- * The win-loss count is kept here.
- * Not tied to any database; information here is only for the current
+ * The server's place to track client-specific information across games
+ * for a {@link Connection} session: Win-loss count, features, localization status, etc.
+ * Not tied to the optional database; information here is only for the current
  * session, not persistent across disconnects/reconnects by clients.
  *
- * @author Jeremy D Monin <jeremy@nand.net>
+ * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
  * @since 1.1.04
  */
 public class SOCClientData
 {
+    /**
+     * For a scenario keyname in {@link #scenariosInfoSent}, value indicating that the client
+     * was sent localized scenario strings (not all scenario info fields), or that the client
+     * requested them and no localized strings were found for that scenario.
+     * @see #SENT_SCEN_INFO
+     * @since 2.0.00
+     */
+    public static final String SENT_SCEN_STRINGS = "S";
+
+    /**
+     * For a scenario keyname in {@link #scenariosInfoSent}, value indicating that the client
+     * was sent all scenario info fields (not only localized scenario strings).
+     * @see #SENT_SCEN_STRINGS
+     * @since 2.0.00
+     */
+    public static final String SENT_SCEN_INFO = "I";
+
     /** Number of games won and lost since client connected */
     private int wins, losses;
+
+    /**
+     * Client's reported optional features, or {@code null} if not reported. May be an empty set.
+     * Sent as an optional part of the SOCVersion message from clients v2.0 or newer;
+     * third-party clients or simple bots may have no features.
+     * For v1.x clients, this field is given the default features from
+     * {@link SOCFeatureSet#SOCFeatureSet(boolean, boolean) new SOCFeatureSet(true, false)}.
+     * @see #hasLimitedFeats
+     * @see #scenVersion
+     * @see soc.game.SOCGameOptionSet#optionsNotSupported(SOCFeatureSet)
+     * @since 2.0.00
+     */
+    public SOCFeatureSet feats;
+
+    /**
+     * If true, client is missing some optional features that the server expects
+     * the built-in client to have. This client might not be able to join some games.
+     * @see #feats
+     * @see SOCServer#checkLimitClientFeaturesForServerDisallows(SOCFeatureSet)
+     * @since 2.0.00
+     */
+    public boolean hasLimitedFeats;
+
+    /**
+     * Client's reported JVM locale, or {@code null}, as in {@link java.util.Locale#getDefault()}.
+     * Sent via {@link Locale#toString()} as part of the SOCVersion message.
+     * Kept as {@link #localeStr} and also parsed to this field.
+     * Not sent from jsettlers clients older than 2.0.00;
+     * if null, should probably assume <tt>en_US</tt>
+     * since older versions had all messages in english.
+     * Bots always use a {@code null} locale; they don't care about message text contents, and a
+     * null locale means they won't set any {@code SOCGame.hasMultiLocales} flag by joining.
+     * @see #wantsI18N
+     * @since 2.0.00
+     */
+    public Locale locale;
+
+    /**
+     * Client's reported JVM locale, or {@code null}, as in {@link java.util.Locale#toString()}.
+     * Sent as part of the SOCVersion message, kept here and also parsed to {@link #locale}.
+     * Not sent from jsettlers clients older than 2.0.00;
+     * if null, should probably assume <tt>en_US</tt>
+     * since older versions had all messages in english.
+     * Bots always use a {@code null} locale, see {@link #locale} javadoc for details.
+     * @see #wantsI18N
+     * @since 2.0.00
+     */
+    public String localeStr;
+
+    /**
+     * If this flag is set, client has determined it wants localized strings (I18N),
+     * and asked for them early in the connect process by sending a message
+     * that had {@link SOCGameOptionGetInfos#hasTokenGetI18nDescs} true.
+     * Server can later check this flag to see if responses to various client request
+     * messages should include localized strings.
+     *<P>
+     * Set this flag only if:
+     * <UL>
+     *  <LI> Client has sent a {@link SOCGameOptionGetInfos} request with
+     *     {@link SOCGameOptionGetInfos#hasTokenGetI18nDescs msg.hasTokenGetI18nDescs}
+     *  <LI> {@link Connection#getI18NLocale() c.getI18NLocale()} != {@code null}
+     *  <LI> {@link Connection#getVersion() c.getVersion()} &gt;= {@link SOCStringManager#VERSION_FOR_I18N};
+     *     this is already implied by the client sending a message with {@code hasTokenGetI18nDescs}.
+     * </UL>
+     * @see #locale
+     * @since 2.0.00
+     */
+    public boolean wantsI18N;
 
     /**
      * Number of games/channels this client has created, which currently exist (not deleted)
      * @since 1.1.10
      */
     private int currentCreatedGames, currentCreatedChannels;
+
+    /**
+     * Human client's most recently requested face icon ID for {@link soc.game.SOCPlayer#setFaceId(int)},
+     * or 0 if none requested yet. Useful when taking over a robot player's seat. Not updated if {@link #isRobot}.
+     * Assumes that only messages from the client will update this field, so synchronization isn't required.
+     * @since 2.4.00
+     */
+    public int faceId;
 
     /** Synchronization for win-loss count and other counter fields */
     private Object countFieldSync;
@@ -55,7 +153,91 @@ public class SOCClientData
     private boolean sentGameList;
 
     /**
+     * Has the server already sent a "Welcome to JSettlers!" status message to client,
+     * after user authenticated, for a newly joined or created game or channel?
+     * Is tracked to skip sending for later games/channels.
+     *<P>
+     * Client v1.x.xx should be sent the status message with each joingame/joinchannel for cosmetic reasons;
+     * otherwise its status line shows "Talking to server..." forever, making server look unresponsive.
+     * Check client version against {@link SOCStringManager#VERSION_FOR_I18N}.
+     *
+     * @since 2.0.00
+     */
+    public boolean sentPostAuthWelcome;
+
+    /**
+     * If true we've called {@link #localeHasGameScenarios(Connection)},
+     * storing the result in {@link #localeHasScenStrings}.
+     * @since 2.0.00
+     */
+    public boolean checkedLocaleScenStrings;
+
+    /**
+     * If true we've called {@link #localeHasGameScenarios(Connection)},
+     * and this client's locale is not {@code null} and has at least some localized scenario strings
+     * (see that method's javadoc for details).
+     * @since 2.0.00
+     * @see #checkedLocaleScenStrings
+     * @see #sentAllScenarioStrings
+     */
+    public boolean localeHasScenStrings;
+
+    /**
+     * True if we've sent localized strings for all {@link soc.game.SOCScenario SOCScenario}s.
+     * To reduce network traffic, those large strings aren't sent unless the client is creating a
+     * new game and needs the scenario dropdown.
+     *<P>
+     * Also true if the client's locale doesn't have localized strings for scenarios,
+     * or if the client is too old (v1.x.xx) to use i18n localization.
+     *
+     * @since 2.0.00
+     * @see #scenariosInfoSent
+     * @see #sentAllScenarioInfo
+     * @see #localeHasScenStrings
+     */
+    public boolean sentAllScenarioStrings;
+
+    /**
+     * True if we've sent all updated {@link soc.game.SOCScenario SOCScenario} info.
+     * Like {@link #sentAllScenarioStrings}, scenario info messages aren't sent unless needed.
+     *<P>
+     * Also true if the client is too old (v1.x.xx) to use scenarios.
+     *
+     * @since 2.0.00
+     * @see #scenariosInfoSent
+     * @see #sentAllScenarioStrings
+     */
+    public boolean sentAllScenarioInfo;
+
+    /**
+     * The {@link soc.game.SOCScenario SOCScenario} keynames for which we've
+     * sent localized strings or all scenario info fields.
+     * To reduce network traffic, those large strings aren't sent unless
+     * the client is joining a game with a scenario, or has requested them.
+     *<P>
+     * For any scenario's keyname here, the value will be either {@link #SENT_SCEN_STRINGS} or {@link #SENT_SCEN_INFO}.
+     * If a scenario's key isn't contained in this map, nothing has been sent about it
+     * unless the {@link #sentAllScenarioStrings} flag is set.
+     *<P>
+     * The value can also be set after determining nothing needs to be sent,
+     * to skip doing the same determination next time it's requested.
+     *<P>
+     * Null if {@link #sentAllScenarioStrings} or if client hasn't requested any
+     * or joined any game that has a scenario.
+     *<P>
+     * {@link soc.game.SOCGameOption SOCGameOption} strings are also localized, but aren't tracked
+     * the same way because game option strings are all sent when the client connects.
+     *
+     * @since 2.0.00
+     */
+    public Map<String, String> scenariosInfoSent;
+
+    /**
      * Is this connection a robot?
+     *<P>
+     * When available, use more-specific {@link soc.game.SOCPlayer#isRobot()} instead of this field.
+     *
+     * @see #isBuiltInRobot
      * @since 1.1.07
      */
     public boolean isRobot;
@@ -64,7 +246,9 @@ public class SOCClientData
      * Is this robot connection the built-in robot (not a 3rd-party),
      * with the original AI?
      * @see #robot3rdPartyBrainClass
+     * @see #isRobot
      * @see soc.message.SOCImARobot
+     * @see soc.game.SOCPlayer#isBuiltInRobot()
      * @since 1.1.09
      */
     public boolean isBuiltInRobot;
@@ -76,6 +260,13 @@ public class SOCClientData
      * @since 1.1.09
      */
     public String robot3rdPartyBrainClass;
+
+    /**
+     * Version of {@link soc.game.SOCScenario}s implemented by this client, or 0;
+     * from {@link SOCFeatureSet#CLIENT_SCENARIO_VERSION} reported in {@link #feats}.
+     * @since 2.0.00
+     */
+    public int scenVersion;
 
     /**
      * Are we considering a request to disconnect this client?
@@ -250,13 +441,35 @@ public class SOCClientData
     }
 
     /**
+     * Does this {@link SOCClientData}'s client's locale have
+     * localized {@link soc.game.SOCScenario SOCScenario} names and descriptions?
+     * Checks these conditions:
+     * <UL>
+     *  <LI> {@link #wantsI18N} flag is set:
+     *      Has locale, new-enough version, has requested I18N strings (see that flag's javadocs).
+     *  <LI> {@link Connection#getLocalized(String) con.getLocalized}({@code "gamescen.SC_WOND.n"})
+     *      returns a string different than {@link SOCServer#i18n_scenario_SC_WOND_desc}:
+     *      This checks whether a fallback is being used because the client's locale has no scenario strings
+     * </UL>
+     * @param con  Client connection for this {@code SOCClientData}
+     * @return  True if the client meets all the conditions listed above, false otherwise
+     * @since 2.0.00
+     */
+    public final boolean localeHasGameScenarios(final Connection con)
+    {
+        return
+            wantsI18N
+            && ! SOCServer.i18n_scenario_SC_WOND_desc.equals(con.getLocalized("gamescen.SC_WOND.n"));
+    }
+
+    /**
      * Set up the version timer.
      * It will fire after {@link SOCServer#CLI_VERSION_TIMER_FIRE_MS} milliseconds.
      * @param sr  Our SOCServer
      * @param con Connection for this timer / this clientdata
      * @since 1.1.06
      */
-    public void setVersionTimer(SOCServer sr, StringConnection con)
+    public void setVersionTimer(SOCServer sr, Connection con)
     {
         cliVersionTask = new SOCCDCliVersionTask (sr, this, con);
         sr.utilTimer.schedule(cliVersionTask, SOCServer.CLI_VERSION_TIMER_FIRE_MS);
@@ -278,7 +491,7 @@ public class SOCClientData
 
     /**
      * TimerTask at client connect, to guess the client version
-     * if it isn't sent soon enough. (assume it's too old to tell us) 
+     * if it isn't sent soon enough. (assume it's too old to tell us)
      *<P>
      * When timer fires, assume client's version will not be sent.
      * Set it to {@link SOCServer#CLI_VERSION_ASSUMED_GUESS}.
@@ -291,9 +504,9 @@ public class SOCClientData
     {
         private SOCServer srv;
         private SOCClientData cliData;
-        private StringConnection cliConn;
+        private Connection cliConn;
 
-        public SOCCDCliVersionTask (SOCServer sr, SOCClientData cd, StringConnection con)
+        public SOCCDCliVersionTask (SOCServer sr, SOCClientData cd, Connection con)
         {
             srv = sr;
             cliData = cd;
@@ -308,9 +521,9 @@ public class SOCClientData
             cliData.cliVersionTask = null;  // Clear reference to this soon-to-expire obj
             if (! cliConn.isVersionKnown())
             {
-                srv.setClientVersSendGamesOrReject(cliConn, SOCServer.CLI_VERSION_ASSUMED_GUESS, false);
-		// will also send game list.
-		// if cli vers already known, it's already sent the list.
+                srv.setClientVersSendGamesOrReject(cliConn, SOCServer.CLI_VERSION_ASSUMED_GUESS, null, null, false);
+                // will also send game list.
+                // if cli vers already known, it's already sent the list.
             }
             srv = null; // we are done with the server so deallocate though it should be done by setting this to null...but just in case
         }

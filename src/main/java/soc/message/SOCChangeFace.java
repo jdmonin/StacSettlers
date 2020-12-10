@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2010 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2010,2013-2014,2017,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
@@ -24,26 +24,30 @@ import java.util.StringTokenizer;
 
 
 /**
- * This message says that a player is changing the
- * face icon.
+ * This message says that a player is changing their face icon.
+ *<P>
+ * Although this is a game-specific message, it's handled by {@code SOCServer} instead of a {@code GameHandler}.
  *
  * @author Robert S. Thomas
  */
 public class SOCChangeFace extends SOCMessage
     implements SOCMessageForGame
 {
+    private static final long serialVersionUID = 1111L;  // last structural change v1.1.11
+
     /**
      * Name of game
      */
     private String game;
 
     /**
-     * The number player that is changing
+     * The player number changing their face, from server;
+     * see {@link #getPlayerNumber()}.
      */
     private int playerNumber;
 
     /**
-     * The id of the face image
+     * The id of the face image; see {@link #getFaceId()} for details
      */
     private int faceId;
 
@@ -51,8 +55,9 @@ public class SOCChangeFace extends SOCMessage
      * Create a ChangeFace message.
      *
      * @param ga  the name of the game
-     * @param pn  the number of the changing player
-     * @param id  the id of the face image
+     * @param pn  the player number changing their face; sent from server, always ignored when sent from client
+     * @param id  the id of the face image;
+     *            1 and higher are human face images, 0 is the default robot, -1 is the smarter robot.
      */
     public SOCChangeFace(String ga, int pn, int id)
     {
@@ -71,7 +76,9 @@ public class SOCChangeFace extends SOCMessage
     }
 
     /**
-     * @return the number of changing player
+     * The player number that is changing their face, when sent from server.
+     * When sent from client, server has always ignored this field; could be any value.
+     * @return the changing player number from server
      */
     public int getPlayerNumber()
     {
@@ -79,7 +86,8 @@ public class SOCChangeFace extends SOCMessage
     }
 
     /**
-     * @return the id of the face image
+     * @return the id of the face image;
+     * 1 and higher are human face images, 0 is the default robot, -1 is the smarter robot.
      */
     public int getFaceId()
     {
@@ -93,32 +101,19 @@ public class SOCChangeFace extends SOCMessage
      */
     public String toCmd()
     {
-        return toCmd(game, playerNumber, faceId);
-    }
-
-    /**
-     * CHANGEFACE sep game sep2 playerNumber sep2 faceId
-     *
-     * @param ga  the name of the game
-     * @param pn  the number of the changing player
-     * @param id  the id of the face image
-     * @return the command string
-     */
-    public static String toCmd(String ga, int pn, int id)
-    {
-        return CHANGEFACE + sep + ga + sep2 + pn + sep2 + id;
+        return CHANGEFACE + sep + game + sep2 + playerNumber + sep2 + faceId;
     }
 
     /**
      * Parse the command String into a ChangeFace message
      *
      * @param s   the String to parse
-     * @return    a ChangeFace message, or null of the data is garbled
+     * @return    a ChangeFace message, or null if the data is garbled
      */
     public static SOCChangeFace parseDataStr(String s)
     {
         String ga; // the game name
-        int pn; // the number of the changing player
+        int pn; // the changing player number
         int id; // the id of the face image
 
         StringTokenizer st = new StringTokenizer(s, sep2);
@@ -144,4 +139,5 @@ public class SOCChangeFace extends SOCMessage
     {
         return "SOCChangeFace:game=" + game + "|playerNumber=" + playerNumber + "|faceId=" + faceId;
     }
+
 }

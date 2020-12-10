@@ -1307,7 +1307,7 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
 //        case SOCGame.START2B:
 //            ssState = S_ROAD2; 
 //            break;
-//        case SOCGame.PLAY:
+//        case SOCGame.ROLL_OR_CARD:
 //            ssState = S_BEFOREDICE; 
 //            break;
 //        case SOCGame.PLAY1:

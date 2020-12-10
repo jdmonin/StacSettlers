@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2009 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2009,2013-2014,2016-2017,2019-2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
@@ -24,24 +24,51 @@ import java.util.StringTokenizer;
 
 
 /**
- * This message is used to join any existing game (with or without game options).
- * It can also be a client asking to create a game
- * with no {@link soc.game.SOCGameOption game options}.
- * Server responds to client's request with {@link SOCJoinGameAuth JOINGAMEAUTH}
- * and sends JOINGAME to all players/observers of the game (including client).
+ * From a client, this message is a request to join any existing game
+ * (having game options or not) or to create a game without any
+ * {@link soc.game.SOCGameOption game options}.
  *<P>
- * To request a new game with game options, send {@link SOCNewGameWithOptionsRequest NEWGAMEWITHOPTIONSREQUEST} instead.
+ * Server responds to client's request with {@link SOCJoinGameAuth JOINGAMEAUTH}
+ * and sends JOINGAME to all members of the game (players and observers)
+ * including the requesting client, then further messages to the requesting client
+ * (see below). The newly joined client may be an observer; if they are a player
+ * {@link SOCSitDown SITDOWN} will be sent too.
+ *<P>
+ * To request a new game with game options, send
+ * {@link SOCNewGameWithOptionsRequest NEWGAMEWITHOPTIONSREQUEST} instead.
+ *<P>
+ * If a new game can't be created (name too long, etc), server will reply with {@link SOCStatusMessage}
+ * with a status value explaining the reason: {@link SOCStatusMessage#SV_NEWGAME_TOO_MANY_CREATED},
+ * {@link SOCStatusMessage#SV_NEWGAME_NAME_REJECTED}, etc.
+ *<P>
+ * If the join request is successful, requesting client is sent a specific sequence
+ * of messages with details about the game; see {@link SOCGameMembers}.
+ * In order for robot clients to be certain they have all details about a game
+ * (board layout, player scores, piece counts, etc), they should take no action
+ * before receiving {@link SOCGameMembers} about that game.
+ *<P>
+ * Once a client has successfully joined or created any game or channel, the
+ * nickname and password fields can be left blank in later join/create requests.
+ * All server versions ignore the password field after a successful request.
+ *<P>
+ * Although this is a game-specific message, it's about the game lifecycle
+ * so it's handled by {@code SOCServer} instead of a {@code GameHandler}.
  *
  * @author Robert S Thomas
+ * @see SOCJoinChannel
  */
 public class SOCJoinGame extends SOCMessageTemplateJoinGame
+    implements SOCMessageFromUnauthClient
 {
+    private static final long serialVersionUID = 2000L;  // last structural change v2.0.00
+
     /**
-     * Create a Join message.
+     * Create a Join Game message.
      *
-     * @param nn  nickname
-     * @param pw  password
-     * @param hn  host name
+     * @param nn  nickname when announced from server, or "-" from client if already auth'd to server;
+     *     server has always ignored this field from client after auth, can send "-" but not blank
+     * @param pw  optional password, or "" if none
+     * @param hn  unused; optional server host name to which client is connected, or "-" or {@link SOCMessage#EMPTYSTR}
      * @param ga  name of the game
      */
     public SOCJoinGame(String nn, String pw, String hn, String ga)
@@ -62,20 +89,19 @@ public class SOCJoinGame extends SOCMessageTemplateJoinGame
     /**
      * JOINGAME sep nickname sep2 password sep2 host sep2 game
      *
-     * @param nn  the nickname
-     * @param pw  the password
-     * @param hn  the host name
+     * @param nn  the nickname when announced from server, or "-" from client if already auth'd to server;
+     *     server has always ignored this field from client after auth, can send "-" but not blank
+     * @param pw  the optional password, or "" if none
+     * @param hn  unused; the optional server host name to which client is connected,
+     *     or "-" or {@link SOCMessage#EMPTYSTR}
      * @param ga  the game name
      * @return    the command string
      */
     public static String toCmd(String nn, String pw, String hn, String ga)
     {
-        String temppw = new String(pw);
-
-        if (temppw.equals(""))
-        {
-            temppw = NULLPASS;
-        }
+        String temppw = pw;
+        if (temppw.length() == 0)
+            temppw = EMPTYSTR;
 
         return JOINGAME + sep + nn + sep2 + temppw + sep2 + hn + sep2 + ga;
     }
@@ -84,7 +110,7 @@ public class SOCJoinGame extends SOCMessageTemplateJoinGame
      * Parse the command String into a JoinGame message
      *
      * @param s   the String to parse
-     * @return    a JoinGame message, or null of the data is garbled
+     * @return    a JoinGame message, or null if the data is garbled
      */
     public static SOCJoinGame parseDataStr(String s)
     {
@@ -102,10 +128,8 @@ public class SOCJoinGame extends SOCMessageTemplateJoinGame
             hn = st.nextToken();
             ga = st.nextToken();
 
-            if (pw.equals(NULLPASS))
-            {
+            if (pw.equals(EMPTYSTR))
                 pw = "";
-            }
         }
         catch (Exception e)
         {
@@ -122,4 +146,5 @@ public class SOCJoinGame extends SOCMessageTemplateJoinGame
     {
         return super.toString("SOCJoinGame", null);
     }
+
 }

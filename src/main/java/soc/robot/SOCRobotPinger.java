@@ -1,6 +1,8 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2011,2017,2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,27 +17,34 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.robot;
 
-import soc.message.SOCGameTextMsg;
+import soc.message.SOCMessage;
+import soc.message.SOCTimingPing;
 
 import soc.util.CappedQueue;
 import soc.util.CutoffExceededException;
 
 
 /**
- * Pings the robots so that they can have a sense of time
+ * Pings a {@link SOCRobotBrain} to give a sense of time while its game is in progress.
+ * Once per second, adds a {@link SOCTimingPing} into the brain's {@link CappedQueue}.
  *
  * @author Robert S Thomas
  */
-public class SOCRobotPinger extends Thread
+/*package*/ class SOCRobotPinger extends Thread
 {
-    CappedQueue messageQueue;
-    SOCGameTextMsg ping;
-    boolean alive;
-    String robotNickname;
+    private CappedQueue<SOCMessage> messageQueue;
+    private final SOCTimingPing ping;
+    private volatile boolean alive;
+
+    /**
+     * Name of the bot being pinged, for thread naming.
+     * @since 1.1.00
+     */
+    private final String robotNickname;
 
     /**
      * Create a robot pinger
@@ -43,17 +52,20 @@ public class SOCRobotPinger extends Thread
      * @param q  the robot brain's message queue
      * @param nickname the robot's nickname, for debug thread naming
      */
-    public SOCRobotPinger(CappedQueue q, String nickname)
+    public SOCRobotPinger(CappedQueue<SOCMessage> q, String gameName, String nickname)
     {
+        setDaemon(true);
+
         messageQueue = q;
-        ping = new SOCGameTextMsg("*PING*", "*PING*", "*PING*");
+        ping = new SOCTimingPing(gameName);
         alive = true;
         robotNickname = nickname;
     }
 
     /**
-     * DOCUMENT ME!
+     * Once per second queue a {@link SOCTimingPing}, until {@link #stopPinger()} is called.
      */
+    @Override
     public void run()
     {
         // Thread name for debug
@@ -62,7 +74,7 @@ public class SOCRobotPinger extends Thread
             Thread.currentThread().setName("robotPinger-" + robotNickname);
         }
         catch (Throwable th) {}
-        
+
         while (alive)
         {
             try
@@ -74,7 +86,7 @@ public class SOCRobotPinger extends Thread
                 alive = false;
             }
 
-            yield();
+            Thread.yield();
 
             try
             {
@@ -82,16 +94,17 @@ public class SOCRobotPinger extends Thread
             }
             catch (InterruptedException exc) {alive = false;/*in case of an interrupt exit the loop and clean up*/}
         }
+
         //clean after itself
         messageQueue = null;
-        ping = null;
     }
 
     /**
-     * DOCUMENT ME!
+     * Stop the pinger thread's {@link #run()} loop by clearing its "alive" flag.
      */
     public void stopPinger()
     {
         alive = false;
     }
+
 }

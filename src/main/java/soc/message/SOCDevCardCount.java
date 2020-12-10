@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2010 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2010,2014,2017,2019-2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
@@ -24,13 +24,21 @@ import java.util.StringTokenizer;
 
 
 /**
- * This message says how many development cards are in the deck.
+ * This message says how many development cards are available in the deck to be bought and drawn.
+ *<P>
+ * In games where all clients are v2.0.00 or newer, send {@link SOCGameElements.GEType#DEV_CARD_COUNT}
+ * instead: Check clients' version against {@link SOCGameElements#MIN_VERSION}.
+ *<P>
+ * For message sequence, see {@link SOCGameElements.GEType#DEV_CARD_COUNT} javadoc:
+ * This message is sent to older clients whenever {@code DEV_CARD_COUNT} would be sent.
  *
  * @author Robert S. Thomas
  */
 public class SOCDevCardCount extends SOCMessage
     implements SOCMessageForGame
 {
+    private static final long serialVersionUID = 1111L;  // last structural change v1.1.11
+
     /**
      * Name of game
      */
@@ -96,12 +104,12 @@ public class SOCDevCardCount extends SOCMessage
      * Parse the command String into a DevCardCount message
      *
      * @param s   the String to parse
-     * @return    a DevCardCount message, or null of the data is garbled
+     * @return    a DevCardCount message, or null if the data is garbled
      */
     public static SOCDevCardCount parseDataStr(String s)
     {
         String ga; // the game name
-        int nd; // the number of dev cards 
+        int nd; // the number of dev cards
 
         StringTokenizer st = new StringTokenizer(s, sep2);
 
@@ -125,4 +133,5 @@ public class SOCDevCardCount extends SOCMessage
     {
         return "SOCDevCardCount:game=" + game + "|numDevCards=" + numDevCards;
     }
+
 }

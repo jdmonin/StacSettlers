@@ -1,6 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2017,2020 Jeremy D Monin <jeremy@nand.net>.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,50 +16,58 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.server;
 
 import soc.message.SOCSitDown;
 
-import soc.server.genericServer.StringConnection;
+import soc.server.genericServer.Connection;
 
 
 /**
- * This is a pair of connections, one is sitting at the
- * game and the other is leaving.
+ * This is a pair of connections, one is sitting at a game and the other is leaving;
+ * the arriving connection might be taking over the leaving one's seat.
+ * Server can then have info about one when dealing with messages/events from the other.
  */
-class SOCReplaceRequest
+/*package*/ class SOCReplaceRequest
 {
-    private StringConnection arriving;
-    private StringConnection leaving;
-    private SOCSitDown sdMes;
+    private final Connection arriving;
+    private final Connection leaving;
+    private final SOCSitDown sdMes;
 
     /**
      * Make a new request
-     * @param a  the arriving connection
-     * @param l  the leaving connection
+     * @param arriv  the arriving connection; not null
+     * @param leave  the leaving connection; not null
      * @param sm the SITDOWN message
+     * @throws IllegalArgumentException if {@code arriv} or {@code leave} is {@code null}
      */
-    public SOCReplaceRequest(StringConnection a, StringConnection l, SOCSitDown sm)
+    public SOCReplaceRequest(Connection arriv, Connection leave, SOCSitDown sm)
+        throws IllegalArgumentException
     {
-        arriving = a;
-        leaving = l;
+        if (arriv == null)
+            throw new IllegalArgumentException("arriving");
+        if (leave == null)
+            throw new IllegalArgumentException("leaving");
+
+        arriving = arriv;
+        leaving = leave;
         sdMes = sm;
     }
 
     /**
-     * @return the arriving connection
+     * @return the arriving connection; not null
      */
-    public StringConnection getArriving()
+    public Connection getArriving()
     {
         return arriving;
     }
 
     /**
-     * @return the leaving connection
+     * @return the leaving connection; not null
      */
-    public StringConnection getLeaving()
+    public Connection getLeaving()
     {
         return leaving;
     }
@@ -70,4 +79,5 @@ class SOCReplaceRequest
     {
         return sdMes;
     }
+
 }

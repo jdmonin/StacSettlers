@@ -1,7 +1,8 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Some documentation javadocs here are Copyright (C) 2009 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file copyright (C) 2009,2012,2014-2015,2018,2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.robot;
 
@@ -26,9 +27,6 @@ import soc.game.SOCPlayer;
 import soc.game.SOCPlayerNumbers;
 import soc.game.SOCResourceSet;
 
-import java.io.Serializable;
-import java.util.Vector;
-
 
 /**
  * This is a possible city that we can build
@@ -36,69 +34,60 @@ import java.util.Vector;
  * @author Robert S Thomas
  *
  */
-public class SOCPossibleCity extends SOCPossiblePiece implements Serializable
+public class SOCPossibleCity extends SOCPossiblePiece
 {
+    /** Last structural change v2.4.50 (2450) */
+    private static final long serialVersionUID = 2450L;  // last structural change v2.4.50
+
     /**
      * Speedup per building type.  Indexed from {@link SOCBuildingSpeedEstimate#MIN}
      * to {@link SOCBuildingSpeedEstimate#MAXPLUSONE}.
      */
-    protected int[] speedup = { 0, 0, 0, 0 };
+    protected int[] speedup = { 0, 0, 0, 0, 0 };
 
-    // The brain used to calculate speedup
-    transient protected SOCRobotBrain brain;
-    
+    /**
+     * Our {@link SOCBuildingSpeedEstimate} factory.
+     * @since 2.4.50
+     */
+    protected SOCBuildingSpeedEstimateFactory bseFactory;
+
     /**
      * constructor
      *
-     * @param brain the brain used to calculate speedup
-     * @param pl  the owner
-     * @param co  coordinates;
+     * @param pl  the owner; not null
+     * @param co  coordinates; not validated
+     * @param bseFactory  factory to use for {@link SOCBuildingSpeedEstimate} calls; not null
      */
-    public SOCPossibleCity(SOCRobotBrain brain, SOCPlayer pl, int co)
+    public SOCPossibleCity(SOCPlayer pl, int co, SOCBuildingSpeedEstimateFactory bseFactory)
     {
-        this.brain = brain;
-        pieceType = SOCPossiblePiece.CITY;
-        player = pl;
-        coord = co;
+        super(SOCPossiblePiece.CITY, pl, co);
+
         eta = 0;
-        threats = new Vector();
-        biggestThreats = new Vector();
         threatUpdatedFlag = false;
         hasBeenExpanded = false;
+        this.bseFactory = bseFactory;
+
         updateSpeedup();
-    }
-    
-    /**
-     * Constructor to create an incomplete object.  Should only be called by SOCPossiblePiece.parse
-     * @param co coordinate
-     */
-    protected SOCPossibleCity(int co) {
-        pieceType = SOCPossiblePiece.CITY;
-        coord = co;
     }
 
     /**
-     * copy constructor
+     * copy constructor.
      *
-     * Note: This will not copy vectors, only make empty ones
+     * Note: This will not copy {@code pc}'s lists, only make empty ones.
      *
      * @param pc  the possible city to copy
      */
     public SOCPossibleCity(SOCPossibleCity pc)
     {
-        this.brain = pc.brain;
         //D.ebugPrintln(">>>> Copying possible city: "+pc);
-        pieceType = SOCPossiblePiece.CITY;
-        player = pc.getPlayer();
-        coord = pc.getCoordinates();
+        super(SOCPossiblePiece.CITY, pc.getPlayer(), pc.getCoordinates());
+
         eta = pc.getETA();
-        threats = new Vector();
-        biggestThreats = new Vector();
         threatUpdatedFlag = false;
         hasBeenExpanded = false;
+        bseFactory = pc.bseFactory;
 
         int[] pcSpeedup = pc.getSpeedup();
-
         for (int buildingType = SOCBuildingSpeedEstimate.MIN;
                 buildingType < SOCBuildingSpeedEstimate.MAXPLUSONE;
                 buildingType++)
@@ -108,27 +97,19 @@ public class SOCPossibleCity extends SOCPossiblePiece implements Serializable
     }
 
     /**
-     * Used to restore the reference to an existent brain (lost during cloning).
-     * 
-     * @param brain the new brain object to which we want to reference
-     */
-    public void setBrain(SOCRobotBrain brain){
-    	this.brain = brain;
-    }
-    
-    /**
-     * calculate the speedup that this city gives
+     * calculate the speedup that this city gives.
+     * Call when any player's new city or settlement is added to the board.
      * @see #getSpeedup()
      */
     public void updateSpeedup()
     {
         //D.ebugPrintln("****************************** (CITY) updateSpeedup at "+Integer.toHexString(coord));
-        SOCBuildingSpeedEstimate bse1 = brain.getEstimator(player.getNumbers());
+        SOCBuildingSpeedEstimate bse1 = bseFactory.getEstimator(player.getNumbers());
         int[] ourBuildingSpeed = bse1.getEstimatesFromNothingFast(player.getPortFlags());
         SOCPlayerNumbers newNumbers = new SOCPlayerNumbers(player.getNumbers());
         newNumbers.updateNumbers(new SOCCity(player, coord, null), player.getGame().getBoard());
 
-        SOCBuildingSpeedEstimate bse2 = brain.getEstimator(newNumbers);
+        SOCBuildingSpeedEstimate bse2 = bseFactory.getEstimator(newNumbers);
         int[] speed = bse2.getEstimatesFromNothingFast(player.getPortFlags());
 
         for (int buildingType = SOCBuildingSpeedEstimate.MIN;
@@ -150,6 +131,7 @@ public class SOCPossibleCity extends SOCPossiblePiece implements Serializable
 
     /**
      * @return the sum of all of the speedup numbers
+     * @see #updateSpeedup()
      */
     public int getSpeedupTotal()
     {

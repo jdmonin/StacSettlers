@@ -1,7 +1,9 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2009 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2009,2011-2013,2015,2017-2018,2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
+ * Portions of this file Copyright (C) 2017-2018 Strategic Conversation (STAC Project) https://www.irit.fr/STAC/
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,7 +18,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.robot;
 
@@ -39,6 +41,16 @@ import java.util.Random;
 
 
 /**
+ * Make and consider resource trade offers ({@link SOCTradeOffer}) with other players.
+ *<P>
+ * Chooses a response:
+ *<UL>
+ * <LI> {@link #IGNORE_OFFER}
+ * <LI> {@link #REJECT_OFFER}
+ * <LI> {@link #ACCEPT_OFFER}
+ * <LI> {@link #COUNTER_OFFER}
+ *</UL>
+ *<P>
  * Moved the routines that make and
  * consider offers out of the robot
  * brain.
@@ -56,15 +68,47 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
     protected static final Random RANDOM = new Random();
 
     protected static final int WIN_GAME_CUTOFF = 25;
+
+    /**
+     * Response: Ignore an offer. Should be used only if we aren't
+     * among the offer's recipients from {@link SOCTradeOffer#getTo()}.
+     * If the offer is meant for us, the offering player is waiting for
+     * our response and ignoring it will delay the game.
+     * @since 2.0.00
+     */
+    public static final int IGNORE_OFFER = -1;
+
+    /** Response: Reject an offer. */
     public static final int REJECT_OFFER = 0;
+
+    /** Response: Accept an offer. */
     public static final int ACCEPT_OFFER = 1;
+
+    /** Response: Plan and make a counter-offer if possible, otherwise reject. */
     public static final int COUNTER_OFFER = 2;
+
     public static final int COMPLETE_OFFER = 3;
+
     protected final SOCRobotBrain<?, ?, BP> brain;
     protected SOCGame game;
-    protected HashMap playerTrackers;
+
+    /**
+     * Player trackers, one per player number; vacant seats are null.
+     * Same format as {@link SOCRobotBrain#getPlayerTrackers()}.
+     * @see #ourPlayerTracker
+     */
+    protected SOCPlayerTracker[] playerTrackers;
+
+    /** Player tracker for {@link #ourPlayerData}. */
     protected SOCPlayerTracker ourPlayerTracker;
+
     protected SOCPlayer ourPlayerData;
+
+    /**
+     * {@link #ourPlayerData}'s player number.
+     * @since 2.0.00
+     */
+    protected int ourPlayerNumber;
        
     /**
      * constructor
@@ -77,6 +121,7 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
         playerTrackers = brain.getPlayerTrackers();
         ourPlayerTracker = brain.getOurPlayerTracker();
         ourPlayerData = brain.getOurPlayerData();
+        ourPlayerNumber = ourPlayerData.getPlayerNumber();
         game = brain.getGame();
 
         resetTargetPieces();
@@ -135,10 +180,12 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
     public abstract void resetTradesMade();
 
     /***
-     * make an offer to another player
+     * Make an trade offer to another player, or decide to make no offer,
+     * based on what we want to build and our player's current {@link SOCPlayer#getResources()}.
      *
-     * @param buildPlan  our build plan
-     * @return the offer we want to make, or null for no offer
+     * @param buildPlan  our build plan, or {@code null}
+     * @return the offer we want to make, or {@code null} for no offer
+     * @see #getOfferToBank(SOCResourceSet)
      */
     public abstract SOCTradeOffer makeOffer(BP buildPlan);
 
@@ -150,10 +197,18 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
     public abstract SOCTradeOffer makeCounterOffer(SOCTradeOffer originalOffer);
 
     /**
-     * @return the offer that we'll make to the bank/ports
+     * Decide what bank/port trade to request, if any,
+     * based on which resources we want and {@code ourResources}.
+     *<P>
+     * Other forms of {@code getOfferToBank(..)} call this one;
+     * this is the one to override if a third-party bot wants to
+     * customize {@code getOfferToBank} behavior.
      *
-     * @param targetResources  what resources we want
-     * @param ourResources     the resources we have
+     * @return the offer that we'll make to the bank/ports,
+     *     or {@code null} if {@code ourResources} already contains all needed {@code targetResources}
+     *     or {@code targetResources} is null or empty
+     * @param targetResources  what resources we want; can be null or empty
+     * @param ourResources     the resources we have; not null
      */
     public abstract SOCTradeOffer getOfferToBank(BP buildPlan, SOCResourceSet ourResources);
 
@@ -165,6 +220,7 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
      * @param receiverNum  the player number of the receiver
      *
      * @return if we want to accept, reject, or make a counter offer
+     *     ( {@link #ACCEPT_OFFER}, {@link #REJECT_OFFER}, or {@link #COUNTER_OFFER} )
      */
     public abstract int considerOffer(SOCTradeOffer offer, int receiverNum);
 
@@ -234,15 +290,18 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
         playerTrackers = brain.getPlayerTrackers();
         ourPlayerTracker = brain.getOurPlayerTracker();
         ourPlayerData = brain.getOurPlayerData();
+        ourPlayerNumber = ourPlayerData.getPlayerNumber();
         game = brain.getGame();
     }
 
-///logic recording isSelling or wantingAnotherOffer based on responses: Accept, Reject or no response///
+    /// logic recording isSelling or wantingAnotherOffer based on responses: Accept, Reject or no response ///
+
     /**
      * Marks what a player wants or is not selling based on the received offer.
      * @param offer the offer we have received
      */
-    protected void recordResourcesFromOffer(SOCTradeOffer offer){
+    protected void recordResourcesFromOffer(SOCTradeOffer offer)
+    {
         ///
         /// record that this player wants to sell me the stuff
         ///
@@ -252,7 +311,7 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
                 rsrcType <= SOCResourceConstants.WOOD;
                 rsrcType++)
         {
-            if (giveSet.getAmount(rsrcType) > 0)
+            if (giveSet.contains(rsrcType))
             {
                 D.ebugPrintlnINFO("%%% player " + offer.getFrom() + " wants to sell " + rsrcType);
                 markAsWantsAnotherOffer(offer.getFrom(), rsrcType);
@@ -269,7 +328,7 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
                 rsrcType <= SOCResourceConstants.WOOD;
                 rsrcType++)
         {
-            if (getSet.getAmount(rsrcType) > 0)
+            if (getSet.contains(rsrcType))
             {
                 D.ebugPrintlnINFO("%%% player " + offer.getFrom() + " wants to buy " + rsrcType + " and therefore does not want to sell it");
                 markAsNotSelling(offer.getFrom(), rsrcType);
@@ -279,9 +338,13 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
     
     /**
      * Marks what resources a player is not selling based on a reject to our offer
+     *<P>
+     * To do so for another player's offer, use {@link #recordResourcesFromRejectAlt(int)}.
+     *
      * @param rejector the player number corresponding to the player who has rejected an offer
      */
-    protected void recordResourcesFromReject(int rejector){
+    protected void recordResourcesFromReject(int rejector)
+    {
         ///
         /// see if everyone has rejected our offer
         ///
@@ -303,7 +366,7 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
                         rsrcType <= SOCResourceConstants.WOOD;
                         rsrcType++)
                 {
-                    if ((getSet.getAmount(rsrcType) > 0) && (!wantsAnotherOffer(rejector, rsrcType)))
+                    if (getSet.contains(rsrcType) && ! wantsAnotherOffer(rejector, rsrcType))
                         markAsNotSelling(rejector, rsrcType);
                 }
             }       
@@ -312,9 +375,13 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
     
     /**
      * Marks what resources a player is not selling based on a reject to other offers
+     *<P>
+     * To do so for our player's offer, use {@link #recordResourcesFromReject(int)}.
+     *
      * @param rejector the player number corresponding to the player who has rejected an offer
      */
-    protected void recordResourcesFromRejectAlt(int rejector){
+    protected void recordResourcesFromRejectAlt(int rejector)
+    {
     	///
     	/// we also want to watch rejections of other players' offers
         ///
@@ -322,25 +389,25 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
 
         for (int pn = 0; pn < game.maxPlayers; pn++)
         {
-        	SOCTradeOffer offer = game.getPlayer(pn).getCurrentOffer();
+            SOCTradeOffer offer = game.getPlayer(pn).getCurrentOffer();
 
-        	if (offer != null)
+            if (offer != null)
             {
-        		boolean[] offeredTo = offer.getTo();
+                boolean[] offeredTo = offer.getTo();
 
                 if (offeredTo[rejector])
                 {
-                	//
+                    //
                     // I think they were rejecting this offer
                     // mark them as not selling what was asked for
                     //
                     SOCResourceSet getSet = offer.getGetSet();
 
                     for (int rsrcType = SOCResourceConstants.CLAY;
-                    		rsrcType <= SOCResourceConstants.WOOD;
+                            rsrcType <= SOCResourceConstants.WOOD;
                             rsrcType++)
                     {
-                    	if ((getSet.getAmount(rsrcType) > 0) && (!wantsAnotherOffer(rejector, rsrcType)))
+                    	if (getSet.contains(rsrcType) && ! wantsAnotherOffer(rejector, rsrcType))
                     		markAsNotSelling(rejector, rsrcType);
                     }
                 }
@@ -349,11 +416,13 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
     }
     
     /**
-     * This is called when players haven't responded to our offer, so we assume they are not selling and that they don't want anything else
+     * This is called when players haven't responded to our offer,
+     * so we assume they are not selling and that they don't want anything else.
      * Marks the resources we offered as not selling and marks that the player doesn't want a different offer for that resource
      * @param ourCurrentOffer the offer we made and not received an answer to
      */
-    protected void recordResourcesFromNoResponse(SOCTradeOffer ourCurrentOffer){
+    protected void recordResourcesFromNoResponse(SOCTradeOffer ourCurrentOffer)
+    {
     	boolean[] offeredTo = ourCurrentOffer.getTo();
         SOCResourceSet getSet = ourCurrentOffer.getGetSet();
 
@@ -361,7 +430,7 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
                 rsrcType <= SOCResourceConstants.WOOD;
                 rsrcType++)
         {
-            if (getSet.getAmount(rsrcType) > 0)
+            if (getSet.contains(rsrcType))
             {
                 for (int pn = 0; pn < game.maxPlayers; pn++)
                 {
@@ -374,4 +443,5 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
             }
         }
     }
+
 }

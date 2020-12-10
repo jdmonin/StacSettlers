@@ -1,7 +1,8 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2009,2010 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2009,2010,2014,2017-2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2017-2018 Strategic Conversation (STAC Project) https://www.irit.fr/STAC/
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
@@ -28,13 +29,24 @@ import java.util.StringTokenizer;
 
 
 /**
- * This message means that a player wants to trade with other players
+ * This message means that a player wants to trade with other players.
+ *<P>
+ * From client: A request to make or update a trade offer to 1 or more other players. <BR>
+ * From server: A validated offer announced to the game. Will be followed immediately by
+ * a {@link SOCClearTradeMsg} to clear responses from any previous offer.
+ *<BR>
+ * Or, server is replying to client that this trade is disallowed: {@link #getOffer()}.{@code getFrom()}
+ * is {@link SOCBankTrade#PN_REPLY_CANNOT_MAKE_TRADE}.
+ * Clients older than v2.4.50 don't recognize {@code PN_REPLY_CANNOT_MAKE_TRADE}, so server
+ * sends those clients a {@link SOCGameServerText} instead.
  *
  * @author Robert S. Thomas
  */
 public class SOCMakeOffer extends SOCMessage
     implements SOCMessageForGame
 {
+    private static final long serialVersionUID = 1111L;  // last structural change v1.1.11
+
     /**
      * Name of game
      */
@@ -49,7 +61,10 @@ public class SOCMakeOffer extends SOCMessage
      * Create a MakeOffer message.
      *
      * @param ga   the name of the game
-     * @param of   the offer being made
+     * @param of   the offer being made.
+     *    From server, this offer's {@link SOCTradeOffer#getFrom()} is the player number
+     *    making the offer, or {@link SOCBankTrade#PN_REPLY_CANNOT_MAKE_TRADE}: See {@link #getOffer()}.
+     *    From client, value of {@code of.getFrom()} is ignored at server.
      */
     public SOCMakeOffer(String ga, SOCTradeOffer of)
     {
@@ -67,6 +82,11 @@ public class SOCMakeOffer extends SOCMessage
     }
 
     /**
+     * Get the offer being made.
+     * From server, this offer's {@link SOCTradeOffer#getFrom()} is the player number
+     * making the offer. From client, value of {@code getFrom()} is ignored at server.
+     * If server is replying to client that this trade is disallowed, {@code getFrom()}
+     * is {@link SOCBankTrade#PN_REPLY_CANNOT_MAKE_TRADE}.
      * @return the offer being made
      */
     public SOCTradeOffer getOffer()
@@ -86,7 +106,9 @@ public class SOCMakeOffer extends SOCMessage
      * @return the command string
      *
      * @param ga  the name of the game
-     * @param of   the offer being made
+     * @param of   the offer being made.
+     *    From server, this offer's {@link SOCTradeOffer#getFrom()} is the player number
+     *    making the offer. From client, value of {@code of.getFrom()} is ignored at server.
      */
     public static String toCmd(String ga, SOCTradeOffer of)
     {
@@ -123,14 +145,14 @@ public class SOCMakeOffer extends SOCMessage
      * Parse the command String into a MakeOffer message
      *
      * @param s   the String to parse
-     * @return    a MakeOffer message, or null of the data is garbled
+     * @return    a MakeOffer message, or null if the data is garbled
      */
     public static SOCMakeOffer parseDataStr(String s)
     {
         String ga; // the game name
         int from; // the number of the offering player
         boolean[] to; // the players to which this trade is offered
-        SOCResourceSet give; // the set of resources being asked for 
+        SOCResourceSet give; // the set of resources being asked for
         SOCResourceSet get; // the set of resources that the offerer wants in exchange
 
         give = new SOCResourceSet();
@@ -170,36 +192,43 @@ public class SOCMakeOffer extends SOCMessage
 
         return new SOCMakeOffer(ga, new SOCTradeOffer(ga, from, to, give, get));
     }
-    
-    // Special handling:  
+
+    // Special handling:
     // 1) There is a bizarre "offer=game=gameName" in the second position
     // 2) Give and get are specified as give=clay=x|ore=y...
-    //  When we strip attrip names, we get a meaningless second entry, which we can skip, and due to manner of parsing, clay is inserted before give and get sets.
-    public static String stripAttribNames(String message) {
-    	// Strip the give= and get= from the message, then do the normal strip, then strip index 1 (could do more efficiently, but a previous incorrect implementation left
-    	//  this same stuff here anyway, so use it.
-    	message = message.replace("give=", "");
-    	message = message.replace("get=", "");
-    	// strip with leading delim (hardcode here for now)
-    	message = message.replaceAll("\\|unknown=0", "");
-    	String s = SOCMessage.stripAttribNames(message);
-    	String[] pieces = s.split(SOCMessage.sep2);
-    	
-    	StringBuffer ret = new StringBuffer();
-    	int[] skipIds = new int[]{1, -1};  // Append a -1 at the end so we don't have to worry about running off the end    	
-    	int si = 0; // Which index of skipIds are we currently looking for?
-    	for (int i=0; i<pieces.length; i++) {
-    		if (skipIds[si]==i) {
-    			// skip, but increment si
-    			si++;
-    		}
-    		else {
-    			ret.append(pieces[i]).append(SOCMessage.sep2);
-    		}
-    	}    	
-    	
-    	// trim the last separator - it interferes with the parse, which dynamically determines number of players based on number of tokens.
-    	return ret.substring(0, ret.length() -1);
+    /**
+     * Strip out the parameter/attribute names from {@link #toString()}'s format,
+     * returning message parameters as a comma-delimited list for {@link SOCMessage#parseMsgStr(String)}.
+     * @param message Params part of a message string formatted by {@link #toString()}; not {@code null}
+     * @return Message parameters without attribute names, or {@code null} if params are malformed
+     * @since 2.4.50
+     */
+    public static String stripAttribNames(String message)
+    {
+        // Strip the give= and get= from the message, then do the normal strip, then strip index 1
+        message = message.replace("give=", "");
+        message = message.replace("get=", "");
+        // strip with leading delim (hardcode here for now)
+        message = message.replaceAll("\\|unknown=0", "");
+        String s = SOCMessage.stripAttribNames(message);
+        if (s == null)
+            return null;
+        String[] pieces = s.split(SOCMessage.sep2);
+
+        StringBuilder ret = new StringBuilder();
+        int[] skipIds = new int[]{1, -1};  // Append a -1 at the end so we don't have to worry about running off the end
+        int si = 0; // Which index of skipIds are we currently looking for?
+        for (int i = 0; i < pieces.length; i++)
+        {
+            if (skipIds[si]==i)
+                // skip, but increment si
+                si++;
+            else
+                ret.append(pieces[i]).append(SOCMessage.sep2);
+        }
+
+        // trim the last separator - it interferes with the parse, which dynamically determines number of players based on number of tokens.
+        return ret.substring(0, ret.length() - 1);
     }
 
     /**
@@ -209,4 +238,5 @@ public class SOCMakeOffer extends SOCMessage
     {
         return "SOCMakeOffer:game=" + game + "|offer=" + offer;
     }
+
 }

@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2010 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2010,2014,2017-2018,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
@@ -24,7 +24,7 @@ import java.util.StringTokenizer;
 
 
 /**
- * This message means that the player is rejecting an offer.
+ * This message means that the player is rejecting all offers ("no thanks").
  *<P>
  * Sent from rejecting player's client to server.
  * The server then sends a copy of the message to all players
@@ -39,13 +39,15 @@ import java.util.StringTokenizer;
 public class SOCRejectOffer extends SOCMessage
     implements SOCMessageForGame
 {
+    private static final long serialVersionUID = 1111L;  // last structural change v1.1.11
+
     /**
      * Name of game
      */
     private String game;
 
     /**
-     * The seat number
+     * From server, the player number rejecting all offers made to them; see {@link #getPlayerNumber()}.
      */
     private int playerNumber;
 
@@ -53,7 +55,8 @@ public class SOCRejectOffer extends SOCMessage
      * Create a RejectOffer message.
      *
      * @param ga  the name of the game
-     * @param pn  the seat number
+     * @param pn  the player number rejecting all offers made to them.
+     *     Sent from server, always ignored when sent from client.
      */
     public SOCRejectOffer(String ga, int pn)
     {
@@ -71,7 +74,9 @@ public class SOCRejectOffer extends SOCMessage
     }
 
     /**
-     * @return the seat number
+     * The player number rejecting all offers made to them, when sent from server.
+     * When sent from client, server has always ignored this field; could be any value.
+     * @return the player number from server
      */
     public int getPlayerNumber()
     {
@@ -92,7 +97,8 @@ public class SOCRejectOffer extends SOCMessage
      * REJECTOFFER sep game sep2 playerNumber
      *
      * @param ga  the name of the game
-     * @param pn  the seat number
+     * @param pn  the player number rejecting all offers made to them.
+     *     Sent from server, always ignored when sent from client.
      * @return the command string
      */
     public static String toCmd(String ga, int pn)
@@ -101,10 +107,10 @@ public class SOCRejectOffer extends SOCMessage
     }
 
     /**
-     * Parse the command String into a StartGame message
+     * Parse the command String into a REJECTOFFER message.
      *
      * @param s   the String to parse
-     * @return    a StartGame message, or null of the data is garbled
+     * @return    a REJECTOFFER message, or null if the data is garbled
      */
     public static SOCRejectOffer parseDataStr(String s)
     {
@@ -133,4 +139,5 @@ public class SOCRejectOffer extends SOCMessage
     {
         return "SOCRejectOffer:game=" + game + "|playerNumber=" + playerNumber;
     }
+
 }

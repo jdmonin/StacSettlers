@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas
- * This file Copyright (C) 2009 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2009,2013-2015,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,9 +15,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- * @author Jeremy D. Monin <jeremy@nand.net>
- * @since 1.1.07
  **/
 package soc.message;
 
@@ -25,9 +22,10 @@ package soc.message;
  * Information on current defaults for new games' {@link soc.game.SOCGameOption game options}.
  * Based on server's current values ({@link soc.game.SOCGameOption#getIntValue() .getIntValue()},
  * not {@link soc.game.SOCGameOption#defaultIntValue .defaultIntValue} field).
+ * Client sends this when the user clicks the "New Game" button for the first time.
  *<P>
  * Server responds to client's GAMEOPTIONGETDEFAULTS by sending its own GAMEOPTIONGETDEFAULTS.
- * All of server's known options are sent, except empty string-valued options. 
+ * All of server's known options are sent, except empty string-valued options.
  * Depending on client version, server's response may include option names that
  * the client is too old to use; the client is able to ignore them.
  * If the client asks about such an option (by sending {@link SOCGameOptionInfo GAMEOPTIONINFO}),
@@ -38,12 +36,20 @@ package soc.message;
  *<P>
  * Robot clients don't need to know about or handle this message type,
  * because they don't create games.
+ *<P>
+ * <B>I18N:</B> Since the client's New Game dialog will need localized strings for all
+ * {@link soc.game.SOCScenario SOCScenario}s, v2.0.00 sends those strings before the game option
+ * default values so that the client will have them before showing the dialog.
+ * The strings are sent using {@link SOCLocalizedStrings}.
  *
- * @author Jeremy D Monin <jeremy@nand.net>
+ * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
  * @since 1.1.07
  */
 public class SOCGameOptionGetDefaults extends SOCMessage
+    implements SOCMessageFromUnauthClient
 {
+    private static final long serialVersionUID = 1107L;  // last structural change v1.1.07
+
     /**
      * String of the options (name-value pairs) as sent over network
      */
@@ -54,7 +60,7 @@ public class SOCGameOptionGetDefaults extends SOCMessage
      *
      * @param opts  the options string, or null if none (client to server).
      *              To create the string, call
-     *              {@link soc.game.SOCGameOption#packOptionsToString(Hashtable, boolean) SOCGameOption.packOptionsToString(opts, true)}.
+     *              {@link soc.game.SOCGameOption#packOptionsToString(java.util.Map, boolean, boolean) SOCGameOption.packOptionsToString(opts, true, false)}.
      */
     public SOCGameOptionGetDefaults(String opts)
     {
@@ -64,8 +70,8 @@ public class SOCGameOptionGetDefaults extends SOCMessage
 
     /**
      * Get the string of option name-value pairs sent over the network.
-     * To turn this into a hashtable of {@link soc.game.SOCGameOption SOCGameOptions},
-     * call {@link soc.game.SOCGameOption#parseOptionsToHash(String) SOCGameOption.parseOptionsToHash()}.
+     * To turn this into a group of {@link soc.game.SOCGameOption SOCGameOptions},
+     * call {@link soc.game.SOCGameOption#parseOptionsToMap(String, soc.game.SOCGameOptionSet)}.
      * @return the string of options, or null if none (client to server)
      */
     public String getOpts()
@@ -80,21 +86,10 @@ public class SOCGameOptionGetDefaults extends SOCMessage
      */
     public String toCmd()
     {
-        return toCmd(opts);
-    }
-
-    /**
-     * GAMEOPTIONGETDEFAULTS [sep opts]
-     *
-     * @param opts  the options string, or null if none (cli->serv)
-     * @return    the command string
-     */
-    public static String toCmd(String opts)
-    {
-	if (opts != null)
-	    return GAMEOPTIONGETDEFAULTS + sep + opts;
-	else
-	    return Integer.toString(GAMEOPTIONGETDEFAULTS);
+        if (opts != null)
+            return GAMEOPTIONGETDEFAULTS + sep + opts;
+        else
+            return Integer.toString(GAMEOPTIONGETDEFAULTS);
     }
 
     /**
@@ -105,8 +100,8 @@ public class SOCGameOptionGetDefaults extends SOCMessage
      */
     public static SOCGameOptionGetDefaults parseDataStr(String s)
     {
-	if (s.length() == 0)
-	    s = null;
+        if (s.length() == 0)
+            s = null;
         return new SOCGameOptionGetDefaults(s);
     }
 
@@ -124,4 +119,5 @@ public class SOCGameOptionGetDefaults extends SOCMessage
     {
         return "SOCGameOptionGetDefaults:opts=" + opts;
     }
+
 }

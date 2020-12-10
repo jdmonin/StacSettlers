@@ -1,6 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2014,2017,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,19 +16,21 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
 
 /**
- * This message allows the admin to reset a
- * robot player remotely
+ * This message allows the admin to reset a robot client remotely;
+ * bot will disconnect and reconnect. Sent from server to robot client only.
  *
  * @author Robert S Thomas
  */
 public class SOCAdminReset extends SOCMessage
 {
+    private static final long serialVersionUID = 100L;  // last structural change v1.0.0 or earlier
+
     /**
      * Create a AdminReset message.
      *
@@ -50,7 +53,7 @@ public class SOCAdminReset extends SOCMessage
     /**
      * Parse the command String into a AdminReset message
      *
-     * @param s   the String to parse
+     * @param s   the String to parse; contents ignored, since this message has no parameters
      * @return    a AdminReset message
      */
     public static SOCAdminReset parseDataStr(String s)
@@ -59,7 +62,7 @@ public class SOCAdminReset extends SOCMessage
     }
 
     /**
-     * @return a human readable form of the message
+     * @return a human readable form of the message, which has no parameters
      */
     public String toString()
     {

@@ -1,5 +1,6 @@
 package soc.robot;
 
+import soc.game.ResourceSet;
 import soc.game.SOCBoard;
 import soc.game.SOCPlayerNumbers;
 import soc.game.SOCResourceConstants;
@@ -44,15 +45,14 @@ public class SOCBuildingSpeedFast extends SOCBuildingSpeedEstimate {
         super();
     }
 
-    @Override
-    public SOCResSetBuildTimePair calculateRollsFast(
-            SOCResourceSet startingResources, SOCResourceSet targetResources,
-            int cutoff, boolean[] ports) throws CutoffExceededException 
+    public SOCResSetBuildTimePair calculateRollsAndRsrcFast
+        (final ResourceSet startingResources, final SOCResourceSet targetResources, final int cutoff, final boolean[] ports)
+        throws CutoffExceededException
     {
         //D.ebugPrintln("calculateRolls");
         //D.ebugPrintln("  start: "+startingResources);
         //D.ebugPrintln("  target: "+targetResources);
-        SOCResourceSet ourResources = startingResources.copy();
+        SOCResourceSet ourResources = new SOCResourceSet(startingResources);
         int rolls = 0;
 
         if (!ourResources.contains(targetResources))

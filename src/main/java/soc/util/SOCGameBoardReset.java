@@ -1,6 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * This file Copyright (C) 2008-2010 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2008-2010,2016-2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.util;
 
@@ -25,35 +26,54 @@ import java.util.Vector;
 import soc.disableDebug.D;
 import soc.game.SOCGame;
 import soc.game.SOCPlayer;
-import soc.server.genericServer.StringConnection;
+import soc.server.genericServer.Connection;
 
 /**
- * This class holds data the server needs, related to a
- * "board reset" of a game being played.
+ * This class holds data the server needs to coordinate and complete
+ * a "board reset" of a game being played.
  *<P>
- * If the SOCGame is in state {@link SOCGame#READY_RESET_WAIT_ROBOT_DISMISS},
+ * If the game is in state {@link SOCGame#READY_RESET_WAIT_ROBOT_DISMISS},
  * this object is referenced within the newly created game object.
+ *<P>
+ * Before v1.1.07 this class was in the {@code soc.server} package.
  *
  * @see soc.server.SOCGameListAtServer#resetBoard(String)
  * @see soc.game.SOCGame#resetAsCopy()
  * @see soc.game.SOCGame#boardResetOngoingInfo
  *
- * @author Jeremy D. Monin <jeremy@nand.net>
+ * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
+ * @since 1.1.00
  */
 public class SOCGameBoardReset
 {
-    /** The new game, created from an old game by {@link soc.game.SOCGame#resetAsCopy()} */ 
-    public SOCGame newGame;
+    /** The new game, created from an old game by {@link soc.game.SOCGame#resetAsCopy()} */
+    public final SOCGame newGame;
 
     /** gamestate of old game at reset time
      * @since 1.1.06
      */
-    final public int oldGameState;
+    public final int oldGameState;
 
-    /** Were there robots in the old game? */
-    public boolean hadRobots;
+    /**
+     * Were there robots in the old game?
+     * If so, this reset object's constructor set new game's {@link SOCGame#boardResetOngoingInfo} field,
+     * and set its state to {@link SOCGame#READY_RESET_WAIT_ROBOT_DISMISS}.
+     * When our {@link #oldRobotCount} is 0, {@link #newGame} can begin.
+     * @see #hasRobots
+     */
+    public final boolean hadRobots;
+
+    /**
+     * Will there be robots in the new game?
+     * If so, this reset object's constructor and set its state to {@link SOCGame#READY}
+     * until they have all joined.
+     * @see #hadRobots
+     * @since 1.2.01
+     */
+    public final boolean hasRobots;
 
     /** Are we still waiting for robots to leave the old game?
+     * @see #hadRobots
      * @since 1.1.07
      */
     public int oldRobotCount;
@@ -61,12 +81,12 @@ public class SOCGameBoardReset
     /**
      * Human and robot connections; both arrays null at vacant seats.
      * {@link soc.game.SOCGame#resetAsCopy()} will duplicate human players
-     * in the new game, but not robot players. 
-     * Indexed 0 to SOCGame.MAXPLAYERS-1
+     * in the new game, but not robot players.
+     * Indexed 0 to {@link SOCGame#maxPlayers newGame.maxPlayers} - 1.
      */
-    public StringConnection[] humanConns, robotConns;
+    public Connection[] humanConns, robotConns;
 
-    /** Was this player position a robot? Indexed 0 to SOCGame.MAXPLAYERS-1 */
+    /** Was this player position a robot? Indexed 0 to {@link SOCGame#maxPlayers newGame.maxPlayers} - 1 */
     public boolean[] wasRobot;
 
     /** Create a SOCGameReset: Extract data, reset the old game, and gather new data.
@@ -76,16 +96,17 @@ public class SOCGameBoardReset
      *
      * @param oldGame Game to reset - {@link soc.game.SOCGame#resetAsCopy()}
      *   will be called.  The old game's state will be changed to RESET_OLD.
-     * @param memberConns Game members (StringConnections),
+     * @param memberConns Game members (Connections),
      *   as retrieved by {@link soc.server.SOCGameListAtServer#getMembers(String)}.
      *   Contents of this vector will be changed to remove any robot members.
      */
-    public SOCGameBoardReset (SOCGame oldGame, Vector memberConns)
+    public SOCGameBoardReset (SOCGame oldGame, Vector<Connection> memberConns)
     {
         oldGameState = oldGame.getGameState();
-        hadRobots = false;
         oldRobotCount = 0;
         wasRobot = new boolean[oldGame.maxPlayers];
+
+        boolean hadBots = false, hasBots = false;
         for (int i = 0; i < oldGame.maxPlayers; ++i)
         {
             SOCPlayer pl = oldGame.getPlayer(i);
@@ -93,10 +114,14 @@ public class SOCGameBoardReset
             wasRobot[i] = isRobot;
             if (isRobot)
             {
-                hadRobots = true;
+                hadBots = true;
                 ++oldRobotCount;
+                if (oldGame.getSeatLock(i) == SOCGame.SeatLockState.UNLOCKED)
+                    hasBots = true;
             }
         }
+        hadRobots = hadBots;
+        hasRobots = hasBots;
 
         /**
          * Reset the game
@@ -106,8 +131,8 @@ public class SOCGameBoardReset
         /**
          * Gather connection information, cleanup member list
          */
-        humanConns = new StringConnection[oldGame.maxPlayers];
-        robotConns = new StringConnection[oldGame.maxPlayers];
+        humanConns = new Connection[oldGame.maxPlayers];
+        robotConns = new Connection[oldGame.maxPlayers];
         if (memberConns != null)
         {
             // Grab connection information for humans and robots.
@@ -145,7 +170,8 @@ public class SOCGameBoardReset
      *
      * @param newGame New game (if resetting), or only game
      * @param oldGame Old game (if resetting), or null
-     * @param memberConns Members of old game, from {@link soc.server.SOCGameListAtServer#getMembers(String)}; a Vector of StringConnections
+     * @param memberConns Members of old game, from {@link soc.server.SOCGameListAtServer#getMembers(String)};
+     *                   a Vector of {@link Connection}s
      * @param humanConns New array to fill with human players; indexed 0 to SOCGame.MAXPLAYERS-1.
      *                   humanConns[pn] will be the human player at position pn, or null.
      * @param robotConns New array to fill with robot players; indexed 0 to SOCGame.MAXPLAYERS-1.
@@ -153,17 +179,19 @@ public class SOCGameBoardReset
      *
      * @return The number of human players in newGame
      */
-    public static int sortPlayerConnections (SOCGame newGame, SOCGame oldGame, Vector memberConns, StringConnection[] humanConns, StringConnection[] robotConns)
+    public static int sortPlayerConnections
+        (SOCGame newGame, SOCGame oldGame, Vector<Connection> memberConns,
+         Connection[] humanConns, Connection[] robotConns)
     {
         // This enum is easier than enumerating all connected clients;
         // there is no server-wide mapping of clientname -> connection.
 
         int numHuman = 0;
-        Enumeration playersEnum = memberConns.elements();
+        Enumeration<Connection> playersEnum = memberConns.elements();
         while (playersEnum.hasMoreElements())
         {
-            StringConnection pCon = (StringConnection) playersEnum.nextElement();
-            String pname = (String) pCon.getData();
+            Connection pCon = playersEnum.nextElement();
+            String pname = pCon.getData();
             SOCPlayer p = newGame.getPlayer(pname);
             if (p != null)
             {
@@ -211,5 +239,5 @@ public class SOCGameBoardReset
 
         return numHuman;
     }
-  
+
 }  // public class SOCGameBoardReset

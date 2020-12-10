@@ -1,6 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * This file Copyright (C) 2009 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2009,2013,2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -19,20 +20,21 @@
  **/
 package soc.game;
 
-import java.util.Enumeration;
-import java.util.Hashtable;
-import java.util.Vector;
+import java.util.List;
+import java.util.Map;        // for javadocs only
 
 /**
  * This exception indicates game option(s) too new for a client.
- * @see SOCGameOption#optionsMinimumVersion(Hashtable)
- * @see SOCGameOption#optionsNewerThanVersion(int, boolean, boolean, Hashtable)
+ * @see SOCVersionedItem#itemsMinimumVersion(Map)
+ * @see SOCGameOptionSet#optionsNewerThanVersion(int, boolean, boolean)
  *
  * @author Jeremy D Monin <jeremy@nand.net>
  * @since 1.1.07
  */
 public class SOCGameOptionVersionException extends IllegalArgumentException
 {
+    private static final long serialVersionUID = 1107L;
+
     /** Minimum client version required by game options */
     public final int gameOptsVersion;
 
@@ -40,18 +42,18 @@ public class SOCGameOptionVersionException extends IllegalArgumentException
     public final int cliVersion;
 
     /**
-     * The {@link SOCGameOption}(s) which are too new,
-     *     as returned by {@link SOCGameOption#optionsNewerThanVersion(int, boolean, boolean, Hashtable)}
+     * The {@link SOCGameOption}(s) which are too new, as passed to constructor; may be {@code null}.
+     * Typically from {@link SOCGameOptionSet#optionsNewerThanVersion(int, boolean, boolean)}.
      */
-    public Vector problemOptionsTooNew;
+    public final List<SOCGameOption> problemOptionsTooNew;
 
     /**
      * @param optVers Minimum client version required by game options
      * @param cliVers Requesting client's version
      * @param optsValuesTooNew The {@link SOCGameOption}(s) which are too new,
-     *     as returned by {@link SOCGameOption#optionsNewerThanVersion(int, boolean, boolean, Hashtable)}
+     *     as returned by {@link SOCGameOptionSet#optionsNewerThanVersion(int, boolean, boolean)}
      */
-    public SOCGameOptionVersionException(int optVers, int cliVers, Vector optsValuesTooNew)
+    public SOCGameOptionVersionException(final int optVers, final int cliVers, final List<SOCGameOption> optsValuesTooNew)
     {
         super("Client version vs game options");
         gameOptsVersion = optVers;
@@ -61,7 +63,7 @@ public class SOCGameOptionVersionException extends IllegalArgumentException
 
     /**
      * Build the list of "problem options" as a string, separated by "," (SOCMessage.SEP2).
-     * @return list of options (and values?) too new, or "" if none
+     * @return list of option keys too new, or "" if none
      */
     public String problemOptionsList()
     {
@@ -70,19 +72,15 @@ public class SOCGameOptionVersionException extends IllegalArgumentException
 
         StringBuffer sb = new StringBuffer();
         boolean hadAny = false;
-        for (Enumeration e = problemOptionsTooNew.elements(); e.hasMoreElements(); )
+        for (SOCGameOption opt : problemOptionsTooNew)
         {
-            Object opt = e.nextElement();
-            String item;
-            if (opt instanceof SOCGameOption)
-                item = ((SOCGameOption) opt).optKey;
-            else
-                item = opt.toString();
             if (hadAny)
                 sb.append(",");  // "," == SOCMessage.SEP2
-            sb.append(item);
+
+            sb.append(opt.key);
             hadAny = true;
         }
+
         return sb.toString();
     }
 

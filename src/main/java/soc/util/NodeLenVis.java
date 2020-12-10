@@ -1,6 +1,8 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas
+ * Portions of this file Copyright (C) 2011-2012,2018 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,19 +17,23 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.util;
 
 import java.util.Vector;
 
+import soc.game.SOCRoutePiece;
+
 
 /**
- * DOCUMENT ME!
+ * State object for iteratively tracing longest road:
+ * A node, path length so far, visited nodes, and optionally the road or ship
+ * that led to this node.
  *
- * @author $author$
+ * @author Robert S Thomas &lt;thomas@infolab.northwestern.edu&gt;
  */
-public class NodeLenVis
+public class NodeLenVis<T>
 {
     /**
      * the coordinates of a node
@@ -42,27 +48,53 @@ public class NodeLenVis
     /**
      * nodes that we have visited along the way
      */
-    public Vector vis;
+    public Vector<T> vis;
+
+    /**
+     * the road or ship that lead us to this node,
+     * if {@link #len} &gt; 0 and {@link soc.game.SOCGame#hasSeaBoard}.
+     * If <tt>len</tt> == 0, <tt>inboundRoad</tt> is null because we're just starting the segment.
+     * @since 2.0.00
+     */
+    public final SOCRoutePiece inboundRS;
 
     /**
      * Creates a new NodeLenVis object.
      *
-     * @param n DOCUMENT ME!
-     * @param l DOCUMENT ME!
-     * @param v DOCUMENT ME!
+     * @param n  Node coordinate
+     * @param l  Length so far
+     * @param v  Vector of nodes visited so far, as {@link Integer}s
      */
-    public NodeLenVis(int n, int l, Vector v)
+    public NodeLenVis(int n, int l, Vector<T> v)
+    {
+        this (n, l, v, null);
+    }
+
+    /**
+     * Creates a new NodeLenVis object.
+     *
+     * @param n  Node coordinate
+     * @param l  Length so far
+     * @param v  Vector of nodes visited so far, as {@link Integer}s
+     * @param rs  Road or ship that led to this node, if <tt>l</tt> &gt; 0;
+     *            only needed if {@link soc.game.SOCGame#hasSeaBoard}
+     * @since 2.0.00
+     */
+    public NodeLenVis(int n, int l, Vector<T> v, SOCRoutePiece rs)
     {
         node = n;
         len = l;
         vis = v;
+        inboundRS = rs;
     }
 
     /**
-     * DOCUMENT ME!
+     * Get a string representation of this NodeLenVis.
+     * The inbound road or ship, if any, is not included.
      *
-     * @return DOCUMENT ME!
+     * @return A string in the form of: <tt>NodeLenVis:n=<em>node</em>|l=<em>len</em>|vis=<em>vis</em></tt>
      */
+    @Override
     public String toString()
     {
         String s = "NodeLenVis:n=" + Integer.toHexString(node) + "|l=" + len + "|vis=" + vis;

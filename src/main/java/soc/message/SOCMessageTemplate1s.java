@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * This file Copyright (C) 2008,2010 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2008,2010-2012,2014 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,12 +25,15 @@ package soc.message;
 
 /**
  * Template for per-game message types with 1 string parameter.
+ * Your class javadoc should explain the meaning of param1,
+ * so that you won't need to write a getter for it.
+ *<P>
  * You will have to write parseDataStr, because of its return
  * type and because it's static.
  *<P>
  * Sample implementation:
- *<code>
- *   public static SOCSitDown parseDataStr(String s)
+ *<code><pre>
+ *   public static SOCSitDown parseDataStr(final String s)
  *   {
  *       String ga; // the game name
  *       String pna; // the player name
@@ -47,15 +50,18 @@ package soc.message;
  *           return null;
  *       }
  *
- *        return new SOCSitDown(ga, pn);
+ *        return new SOCSitDown(ga, pna);
  *   }
- *</code>
+ *</pre></code>
  *
- * @author Jeremy D Monin <jeremy@nand.net>
+ * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
+ * @since 1.1.00
  */
 public abstract class SOCMessageTemplate1s extends SOCMessage
     implements SOCMessageForGame
 {
+    private static final long serialVersionUID = 2000L;
+
     /**
      * Name of the game.
      */
@@ -114,7 +120,7 @@ public abstract class SOCMessageTemplate1s extends SOCMessage
      * @param param The parameter
      * @return    the command string
      */
-    public static String toCmd(int messageType, String ga, String param)
+    protected static String toCmd(final int messageType, String ga, String param)
     {
         return Integer.toString(messageType) + sep + ga + sep2 + param;
     }
@@ -124,7 +130,7 @@ public abstract class SOCMessageTemplate1s extends SOCMessage
      *
      * @param s   the String to parse
      * @return    a SitDown message, or null if parsing errors
-    public static SOCSitDown parseDataStr(String s)
+    public static SOCSitDown parseDataStr(final String s)
     {
         String ga; // the game name
         String pna; // the player name
@@ -150,6 +156,6 @@ public abstract class SOCMessageTemplate1s extends SOCMessage
      */
     public String toString()
     {
-        return getClassNameShort() + ":game=" + game + "|param=" + p1;
+        return getClass().getSimpleName() + ":game=" + game + "|param=" + p1;
     }
 }

@@ -1,7 +1,8 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas
- * This file copyright (C) 2007-2010 Jeremy D Monin <jeremy@nand.net>
+ * This file copyright (C) 2007-2010,2013,2016,2019 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2012-2013 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,45 +21,56 @@ package soc.client;
 
 /**
  * This is the dialog to ask players if they want to join an
- * existing practice game, or start a new one.
+ * existing practice game or start a new one.
+ *<P>
  * The dialog is modal against {@link SOCPlayerClient}'s main frame.
+ * Client should bring the existing practice game's {@link SOCPlayerInterface}
+ * to the front for visibility, then show this dialog.
  *
- * @author Jeremy D Monin <jeremy@nand.net>
+ * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
+ * @since 1.1.00
  */
-class SOCPracticeAskDialog extends AskDialog
+@SuppressWarnings("serial")
+/*package*/ class SOCPracticeAskDialog extends AskDialog
 {
+
     /**
      * Creates a new SOCPracticeAskDialog.
      *
-     * @param cli      Player client interface
+     * @param md       Player client's main display
      * @param gamePI   Current game's player interface
      */
-    public SOCPracticeAskDialog(SOCPlayerClient cli, SOCPlayerInterface gamePI)
+    public SOCPracticeAskDialog(MainDisplay md, SOCPlayerInterface gamePI)
     {
-        super(cli, gamePI, "Practice game in progress",
-            "A practice game is already being played.",
-            "Show this game", "Create another", true, false);
+        super(md, gamePI, strings.get("dialog.practiceask.in.progress"),  // "Practice game in progress"
+            strings.get("dialog.practiceask.already.being.played"),  // "A practice game is already being played."
+            strings.get("dialog.practiceask.show.game"),  // "Show that game"
+            strings.get("dialog.practiceask.create"),     // "Create another"
+            true, false);
     }
 
     /**
      * React to the Show button.
      */
+    @Override
     public void button1Chosen()
     {
-        pi.show();    
+        pi.setVisible(true);
     }
 
     /**
      * React to the Create button.
      */
+    @Override
     public void button2Chosen()
     {
-        pcli.gameWithOptionsBeginSetup(true);
+        md.gameWithOptionsBeginSetup(true, false);
     }
 
     /**
      * React to the dialog window closed by user, or Esc pressed. (same as Show button)
      */
+    @Override
     public void windowCloseChosen()
     {
         button1Chosen();

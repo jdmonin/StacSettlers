@@ -4497,10 +4497,10 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 		inverseOfferTo[offer.getFrom()] = true;
 
 		//identify whether givables or receivables were left unspecified in the offer
-		boolean offerGivablesUnspecified = offer.getGiveSet().isEmptySet();
-		//        if (offer.getGetSet().isEmptySet()) {
+		boolean offerGivablesUnspecified = offer.getGiveSet().isEmpty();
+		//        if (offer.getGetSet().isEmpty()) {
 		//            offerGivablesUnspecified = false;
-		//        } else if (offer.getGiveSet().isEmptySet()) {
+		//        } else if (offer.getGiveSet().isEmpty()) {
 		//            offerGivablesUnspecified = true;
 		//        } else {
 		//            D.ebugWARNING("This is not a partial offer - handlePartialOffer() should not have been called!");
@@ -4681,7 +4681,7 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 			}
 		} else {
 			SOCResourceSet giveSet = offer.getGiveSet();
-			if (!giveSet.isEmptySet())
+			if (!giveSet.isEmpty())
 				giveSetsToTest.add(giveSet);
 		}
 
@@ -4696,7 +4696,7 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 			}
 		} else {
 			SOCResourceSet getSet = offer.getGetSet();
-			if (!getSet.isEmptySet())
+			if (!getSet.isEmpty())
 				getSetsToTest.add(getSet);
 		}
 

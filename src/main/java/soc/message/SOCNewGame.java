@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2009,2010 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2009-2010,2014,2018,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,14 +16,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
 
 /**
  * This message to all clients means that a new game has been created.
- * If the client is requesting the game, NEWGAME will be followed
+ * If the client has requested creating this game, NEWGAME will be followed
  * by JOINGAMEAUTH.
  *<P>
  * Version 1.1.06 and later:
@@ -31,12 +31,18 @@ package soc.message;
  * see {@link SOCGames#MARKER_THIS_GAME_UNJOINABLE}.
  * This marker will be retained within the game name returned by
  * {@link #getGame()}.
+ *<P>
+ * Just like {@link SOCNewGameWithOptions}, robot clients don't need to handle
+ * this message type. Bots ignore new-game announcements and are asked to
+ * join specific games.
  *
  * @author Robert S Thomas
  */
 public class SOCNewGame extends SOCMessage
     implements SOCMessageForGame
 {
+    private static final long serialVersionUID = 1111L;  // last structural change v1.1.11
+
     /**
      * Name of the new game.
      */
@@ -70,19 +76,7 @@ public class SOCNewGame extends SOCMessage
      */
     public String toCmd()
     {
-        return toCmd(game);
-    }
-
-    /**
-     * NEWGAME sep game
-     *
-     * @param ga  the name of the new game; may have
-     *            the {@link SOCGames#MARKER_THIS_GAME_UNJOINABLE} prefix.
-     * @return    the command string
-     */
-    public static String toCmd(String ga)
-    {
-        return NEWGAME + sep + ga;
+        return NEWGAME + sep + game;
     }
 
     /**
@@ -103,4 +97,5 @@ public class SOCNewGame extends SOCMessage
     {
         return "SOCNewGame:game=" + game;
     }
+
 }

@@ -1,6 +1,6 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * This file Copyright (C) 2008 Jeremy D. Monin <jeremy@nand.net>
+ * This file Copyright (C) 2008,2014 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,13 +25,16 @@ package soc.message;
  * a game being played. (New game, same name, same players, new layout).
  *<P>
  * If reset is allowed, server will respond with {@link SOCResetBoardVoteRequest}
- * or {@link SOCResetBoardAuth} and subsequent messages. For details, see 
+ * or {@link SOCResetBoardAuth} and subsequent messages. For details, see
  * {@link soc.server.SOCServer#resetBoardAndNotify(String, int)}.
  *
- * @author Jeremy D. Monin <jeremy@nand.net>
+ * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
+ * @since 1.1.00
  */
 public class SOCResetBoardRequest extends SOCMessageTemplate0
 {
+    private static final long serialVersionUID = 1100L;  // last structural change v1.1.00
+
     /**
      * Create a ResetBoardRequest message.
      *
@@ -58,9 +61,6 @@ public class SOCResetBoardRequest extends SOCMessageTemplate0
      * RESETBOARDREQUEST introduced in 1.1.00 for reset-board feature.
      * @return Version number, 1100 for JSettlers 1.1.00.
      */
-    public int getMinimumVersion()
-    {
-        return 1100;
-    }
+    public int getMinimumVersion() { return 1100; }
 
 }

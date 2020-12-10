@@ -67,7 +67,7 @@ public class StacRobotDummyBrain extends SOCRobotBrainImpl{
         case SOCPlayingPiece.ROAD:
 
             SOCRoad newRoad = new SOCRoad(game.getPlayer(pn), coord, null);
-            trackNewRoad(newRoad, false);
+            trackNewRoadOrShip(newRoad, false);
 
             break;
 

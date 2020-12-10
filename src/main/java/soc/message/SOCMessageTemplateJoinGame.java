@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2009,2010 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2009-2010,2013-2014,2016-2017,2019-2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,35 +16,40 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
 
 /**
- * This message means that someone is joining a game.
+ * This message means that someone is joining or creating a game.
+ *<P>
+ * Once the client has successfully joined or created a game or channel, the
+ * nickname and password fields can be left blank or "-" in its later join/create requests.
+ * All server versions ignore the password field after a successful request.
  *<P>
  * v1.1.07: This template class is copied from {@link SOCJoinGame} to
  * share functionality with the new {@link SOCNewGameWithOptions}. - JDM
+ *<P>
+ * v2.0.00: No longer implements {@link SOCMessageForGame}, to avoid server looking
+ * for a {@code GameHandler} for our new game which doesn't exist yet.
+ * Suggest {@link SOCMessage#EMPTYSTR} for unused host parameter.
  *
  * @author Robert S Thomas
  * @since 1.1.07
  */
 public abstract class SOCMessageTemplateJoinGame extends SOCMessage
-    implements SOCMessageForGame
 {
-    /**
-     * symbol to represent a null password
-     */
-    protected static final String NULLPASS = "\t";
+    private static final long serialVersionUID = 2000L;  // last structural change v2.0.00
 
     /**
-     * Nickname of the joining member
+     * Nickname of the joining member when announced from server, or "-" from client if already auth'd to server.
+     * Server has always ignored this field from client after auth, can send "-" but not blank.
      */
     protected String nickname;
 
     /**
-     * Optional password
+     * Optional password, or "" if none
      */
     protected String password;
 
@@ -54,29 +59,31 @@ public abstract class SOCMessageTemplateJoinGame extends SOCMessage
     protected String game;
 
     /**
-     * Host name
+     * Unused; server host name to which the client is connected; see {@link #getHost()}
      */
     protected String host;
 
     /**
-     * Create a Join message.
+     * Create a Join message. Subclasses should set {@link #messageType} after calling.
      *
-     * @param nn  nickname
-     * @param pw  password
-     * @param hn  host name
+     * @param nn  player's nickname when announced from server, or "-" from client if already auth'd to server
+     * @param pw  optional password, or ""
+     * @param hn  unused; optional server host name, or "-" or {@link SOCMessage#EMPTYSTR}
      * @param ga  name of the game
      */
     public SOCMessageTemplateJoinGame(String nn, String pw, String hn, String ga)
     {
         messageType = JOINGAME;
         nickname = nn;
-        password = pw;
+        password = (pw != null) ? pw : "";
         game = ga;
         host = hn;
     }
 
     /**
-     * @return the nickname
+     * Nickname of the joining member when announced from server, or "-" from client if already auth'd to server.
+     * Server has always ignored this field from client after auth, can send "-" but not blank.
+     * @return the nickname, or "-" from client if already auth'd to server
      */
     public String getNickname()
     {
@@ -84,7 +91,7 @@ public abstract class SOCMessageTemplateJoinGame extends SOCMessage
     }
 
     /**
-     * @return the password
+     * @return the optional password, or "" if none
      */
     public String getPassword()
     {
@@ -92,7 +99,10 @@ public abstract class SOCMessageTemplateJoinGame extends SOCMessage
     }
 
     /**
-     * @return the host name
+     * Get the optional server host name to which client is connected; unused, ignored and not used by any server version.
+     * Since the client is already connected when it sends the message, this is only informational.
+     * Is always {@link SOCMessage#EMPTYSTR} when sent by v2.0.00 or newer server or client.
+     * @return the unused optional server host name to which client is connected, or "-" or {@link SOCMessage#EMPTYSTR}
      */
     public String getHost()
     {
@@ -115,9 +125,17 @@ public abstract class SOCMessageTemplateJoinGame extends SOCMessage
      */
     public String toString(String classname, String otherParams)
     {
-        String s = classname + ":nickname=" + nickname + "|password=***|host=" + host + "|game=" + game;
+        final String pwmask;
+        if ((password == null) || (password.length() == 0) || password.equals(EMPTYSTR))
+            pwmask = "|password empty";
+        else
+            pwmask = "|password=***";
+
+        String s = classname + ":nickname=" + nickname + pwmask + "|host=" + host + "|game=" + game;
         if (otherParams != null)
             s = s + "|" + otherParams;
+
         return s;
     }
+
 }

@@ -1,6 +1,6 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * This file Copyright (C) 2008,2010 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2008,2010,2012-2013,2015-2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,17 +20,17 @@
 package soc.game;
 
 
-
 /**
- * This class holds the results of a call to {@link SOCGame#forceEndTurn()}.
- * Specifically, the resulting action type, and possibly list of discarded
- * or returned resources.
+ * The results of a call to {@link SOCGame#forceEndTurn()}:
+ * The resulting action type, and possibly list of discarded
+ * or returned resources or dev card/inventory item.
  *<P>
- * <tt>forceEndTurn()</tt> may also set the game state to {@link SOCGame#OVER}.
+ * {@code forceEndTurn()} may also set the game state to {@link SOCGame#OVER}.
  * Check for that; it's not reported as part of this object.
  *<P>
- * The result object isn't intended to be conveyed over a network to clients; the server
- * should translate it into standard SOCMessages which change game state.
+ * This result object isn't intended to be conveyed over a network to clients; the server
+ * should translate it into messages which change game state.
+ * @since 1.1.00
  */
 public class SOCForceEndTurnResult
 {
@@ -49,10 +49,10 @@ public class SOCForceEndTurnResult
     private boolean rsrcLoss;
 
     /**
-     * Development card type re-gained, or -1;
-     * from constants such as {@link SOCDevCardConstants#DISC}.
+     * Development card type / item returned to player's inventory, or {@code null}.
+     * Currently used with {@link #FORCE_ENDTURN_LOST_CHOICE} and {@link #FORCE_ENDTURN_UNPLACE_ROBBER}.
      */
-    private int devCardType;
+    private SOCInventoryItem invCard;
 
     /**
      * If true, game's {@link SOCGame#getFirstPlayer()} was changed.
@@ -77,7 +77,7 @@ public class SOCForceEndTurnResult
     public static final int FORCE_ENDTURN_NONE              = 1;
 
     /**
-     * Skip an initial road or settlement; current player has advanced forward, state changes to {@link SOCGame#START1A}.
+     * Skip an initial road or settlement; current player has advanced forward, state changes to {@link SOCGame#START1A} or {@link SOCGame#START3A}.
      * May have changed game's firstPlayer or lastPlayer; check {@link #didUpdateFP()} and {@link #didUpdateLP()}.
      */
     public static final int FORCE_ENDTURN_SKIP_START_ADV    = 2;
@@ -91,19 +91,40 @@ public class SOCForceEndTurnResult
     /** Skip an initial road or settlement; state changes to {@link SOCGame#PLAY1}, and {@link SOCGame#endTurn()} should be called. */
     public static final int FORCE_ENDTURN_SKIP_START_TURN   = 4;
 
-    /** Sent both for placement of bought pieces, and for "free" pieces from road-building cards */
+    /** Sent both for placement of bought pieces, and for "free" pieces from road-building cards.
+     *  Resources for the bought piece are gained (given back to the player). {@link #getResourcesGainedLost()}
+     *  contains the returned resources, or nothing if the piece was free.
+     */
     public static final int FORCE_ENDTURN_RSRC_RET_UNPLACE  = 5;
 
-    /** Robber movement has been cancelled. */
+    /**
+     * Robber movement or pirate ship movement has been cancelled.
+     * Call {@link #getReturnedInvItem()} to see if a Knight card was returned.
+     */
     public static final int FORCE_ENDTURN_UNPLACE_ROBBER    = 6;
 
-    /** Resources have been randomly discarded. Ready to end turn. */
+    /**
+     * Resources have been randomly discarded, or gained from {@link SOCBoardLarge#GOLD_HEX}
+     * or a canceled piece placement. Ready to end turn.
+     * {@link #rsrcLoss} is set or cleared.
+     * {@link #getResourcesGainedLost()} contains the resources.
+     */
     public static final int FORCE_ENDTURN_RSRC_DISCARD      = 7;
 
-    /** Resources have been randomly discarded. Cannot end turn yet; other players must discard. {@link SOCGame#isForcingEndTurn()} is set. */
+    /**
+     * Resources have been randomly discarded, or gained from {@link SOCBoardLarge#GOLD_HEX}
+     * or a canceled piece placement. Cannot end turn yet; other players must discard or gain.
+     * {@link SOCGame#isForcingEndTurn()} is set.
+     * {@link #rsrcLoss} is set or cleared.
+     * {@link #getResourcesGainedLost()} contains the resources.
+     */
     public static final int FORCE_ENDTURN_RSRC_DISCARD_WAIT = 8;
 
-    /** Choice lost; a development card may be returned to hand, see {@link #getDevCardType()}. */
+    /**
+     * Choice was lost (which player to rob, which dev card to play,
+     * monopoly or year-of-plenty resource, 1st free road placement, etc).
+     * A development card or item may be returned to hand, see {@link #getReturnedInvItem()}.
+     */
     public static final int FORCE_ENDTURN_LOST_CHOICE       = 9;
 
     /** Highest valid FORCE_ENDTURN_ value for {@link SOCGame#forceEndTurn()} */
@@ -118,6 +139,7 @@ public class SOCForceEndTurnResult
      *            {@link #FORCE_ENDTURN_MIN} to {@link #FORCE_ENDTURN_MAX}.
      */
     public SOCForceEndTurnResult(int res)
+        throws IllegalArgumentException
     {
         this(res, null, false, false, false);
     }
@@ -129,37 +151,39 @@ public class SOCForceEndTurnResult
      *            ({@link #FORCE_ENDTURN_UNPLACE_ROBBER}, etc.)
      * @param updateFirstPlayer Was {@link SOCGame#getFirstPlayer()} changed?
      * @param updateLastPlayer  Was game's lastPlayer changed?
+     * @param rsrcGained  null, or randomly picked resources from gold hex
+     *            from state {@link SOCGame#STARTS_WAITING_FOR_PICK_GOLD_RESOURCE STARTS_WAITING_FOR_PICK_GOLD_RESOURCE}
      * @throws IllegalArgumentException If res is not in the range
      *            {@link #FORCE_ENDTURN_MIN} to {@link #FORCE_ENDTURN_MAX}.
      * @since 1.1.09
      */
-    public SOCForceEndTurnResult(int res, final boolean updateFirstPlayer, final boolean updateLastPlayer)
+    public SOCForceEndTurnResult
+        (final int res, final boolean updateFirstPlayer, final boolean updateLastPlayer, SOCResourceSet rsrcGained)
+        throws IllegalArgumentException
     {
-        this(res, null, false, updateFirstPlayer, updateLastPlayer);
+        this(res, rsrcGained, false, updateFirstPlayer, updateLastPlayer);
     }
 
     /**
-     * Creates a new SOCForceEndTurnResult object, with a development card regained.
+     * Creates a new SOCForceEndTurnResult object, optionally with a development card or inventory option regained
+     * (returned to the player's hand).  Sets {@link #getReturnedInvItem()}.
      *
      * @param res Result type, from constants in this class
      *            ({@link #FORCE_ENDTURN_UNPLACE_ROBBER}, etc.)
-     * @param dtype Development card type, like {@link SOCDevCardConstants#DISC}, or -1 for none.
+     * @param item Development card or inventory item regained, or {@code null} if none
      * @throws IllegalArgumentException If res is not in the range
-     *            {@link #FORCE_ENDTURN_MIN} to {@link #FORCE_ENDTURN_MAX},
-     *            or if dtype is not -1 and not in the range
-     *            {@link SOCDevCardConstants#MIN} to {@link SOCDevCardConstants#MAX_KNOWN}.
+     *            {@link #FORCE_ENDTURN_MIN} to {@link #FORCE_ENDTURN_MAX}
      */
-    public SOCForceEndTurnResult(int res, int dtype)
+    public SOCForceEndTurnResult(final int res, final SOCInventoryItem item)
+        throws IllegalArgumentException
     {
         this(res);
-        if ( ((dtype < SOCDevCardConstants.MIN) || (dtype > SOCDevCardConstants.MAX_KNOWN))
-            && (dtype != -1) )
-            throw new IllegalArgumentException("dtype out of range: " + dtype);
-        devCardType = dtype;
+        invCard = item;
     }
 
     /**
      * Creates a new SOCForceEndTurnResult object, with resources gained.
+     * This can occur when placing a piece is canceled.
      *
      * @param res Result type, from constants in this class
      *            ({@link #FORCE_ENDTURN_UNPLACE_ROBBER}, etc.)
@@ -169,15 +193,17 @@ public class SOCForceEndTurnResult
      *            {@link #FORCE_ENDTURN_MIN} to {@link #FORCE_ENDTURN_MAX}.
      */
     public SOCForceEndTurnResult(int res, SOCResourceSet gained)
+        throws IllegalArgumentException
     {
         this(res, gained, false, false, false);
     }
 
     /**
      * Creates a new SOCForceEndTurnResult object, with resources gained/lost.
+     * This can occur from the robber or knight, the gold hex, or when placing a piece is canceled.
      *
      * @param res Result type, from constants in this class
-     *            ({@link #FORCE_ENDTURN_UNPLACE_ROBBER}, etc.)
+     *            ({@link #FORCE_ENDTURN_RSRC_DISCARD}, etc.)
      * @param gainedLost Resources gained (returned to cancel piece
      *            placement) or lost (discarded), or null.
      * @param isLoss     Resources are lost (discarded), not gained (returned to player).
@@ -185,6 +211,7 @@ public class SOCForceEndTurnResult
      *            {@link #FORCE_ENDTURN_MIN} to {@link #FORCE_ENDTURN_MAX}.
      */
     public SOCForceEndTurnResult(int res, SOCResourceSet gainedLost, boolean isLoss)
+        throws IllegalArgumentException
     {
         this(res, gainedLost, isLoss, false, false);
     }
@@ -204,6 +231,7 @@ public class SOCForceEndTurnResult
      */
     private SOCForceEndTurnResult(int res, SOCResourceSet gainedLost, boolean isLoss,
         final boolean updateFirstPlayer, final boolean updateLastPlayer)
+        throws IllegalArgumentException
     {
         if ((res < FORCE_ENDTURN_MIN) || (res > FORCE_ENDTURN_MAX))
             throw new IllegalArgumentException("res out of range: " + res);
@@ -213,7 +241,7 @@ public class SOCForceEndTurnResult
         rsrcLoss = isLoss;
         updatedFP = updateFirstPlayer;
         updatedLP = updateLastPlayer;
-        devCardType = -1;
+        invCard = null;
     }
 
     /**
@@ -227,8 +255,8 @@ public class SOCForceEndTurnResult
     }
 
     /**
-     * Get the resources gained (returned to cancel piece
-     * placement) or lost (discarded), if any.
+     * Get the resources gained (returned to cancel piece placement, or
+     * received from placing at a gold hex) or lost (discarded), if any.
      * Lost resources are signaled by {@link #isLoss()}.
      *
      * @return gained or lost resources, or null
@@ -246,7 +274,7 @@ public class SOCForceEndTurnResult
      */
     public boolean isLoss()
     {
-        return rsrcLoss; 
+        return rsrcLoss;
     }
 
     /**
@@ -270,13 +298,13 @@ public class SOCForceEndTurnResult
     }
 
     /**
-     * Is a development card being returned to the player's hand?
+     * Is a development card or inventory item being returned to the player's hand?
      *
-     * @return Development card to return, or -1; type constants
-     *         like {@link SOCDevCardConstants#DISC}.
+     * @return Development card or item returned, or {@code null}
      */
-    public int getDevCardType()
+    public SOCInventoryItem getReturnedInvItem()
     {
-        return devCardType;
+        return invCard;
     }
+
 }

@@ -1,7 +1,10 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * Portions of this file Copyright (C) 2007-2011 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2007-2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
+ * Portions of this file Copyright (C) 2017 Ruud Poutsma <rtimon@gmail.com>
+ * Portions of this file Copyright (C) 2017-2018 Strategic Conversation (STAC Project) https://www.irit.fr/STAC/
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,13 +33,14 @@ import java.util.Random;
 import java.util.Stack;
 import java.util.Vector;
 
-import soc.client.SOCDisplaylessPlayerClient;
+import soc.baseclient.SOCDisplaylessPlayerClient;
 import soc.disableDebug.D;
 import soc.game.SOCBoard;
+import soc.game.SOCBoardLarge;
 import soc.game.SOCCity;
 import soc.game.SOCDevCardConstants;
-import soc.game.SOCDevCardSet;
 import soc.game.SOCGame;
+import soc.game.SOCInventory;
 import soc.game.SOCPlayer;
 import soc.game.SOCPlayerNumbers;
 import soc.game.SOCPlayingPiece;
@@ -50,11 +54,10 @@ import soc.message.SOCCancelBuildRequest;
 import soc.message.SOCChoosePlayerRequest;
 import soc.message.SOCClearOffer;
 import soc.message.SOCCollectData;
-import soc.message.SOCDevCard;
+import soc.message.SOCDevCardAction;
 import soc.message.SOCDevCardCount;
 import soc.message.SOCDiceResult;
 import soc.message.SOCDiscardRequest;
-import soc.message.SOCFirstPlayer;
 import soc.message.SOCGameState;
 import soc.message.SOCGameStats;
 import soc.message.SOCGameTextMsg;
@@ -63,12 +66,10 @@ import soc.message.SOCMessage;
 import soc.message.SOCMoveRobber;
 import soc.message.SOCParseResult;
 import soc.message.SOCPlayerElement;
-import soc.message.SOCPotentialSettlements;
 import soc.message.SOCPutPiece;
 import soc.message.SOCRejectOffer;
 import soc.message.SOCResourceCount;
 import soc.message.SOCSetPlayedDevCard;
-import soc.message.SOCSetTurn;
 import soc.message.SOCTurn;
 import soc.robot.stac.StacRobotBrain;
 import soc.robot.stac.StacRobotDeclarativeMemory;
@@ -88,11 +89,110 @@ import soc.util.SOCRobotParameters;
  * 
  * Refactored partially.  This class should handle message processing and game state
  * tracking, while implementations and DM objects handle actual agent decisions.
+ *<P>
+ * The bot is a separate thread, so everything happens in {@link #run()} or a method called from there.
+ *<P>
+ * Some robot behaviors are altered by the {@link SOCRobotParameters} passed into our constructor.
+ * Some decision-making code is in the {@link OpeningBuildStrategy},
+ * {@link RobberStrategy}, {@link MonopolyStrategy}, etc classes.
+ * Data and predictions about the other players in the game is in
+ * {@link SOCPlayerTracker}.  If we're trading with other players for
+ * resources, some details of that are in {@link SOCRobotNegotiator}.
+ * All these, and data on the game and players, are initialized in
+ * {@link #setOurPlayerData()}.
+ *<P>
+ * At the start of each player's turn, {@link #buildingPlan} and most other state fields are cleared
+ * (search {@link #run()} for <tt>mesType == SOCMessage.TURN</tt>).
+ * The plan for what to build next is decided in {@link SOCRobotDM#planStuff(int)}
+ * (called from {@link #planBuilding()} and some other places) which updates {@link #buildingPlan}.
+ * That plan is executed in {@link #planAndDoActionForPLAY1()}, which calls {@link #buildOrGetResourceByTradeOrCard()}
+ * and other strategy/decision methods.
+ *<P>
+ * Current status and the next expected action are tracked by the "waitingFor" and "expect" flag fields.
+ * If we've sent the server an action and we're waiting for the result, {@link #waitingForGameState} is true
+ * along with one other "expect" flag, such as {@link #expectPLACING_ROBBER}.
+ * All these fields can be output for inspection by calling {@link #debugPrintBrainStatus()}.
+ *<P>
+ * See {@link #run()} for more details of how the bot waits for and reacts to incoming messages.
+ * Some reactions are chosen in methods like {@link #considerOffer(SOCTradeOffer)} called from {@code run()}.
+ * Some robot actions wait for other players or other timeouts; the brain counts {@link SOCTimingPing} messages
+ * (1 per second) for timing.  For robustness testing, the {@code SOCRobotClient.debugRandomPause} flag can
+ * be used to inject random delays in incoming messages.
+ *<P>
+ * To keep the game moving, the server may force an inactive bot to end its turn;
+ * see {@link soc.server.SOCForceEndTurnThread}.
+ *
+ *<H3>AI/Robot development:</H3>
+ *
+ * The bot can be sent debug commands to examine its state; see
+ * {@link SOCRobotClient#handleGAMETEXTMSG(soc.message.SOCGameTextMsg)}.
+ *<P>
+ * Extending this class is one way to begin developing a custom JSettlers bot:
+ *<UL>
+ * <LI> Factory is {@link SOCRobotClient#createBrain(SOCRobotParameters, SOCGame, CappedQueue)},
+ *      which can be overridden in a custom bot client like {@link soc.robot.sample3p.Sample3PClient}
+ * <LI> For a trivial example see {@link soc.robot.sample3p.Sample3PBrain}
+ * <LI> For more complicated extensions, extend strategy classes and/or {@link SOCRobotDM},
+ *      and override {@link #setStrategyFields()} and any other factory methods needed.
+ * <LI> Game option {@link SOCGameOptionSet#K__EXT_BOT}, which can be set at server startup using the command line
+ *      or {@code jsserver.properties} file, can be used to send custom data or config from server to third-party bots
+ *</UL>
+ * For other methods/stubs/callbacks which can be extended, browse this package for {@code protected} methods.
+ * See {@code Readme.developer.md} for more about bot development.
  *
  * @author Robert S Thomas
  */
 public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobotNegotiator<BP>, BP extends SOCBuildPlan> extends Thread
 {
+    // Tuning parameters:
+
+    /**
+     * Bot pause speed-up factor when {@link SOCGame#isBotsOnly} in {@link #pause(int)}.
+     * Default 0.25 (use 25% of normal pause time: 4x speed-up).
+     * Use .01 for a shorter delay (1% of normal pauses).
+     * @since 2.0.00
+     */
+    public static float BOTS_ONLY_FAST_PAUSE_FACTOR = .25f;
+
+    /**
+     * If, during a turn, we make this many illegal build
+     * requests that the server denies, stop trying.
+     * 
+     * @see #failedBuildingAttempts
+     * @since 1.1.00
+     */
+    public static int MAX_DENIED_BUILDING_PER_TURN = 3;
+
+    /**
+     * When a trade has been offered to humans (and maybe also to bots), pause
+     * for this many seconds before accepting an offer to give humans a chance
+     * to compete against fast bot decisions.
+     *
+     * @since 2.4.50
+     */
+    public static int BOTS_PAUSE_FOR_HUMAN_TRADE = 8;
+
+    // Timing constants:
+
+    /**
+     * When a trade has been offered to humans (and maybe also to bots),
+     * maximum wait in seconds for responses: {@link #tradeResponseTimeoutSec}.
+     * Longer than {@link #TRADE_RESPONSE_TIMEOUT_SEC_BOTS_ONLY}.
+     *<P>
+     * Before v2.3.00 this was 100 seconds, which felt glacially slow
+     * compared to the quick pace of most bot activity.
+     *
+     * @since 2.0.00
+     */
+    protected static final int TRADE_RESPONSE_TIMEOUT_SEC_HUMANS = 30;
+
+    /**
+     * When a trade has been offered to only bots (not to any humans),
+     * maximum wait in seconds for responses: {@link #tradeResponseTimeoutSec}.
+     * Shorter than {@link #TRADE_RESPONSE_TIMEOUT_SEC_HUMANS}.
+     * @since 2.0.00
+     */
+    protected static final int TRADE_RESPONSE_TIMEOUT_SEC_BOTS_ONLY = 5;
 
 	int[] stateVector;
 	/**
@@ -101,7 +201,8 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 	public boolean saved = false;
 	
     /**
-     * The robot parameters
+     * The robot parameters. See {@link #getRobotParameters()} for details.
+     * @see SOCRobotClient#currentRobotParameters
      */
     protected SOCRobotParameters robotParameters;
 
@@ -118,23 +219,50 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
     /**
      * Dummy player for cancelling bad placements
+     * @since 1.1.00
      */
     protected SOCPlayer dummyCancelPlayerData;
 
     /**
-     * The queue of game messages
+     * The queue of game messages; contents are {@link SOCMessage}.
      */
-    protected CappedQueue gameEventQ;
-    
+    protected CappedQueue<SOCMessage> gameEventQ;
+
+    /**
+     * The game messages received this turn / previous turn, for debugging.
+     * @since 1.1.13
+     */
+    protected Vector<SOCMessage> turnEventsCurrent, turnEventsPrev;
+
+    /**
+     * Number of exceptions caught this turn, if any.
+     * Resets at each player's turn during {@link SOCMessage#TURN TURN} message.
+     * @since 1.1.20
+     */
+    protected int turnExceptionCount;
+
     /**
      * the thing that determines what we want to build next
      */
     protected DM decisionMaker;
 
     /**
-     * the thing that determines how we negotiate
+     * The data and code that determines how we negotiate.
+     * {@link SOCRobotNegotiator#setTargetPiece(int, SOCPossiblePiece)}
+     * is set when {@link #buildingPlan} is updated.
+     * @see #tradeWithBank(SOCBuildPlan)
+     * @see #makeOffer(SOCBuildPlan)
+     * @see #considerOffer(SOCTradeOffer)
+     * @see #tradeStopWaitingClearOffer()
      */
     protected N negotiator;
+
+    /**
+     * Our {@link SOCBuildingSpeedEstimate} factory.
+     * @see #getEstimatorFactory()
+     * @since 2.4.50
+     */
+    protected SOCBuildingSpeedEstimateFactory bseFactory;
     
     /**
      * a thread that sends ping messages to this one
@@ -142,51 +270,93 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     protected SOCRobotPinger pinger;
 
     /**
-     * an object for recording debug information that can
-     * be accessed interactively
+     * An object for recording a building plan's debug information that can
+     * be accessed interactively.
+     * See {@link #getDRecorder()} and debug commands in
+     * {@link SOCRobotClient#handleGAMETEXTMSG_debug}.
      */
     private DebugRecorder[] dRecorder;
 
     /**
-     * keeps track of which dRecorder is current
+     * keeps track of which dRecorder is current.
+     * When the bot starts a new building plan, it switches dRecorders.
      */
     private int currentDRecorder; 
       
     /**
-     * our player tracker
+     * Our player tracker within {@link #playerTrackers}.
      */
     protected SOCPlayerTracker ourPlayerTracker;
 
     /**
-     * trackers for all players (one per player, including this robot)
+     * Trackers for all players (one per player number, including this robot).
+     * Null until {@link #setOurPlayerData()}; see {@link #addPlayerTracker(int)} for lifecycle info.
+     * Elements for vacant seats are {@code null}.
+     *<P>
+     * Before v2.3.00 this was a {@link HashMap}.
+     * Converted to array to avoid iterator ConcurrentModificationExceptions
+     * during {@code *LOADGAME*} debug command.
+     *
+     * @see #ourPlayerTracker
      */
-    protected HashMap<Integer, SOCPlayerTracker> playerTrackers;
+    protected SOCPlayerTracker[] playerTrackers;
 
     /**
-     * This is our current building plan, a stack of {@link SOCPossiblePiece}.
+     * This is our current building plan.
+     *<P>
+     * Cleared at the start of each player's turn, and a few other places
+     * if certain conditions arise, by calling {@link #resetBuildingPlan()}.
+     * Set in {@link #planBuilding()}.
+     * When making a {@link #buildingPlan}, be sure to also set
+     * {@link #negotiator}'s target piece.
+     *<P>
+     * {@link SOCRobotDM#buildingPlan} is the same Stack.
+     *
+     * @see #whatWeWantToBuild
      */
     protected BP buildingPlan;
 
     /**
-     * The game we are playing
+     * The game we are playing. Set in constructor, unlike {@link #ourPlayerData}.
+     * @see #gameIs6Player
      */
     protected SOCGame game;
     
     /**
-     * Our player data
+     * Our player data.
+     * Set in {@link #setOurPlayerData()}
+     * @see #ourPlayerNumber
+     * @see #ourPlayerName
+     * @see #game
      */
     protected SOCPlayer ourPlayerData;  
-    
+
+    /**
+     * Our player number; set in {@link #setOurPlayerData()}.
+     * @since 2.0.00
+     */
+    protected int ourPlayerNumber;
+
+    /**
+     * Our player nickname. Convenience field, set from
+     * {@link SOCDisplaylessPlayerClient#getNickname() client.getNickname()}.
+     * @since 2.0.00
+     */
+    protected final String ourPlayerName;
+
 ////Fields for controlling the "finite state machine" in the run loop //////   
 
     /**
-     * The {@link #game} we're playing is on the 6-player board.
+     * If true, the {@link #game} we're playing is on the 6-player board.
      * @since 1.1.08
      */
     final protected boolean gameIs6Player;
 
     /**
-     * A counter used to measure passage of time
+     * A counter used to measure passage of time.
+     * Incremented each second, when the server sends {@link SOCTimingPing}.
+     * When we decide to take an action, resets to 0.
+     * If counter gets too high, we assume a bug and leave the game (<tt>{@link #alive} = false</tt>).
      */
     protected int counter;
 
@@ -206,7 +376,10 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     protected boolean waitingForSpecialBuild;
 
     /**
-     * This is what we want to build
+     * This is the piece we want to build now.
+     * Set in {@link #buildOrGetResourceByTradeOrCard()} from {@link #buildingPlan},
+     * used in {@link #placeIfExpectPlacing()}.
+     * @see #whatWeFailedToBuild
      */
     protected SOCPlayingPiece whatWeWantToBuild;
 
@@ -214,9 +387,10 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * This is what we tried building this turn,
      * but the server said it was an illegal move
      * (due to a bug in our robot).
-     * 
+     *
      * @see #whatWeWantToBuild
      * @see #failedBuildingAttempts
+     * @since 1.1.00
      */
     protected SOCPlayingPiece whatWeFailedToBuild;
 
@@ -225,19 +399,12 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * made this turn.  Avoid infinite turn length, by
      * preventing robot from alternately choosing two
      * wrong things when the server denies a bad build.
-     * 
+     *
      * @see #whatWeFailedToBuild
      * @see #MAX_DENIED_BUILDING_PER_TURN
+     * @since 1.1.00
      */
     protected int failedBuildingAttempts;
-    
-    /**
-     * If, during a turn, we make this many illegal build
-     * requests that the server denies, stop trying.
-     * 
-     * @see #failedBuildingAttempts
-     */
-    public static int MAX_DENIED_BUILDING_PER_TURN = 3;
     
     /**
      * flag to check if the brain has received load/save msg
@@ -245,24 +412,29 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     protected boolean suspended = false;
     
     /**
-     * Flag for whether or not we're alive
+     * Flag for whether or not we're alive.
+     * From other threads, set false by calling {@link #kill()}.
      */
-    protected boolean alive;
+    protected volatile boolean alive;
 
     /**
-     * Flag for whether or not it is our turn
+     * Flag for whether or not it is our turn.
+     * Updated near top of per-message loop in {@code run()}
+     * based on {@link SOCGame#getCurrentPlayerNumber()}.
      */
     protected boolean ourTurn;
     
     /**
      * {@link #pause(int) Pause} for less time;
      * speeds up response in 6-player games.
+     * Ignored if {@link SOCGame#isBotsOnly}, which pauses for even less time.
      * @since 1.1.09
      */
     private boolean pauseFaster;
 
     // If any new expect or waitingFor fields are added,
-    // please update debugPrintBrainStatus().
+    // please update debugPrintBrainStatus() and the
+    // run() loop at "if (mesType == SOCMessage.TURN)".
 
     /**
      * true if we're expecting the START1A state
@@ -285,12 +457,26 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     protected boolean expectSTART2B;
 
     /**
-     * true if we're expecting the PLAY state
+     * true if we're expecting the {@link SOCGame#START3A START3A} state.
+     * @since 2.0.00
      */
-    protected boolean expectPLAY;
+    protected boolean expectSTART3A;
 
     /**
-     * true if we're expecting the PLAY1 state
+     * true if we're expecting the {@link SOCGame#START3B START3B} state.
+     * @since 2.0.00
+     */
+    protected boolean expectSTART3B;
+
+    /**
+     * true if we're expecting the {@link SOCGame#ROLL_OR_CARD ROLL_OR_CARD} state.
+     *<P>
+     * Before v2.0.00 this field was {@code expectPLAY} because that state was named {@code PLAY}.
+     */
+    protected boolean expectROLL_OR_CARD;
+
+    /**
+     * true if we're expecting the {@link SOCGame#PLAY1 PLAY1} state
      */
     protected boolean expectPLAY1;
 
@@ -310,7 +496,21 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     protected boolean expectPLACING_CITY;
 
     /**
-     * true if we're expecting the PLACING_ROBBER state
+     * true if we're expecting the PLACING_SHIP game state
+     * @since 2.0.00
+     */
+    protected boolean expectPLACING_SHIP;
+
+    /**
+     * true if we're expecting the PLACING_ROBBER state.
+     * {@link #playKnightCard()} sets this field and {@link #waitingForGameState}.
+     *<P>
+     * In scenario {@link SOCGameOptionSet#K_SC_PIRI SC_PIRI}, this flag is also used when we've just played
+     * a "Convert to Warship" card (Knight/Soldier card) and we're waiting for the
+     * server response.  The response won't be a GAMESTATE(PLACING_SOLDIER) message,
+     * it will either be PLAYERLEMENT(GAIN, SCENARIO_WARSHIP_COUNT) or DEVCARDACTION(CANNOT_PLAY).
+     * Since this situation is otherwise the same as playing a Knight/Soldier, we use
+     * this same waiting flags.
      */
     protected boolean expectPLACING_ROBBER;
 
@@ -323,6 +523,12 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * true if we're expecting the PLACING_FREE_ROAD2 state
      */
     protected boolean expectPLACING_FREE_ROAD2;
+
+    /**
+     * true if we're expecting the {@link SOCGame#PLACING_INV_ITEM PLACING_INV_ITEM} state.
+     * @since 2.0.00
+     */
+    protected boolean expectPLACING_INV_ITEM;
 
     /**
      * true if were expecting a PUTPIECE message after
@@ -349,6 +555,20 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     protected boolean expectPUTPIECE_FROM_START2B;
 
     /**
+     * true if were expecting a PUTPIECE message after
+     * a {@link SOCGame#START3A START3A} game state.
+     * @since 2.0.00
+     */
+    protected boolean expectPUTPIECE_FROM_START3A;
+
+    /**
+     * true if were expecting a PUTPIECE message after
+     * a {@link SOCGame#START3B START3B} game state.
+     * @since 2.0.00
+     */
+    protected boolean expectPUTPIECE_FROM_START3B;
+
+    /**
      * true if we're expecting a DICERESULT message
      */
     protected boolean expectDICERESULT;
@@ -369,28 +589,53 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     protected boolean expectWAITING_FOR_DISCOVERY;
 
     /**
-     * true if we're expecting to pick a monopoly
+     * True if we're expecting to pick a monopoly.
+     * When game state {@link SOCGame#WAITING_FOR_MONOPOLY} arrives,
+     * will send a resource type and set {@link #expectPLAY1}.
      */
     protected boolean expectWAITING_FOR_MONOPOLY;
 
     // If any new expect or waitingFor fields are added,
-    // please update debugPrintBrainStatus().
+    // please update debugPrintBrainStatus() and maybe also
+    // the section of run() at (mesType == SOCMessage.TURN).
 
     /**
      * true if we're waiting for a GAMESTATE message from the server.
      * This is set after a robot action or requested action is sent to server,
-     * or just before ending our turn (which also sets waitingForOurTurn == true).
+     * or just before ending our turn (which also sets {@link #waitingForOurTurn} == true).
+     *<P>
+     * For example, when playing a {@link SOCDevCardAction}, set true and also set
+     * an "expect" flag ({@link #expectPLACING_ROBBER}, {@link #expectWAITING_FOR_DISCOVERY}, etc).
+     *<P>
+     * <b>Special case:</b><br>
+     * In scenario {@link SOCGameOptionSet#K_SC_PIRI SC_PIRI}, this flag is also set when we've just played
+     * a "Convert to Warship" card (Knight/Soldier card), although the server won't
+     * respond with a GAMESTATE message; see {@link #expectPLACING_ROBBER} javadoc.
+     *
+     * @see #rejectedPlayDevCardType
+     * @see #rejectedPlayInvItem
      */
     protected boolean waitingForGameState;
 
     /**
-     * true if we're waiting for a TURN message from the server
+     * true if we're waiting for a {@link SOCTurn TURN} message from the server
      * when it's our turn
+     * @see #waitingForTurnMain
      */
     protected boolean waitingForOurTurn;
 
     /**
-     * true when we're waiting for the results of a trade
+     * True if it's a new turn and game state is or was recently {@link SOCGame#ROLL_OR_CARD},
+     * not yet {@link SOCGame#PLAY1}. When this flag is true and state becomes {@code PLAY1},
+     * brain will set it false and call {@link #startTurnMainActions()}.
+     * @see #waitingForOurTurn
+     * @since 2.4.50
+     */
+    private boolean waitingForTurnMain;
+
+    /**
+     * true when we're waiting for the results of our requested bank trade.
+     * @see #waitingForTradeResponse
      */
     protected boolean waitingForTradeMsg;
 
@@ -400,20 +645,53 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     protected boolean waitingForDevCard;
 
     /**
-     * true when the robber will move because a seven was rolled
+     * True when the robber will move because a seven was rolled.
+     * Used to help bot remember why the robber is moving (Knight dev card, or 7).
+     * Set true when {@link SOCMessage#DICERESULT} received.
+     * Read in gamestate {@link SOCGame#PLACING_ROBBER PLACING_ROBBER}.
      */
     public boolean moveRobberOnSeven;
 
     /**
-     * true if we're waiting for a response to our trade message
+     * True if we're waiting for a player response to our offered trade message.
+     * Max wait time is {@link #tradeResponseTimeoutSec}.
+     * @see #makeOffer(SOCBuildPlan)
+     * @see #doneTrading
+     * @see #waitingForTradeMsg
      */
     protected boolean waitingForTradeResponse;
+
+    /**
+     * When {@link #waitingForTradeResponse}, how many seconds to wait
+     * before we stop waiting for response to a trade message.
+     * Longer if trade is offered to humans, shorter if bots only:
+     * {@link #TRADE_RESPONSE_TIMEOUT_SEC_HUMANS}, {@link #TRADE_RESPONSE_TIMEOUT_SEC_BOTS_ONLY}.
+     * Updated when {@link #waitingForTradeResponse} is set true.
+     * @since 2.0.00
+     */
+    protected int tradeResponseTimeoutSec;
+
+    /**
+     * Non-{@code null} if we're waiting for server response to picking
+     * a {@link SOCSpecialItem}, for certain scenarios; contains the {@code typeKey}
+     * of the special item we're waiting on.
+     */
+    protected String waitingForPickSpecialItem;
+
+    /**
+     * True if we're in a {@link SOCGameOptionSet#K_SC_PIRI _SC_PIRI} game
+     * and waiting for server response to a {@link SOCSimpleRequest}
+     * to attack a pirate fortress.
+     */
+    protected boolean waitingForSC_PIRI_FortressRequest;
 
     // If any new expect or waitingFor fields are added,
     // please update debugPrintBrainStatus().
 
     /**
      * true if we're done trading
+     * @see #makeOffer(SOCBuildPlan)
+     * @see #waitingForTradeResponse
      */
     protected boolean doneTrading;
 
@@ -430,6 +708,28 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     protected boolean tradeAccepted;
 
     /**
+     * If set, the server rejected our play of this dev card type this turn
+     * (such as {@link SOCDevCardConstants#KNIGHT}) because of a bug in our
+     * robot; should not attempt to play the same type again this turn.
+     * Otherwise -1.
+     * @since 1.1.17
+     */
+    protected int rejectedPlayDevCardType;
+
+    /**
+     * If not {@code null}, the server rejected our play of this {@link SOCInventoryItem}
+     * this turn, probably because of a bug in our robot. Should not attempt to
+     * play an item of the same {@link SOCInventoryItem#itype itype} again this turn.
+     * @since 2.0.00
+     */
+    protected SOCInventoryItem rejectedPlayInvItem;
+        // TODO refine later: must build/play something else first, have that clear this field. After building/playing
+        // something else, the previously rejected inv item type might be okay to play again this turn.
+        // Don't need to also add a count of play inv item rejections this turn (to avoid loop forever
+        // asking & being rejected between building other things) because would run out of other things.
+        // To find places which build/play something else, look for counter = 0.
+
+    /**
      * the game state before the current one
      */
     protected int oldGameState;
@@ -439,23 +739,47 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * Used to avoid repeats in {@link #cancelWrongPiecePlacement(SOCCancelBuildRequest)}.
      * @since 1.1.09
      */
-    private int lastStartingPieceCoord;
+    protected int lastStartingPieceCoord;
 
     /**
      * During START1B and START2B states, coordinate of the potential settlement node
-     * towards which we're building, as calculated by {@link #placeInitRoad()}.
+     * towards which we're building, as calculated by {@link OpeningBuildStrategy#planInitRoad()}.
      * Used to avoid repeats in {@link #cancelWrongPiecePlacementLocal(SOCPlayingPiece)}.
      * @since 1.1.09
      */
-    private int lastStartingRoadTowardsNode;
+    protected int lastStartingRoadTowardsNode;
 
     /**
-     * keeps track of the last thing we bought for debugging purposes
+     * Strategy to choose discards.
+     * @since 2.2.00
+     */
+    protected DiscardStrategy discardStrategy;
+
+    /**
+     * Strategy to plan and build initial settlements and roads.
+     * @since 2.0.00
+     */
+    protected OpeningBuildStrategy openingBuildStrategy;
+
+    /**
+     * Strategy to choose whether to monopolize, and which resource.
+     * @since 2.0.00
+     */
+    protected MonopolyStrategy monopolyStrategy;
+
+    /**
+     * Strategy to rob players.
+     * @since 2.2.00
+     */
+    protected RobberStrategy robberStrategy;
+
+    /**
+     * keeps track of the last thing we bought, for debugging purposes
      */
     protected SOCPossiblePiece lastMove;
 
     /**
-     * keeps track of the last thing we wanted for debugging purposes
+     * keeps track of the last thing we wanted, for debugging purposes
      */
     protected SOCPossiblePiece lastTarget;
     
@@ -501,32 +825,39 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * Depending on {@link SOCGame#getGameOptions() game options},
      * constructor might copy and alter the robot parameters
      * (for example, to clear {@link SOCRobotParameters#getTradeFlag()}).
+     *<P>
+     * Please call {@link #setOurPlayerData()} before using this brain or starting its thread.
      *
      * @param rc  the robot client
      * @param params  the robot parameters
      * @param ga  the game we're playing
      * @param mq  the message queue
      */
-    public SOCRobotBrain(SOCRobotClient rc, SOCRobotParameters params, SOCGame ga, CappedQueue mq)
+    public SOCRobotBrain(SOCRobotClient rc, SOCRobotParameters params, SOCGame ga, CappedQueue<SOCMessage> mq)
     {
         client = rc;
+        ourPlayerName = rc.getNickname();
         robotParameters = params.copyIfOptionChanged(ga.getGameOptions());
         game = ga;
         gameIs6Player = (ga.maxPlayers > 4);
         pauseFaster = gameIs6Player;
         gameEventQ = mq;
+        turnEventsCurrent = new Vector<SOCMessage>();
+        turnEventsPrev = new Vector<SOCMessage>();
         numberOfMessagesReceived = 0;
         alive = true;
         counter = 0;
+
         expectSTART1A = true;
         expectSTART1B = false;
         expectSTART2A = false;
         expectSTART2B = false;
-        expectPLAY = false;
+        expectROLL_OR_CARD = false;
         expectPLAY1 = false;
         expectPLACING_ROAD = false;
         expectPLACING_SETTLEMENT = false;
         expectPLACING_CITY = false;
+        expectPLACING_SHIP = false;
         expectPLACING_ROBBER = false;
         expectPLACING_FREE_ROAD1 = false;
         expectPLACING_FREE_ROAD2 = false;
@@ -539,6 +870,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         expectMOVEROBBER = false;
         expectWAITING_FOR_DISCOVERY = false;
         expectWAITING_FOR_MONOPOLY = false;
+
         ourTurn = false;
         oldGameState = game.getGameState();
         waitingForGameState = false;
@@ -557,11 +889,14 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         }
 
         buildingPlan = createBuildPlan();
-        pinger = new SOCRobotPinger(gameEventQ, client.getNickname() + "-" + game.getName());
+        pinger = new SOCRobotPinger(gameEventQ, game.getName(), client.getNickname() + "-" + game.getName());
         dRecorder = new DebugRecorder[2];
         dRecorder[0] = new DebugRecorder();
         dRecorder[1] = new DebugRecorder();
         currentDRecorder = 0;
+
+        // Strategy fields will be set in setOurPlayerData();
+        // we don't have the data yet.
     }
 
     /**
@@ -571,7 +906,10 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     public boolean isSuspended(){
     	return suspended;
     }
+
     /**
+     * Get this bot's parameters, as set in constructor.
+     *
      * @return the robot parameters
      */
     public SOCRobotParameters getRobotParameters()
@@ -598,12 +936,13 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * first or last SITDOWN.
      *<p>
      * Since our playerTrackers are initialized when our robot's
-     * SITDOWN is received (robotclient calls setOurPlayerData()),
+     * SITDOWN is received (robotclient calls {@link #setOurPlayerData()}),
      * and seats may be vacant at that time (because SITDOWN not yet
      * received for those seats), we must add a PlayerTracker for
      * each SITDOWN received after our player's.
      *
      * @param pn Player number
+     * @since 1.1.00
      */
     public void addPlayerTracker(int pn)
     {
@@ -615,11 +954,9 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
             return;
         }
-        if (null == playerTrackers.get(Integer.valueOf(pn)))
-        {
-            SOCPlayerTracker tracker = new SOCPlayerTracker(game.getPlayer(pn), this);
-            playerTrackers.put(Integer.valueOf(pn), tracker);
-        }
+
+        if (null == playerTrackers[pn])
+            playerTrackers[pn] = new SOCPlayerTracker(game.getPlayer(pn), this);
     }
 
     /**
@@ -632,6 +969,8 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
     /**
      * turns the debug recorders on
+     * @see #getDRecorder()
+     * @see #turnOffDRecorder()
      */
     public void turnOnDRecorder()
     {
@@ -641,6 +980,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
     /**
      * turns the debug recorders off
+     * @see #turnOnDRecorder()
      */
     public void turnOffDRecorder()
     {
@@ -649,7 +989,12 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
 
     /**
+     * Get this bot's current Debug Recorder data.
+     * The Debug Recorder is an object for recording a building plan's debug information that can
+     * be accessed interactively.
      * @return the debug recorder
+     * @see #getOldDRecorder()
+     * @see #turnOnDRecorder()
      */
     public DebugRecorder getDRecorder()
     {
@@ -657,7 +1002,9 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
 
     /**
+     * Get this bot's Debug Recorder data for the previously built piece.
      * @return the old debug recorder
+     * @see #getDRecorder()
      */
     public DebugRecorder getOldDRecorder()
     {
@@ -681,27 +1028,34 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
 
     /**
-     * Find our player data using our nickname
+     * When we join a game and sit down to begin play,
+     * find our player data using our nickname.
+     * Called from {@link SOCRobotClient} when the
+     * server sends a {@link SOCSitDown} message.
+     *<P>
+     * Initializes our game and {@link #ourPlayerData}, {@link SOCPlayerTracker}s, etc.
+     * Calls {@link #setStrategyFields()} to set {@link SOCRobotDM}, {@link SOCRobotNegotiator},
+     * {@link RobberStrategy}, and other strategy fields,
      */
     public void setOurPlayerData()
     {
         ourPlayerData = game.getPlayer(client.getNickname());
         ourPlayerTracker = new SOCPlayerTracker(ourPlayerData, this);
-        int opn = ourPlayerData.getPlayerNumber();
-        playerTrackers = new HashMap<Integer, SOCPlayerTracker>();
-        playerTrackers.put(Integer.valueOf(opn), ourPlayerTracker);
+        ourPlayerNumber = ourPlayerData.getPlayerNumber();
+        playerTrackers = new SOCPlayerTracker[game.maxPlayers];
+        playerTrackers[ourPlayerNumber] = ourPlayerTracker;
 
         for (int pn = 0; pn < game.maxPlayers; pn++)
         {
-            if ((pn != opn) && ! game.isSeatVacant(pn))
+            if ((pn != ourPlayerNumber) && ! game.isSeatVacant(pn))
             {
                 SOCPlayerTracker tracker = new SOCPlayerTracker(game.getPlayer(pn), this);
-                playerTrackers.put(Integer.valueOf(pn), tracker);
+                playerTrackers[pn] = tracker;
             }
         }
 
-        decisionMaker = createDM();
-        negotiator = createNegotiator();
+        setStrategyFields();
+
         dummyCancelPlayerData = new SOCPlayer(-2, game);
 
         // Verify expected face (fast or smart robot)
@@ -735,6 +1089,40 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
     
     /**
+     * Make the bot strategy selections, as part of getting ready to sit and play
+     * in {@link #setOurPlayerData()}. Fields like {@link #game}, {@link #ourPlayerData},
+     * and {@link #playerTrackers} are set before calling this method.
+     *<P>
+     * Selections or behavior within strategy classes may be influenced by
+     * {@link #getRobotParameters()}.{@link SOCRobotParameters#getStrategyType() getStrategyType()}.
+     *<P>
+     * Fields set here:
+     *<UL>
+     * <LI> {@link #decisionMaker}: calls {@link #createDM()}
+     * <LI> {@link #negotiator}: calls {@link #createNegotiator()}
+     * <LI> {@link #bseFactory}: calls {@link #createEstimatorFactory()}
+     * <LI> {@link #discardStrategy}
+     * <LI> {@link #monopolyStrategy}
+     * <LI> {@link #openingBuildStrategy}
+     * <LI> {@link #robberStrategy}
+     *</UL>
+     * When overriding this class: You may either set all those fields yourself,
+     * or call {@code super.setStrategyFields()} and then change the ones you need customized.
+     *
+     * @since 2.2.00
+     */
+    protected void setStrategyFields()
+    {
+        decisionMaker = createDM();
+        negotiator = createNegotiator();
+        bseFactory = createEstimatorFactory();
+        discardStrategy = new DiscardStrategy(game, ourPlayerData, this, rand);
+        monopolyStrategy = new MonopolyStrategy(game, ourPlayerData, this);
+        openingBuildStrategy = new OpeningBuildStrategy(game, ourPlayerData, this);
+        robberStrategy = new RobberStrategy(game, ourPlayerData, this, rand);
+    }
+
+    /**
      * Get the number of messages the robot has received, which we are using
      * as a crude way to track the time that has elapsed in this game.
      * @author Markus Guhe
@@ -744,62 +1132,135 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
     
     /**
-     * Print brain variables and status for this game to {@link System#err}.
-     * Includes all of the expect and waitingFor fields (<tt>expectPLAY</tt>,
+     * Print brain variables and status for this game to a list of {@link String}s.
+     * Includes all of the expect and waitingFor fields (<tt>expectROLL_OR_CARD</tt>,
      * <tt>waitingForGameState</tt>, etc.)
+     * Also prints the game state, and the messages received by this brain
+     * during the previous and current turns.
+     *<P>
+     * Before v1.1.20, this printed to {@link System#err} instead of returning the status as Strings.
      * @since 1.1.13
      */
-    public void debugPrintBrainStatus()
+    public List<String> debugPrintBrainStatus()
     {
-        System.err.println("Robot internal state: " + client.getNickname() + " in game " + game.getName() + ":");
+        ArrayList<String> rbSta = new ArrayList<String>();
+
+        if ((ourPlayerData == null) || (game == null))
+        {
+            rbSta.add("Robot internal state: Cannot print: null game or player");
+            return rbSta;
+        }
+
+        rbSta.add("Robot internal state: "
+                + ((client != null) ? client.getNickname() : ourPlayerData.getName())
+                + " in game " + game.getName()
+                + ": gs=" + game.getGameState());
+        if (waitingForPickSpecialItem != null)
+            rbSta.add("  waitingForPickSpecialItem = " + waitingForPickSpecialItem);
+        if (game.getGameState() == SOCGame.WAITING_FOR_DISCARDS)
+            rbSta.add("  bot resource count = " + ourPlayerData.getResources().getTotal());
+        if (rejectedPlayDevCardType != -1)
+            rbSta.add("  rejectedPlayDevCardType = " + rejectedPlayDevCardType);
+        if (rejectedPlayInvItem != null)
+            rbSta.add("  rejectedPlayInvItem = " + rejectedPlayInvItem);
+
+        // Reminder: Add new state fields to both s[] and b[]
+
         final String[] s = {
             "ourTurn", "doneTrading",
-            "waitingForGameState", "waitingForOurTurn", "waitingForTradeMsg", "waitingForDevCard", "waitingForTradeResponse",
-            "moveRobberOnSeven", "expectSTART1A", "expectSTART1B", "expectSTART2A", "expectSTART2B",
-            "expectPLAY", "expectPLAY1", "expectPLACING_ROAD", "expectPLACING_SETTLEMENT", "expectPLACING_CITY",
-            "expectPLACING_ROBBER", "expectPLACING_FREE_ROAD1", "expectPLACING_FREE_ROAD2",
+            "waitingForGameState", "waitingForOurTurn", "waitingForTurnMain", "waitingForTradeMsg", "waitingForDevCard",
+            "waitingForTradeResponse", "waitingForSC_PIRI_FortressRequest",
+            "moveRobberOnSeven", "expectSTART1A", "expectSTART1B", "expectSTART2A", "expectSTART2B", "expectSTART3A", "expectSTART3B",
+            "expectROLL_OR_CARD", "expectPLAY1", "expectPLACING_ROAD", "expectPLACING_SETTLEMENT", "expectPLACING_CITY", "expectPLACING_SHIP",
+            "expectPLACING_ROBBER", "expectPLACING_FREE_ROAD1", "expectPLACING_FREE_ROAD2", "expectPLACING_INV_ITEM",
             "expectPUTPIECE_FROM_START1A", "expectPUTPIECE_FROM_START1B", "expectPUTPIECE_FROM_START2A", "expectPUTPIECE_FROM_START2B",
+            "expectPUTPIECE_FROM_START3A", "expectPUTPIECE_FROM_START3B",
             "expectDICERESULT", "expectDISCARD", "expectMOVEROBBER", "expectWAITING_FOR_DISCOVERY", "expectWAITING_FOR_MONOPOLY"
         };
         final boolean[] b = {
             ourTurn, doneTrading,
-            waitingForGameState, waitingForOurTurn, waitingForTradeMsg, waitingForDevCard, waitingForTradeResponse,
-            moveRobberOnSeven, expectSTART1A, expectSTART1B, expectSTART2A, expectSTART2B,
-            expectPLAY, expectPLAY1, expectPLACING_ROAD, expectPLACING_SETTLEMENT, expectPLACING_CITY,
-            expectPLACING_ROBBER, expectPLACING_FREE_ROAD1, expectPLACING_FREE_ROAD2,
+            waitingForGameState, waitingForOurTurn, waitingForTurnMain, waitingForTradeMsg, waitingForDevCard,
+            waitingForTradeResponse, waitingForSC_PIRI_FortressRequest,
+            moveRobberOnSeven, expectSTART1A, expectSTART1B, expectSTART2A, expectSTART2B, expectSTART3A, expectSTART3B,
+            expectROLL_OR_CARD, expectPLAY1, expectPLACING_ROAD, expectPLACING_SETTLEMENT, expectPLACING_CITY, expectPLACING_SHIP,
+            expectPLACING_ROBBER, expectPLACING_FREE_ROAD1, expectPLACING_FREE_ROAD2, expectPLACING_INV_ITEM,
             expectPUTPIECE_FROM_START1A, expectPUTPIECE_FROM_START1B, expectPUTPIECE_FROM_START2A, expectPUTPIECE_FROM_START2B,
+            expectPUTPIECE_FROM_START3A, expectPUTPIECE_FROM_START3B,
             expectDICERESULT, expectDISCARD, expectMOVEROBBER, expectWAITING_FOR_DISCOVERY, expectWAITING_FOR_MONOPOLY
         };
         if (s.length != b.length)
         {
-            System.err.println("L745: Internal error: array length");
-            return;
+            rbSta.add("L745: Internal error: array length");
+            return rbSta;
         }
         int slen = 0;
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         for (int i = 0; i < s.length; ++i)
         {
             if ((slen + s[i].length() + 8) > 79)
             {
-                System.err.println(sb.toString());
+                rbSta.add(sb.toString());
                 slen = 0;
                 sb.delete(0, sb.length());
             }
             sb.append("  ");
             sb.append(s[i]);
             sb.append(": ");
-            sb.append(b[i]);
+            if (b[i])
+                sb.append("TRUE");
+            else
+                sb.append("false");
             slen = sb.length();
         }
         if (slen > 0)
-            System.err.println(sb.toString());        
+            rbSta.add(sb.toString());
+
+        debugPrintTurnMessages(turnEventsPrev, "previous", rbSta);
+        debugPrintTurnMessages(turnEventsCurrent, "current", rbSta);
+
+        return rbSta;
+    }
+
+    /**
+     * Add the contents of this Vector as Strings to the provided list.
+     * One element per line, indented by <tt>\t</tt>.
+     * Headed by a line formatted as one of:
+     *<BR>  Current turn: No messages received.
+     *<BR>  Current turn: 5 messages received:
+     * @param msgV  Vector of {@link SOCMessage}s from server
+     * @param msgDesc  Short description of the vector, like 'previous' or 'current'
+     * @param toList  Add to this list
+     * @since 1.1.13
+     */
+    protected static void debugPrintTurnMessages
+        (List<?> msgV, final String msgDesc, List<String> toList)
+    {
+        final int n = msgV.size();
+        if (n == 0)
+        {
+            toList.add("  " + msgDesc + " turn: No messages received.");
+        } else {
+            toList.add("  " + msgDesc + " turn: " + n + " messages received:");
+            for (int i = 0; i < n; ++i)
+                toList.add("\t" + msgV.get(i));
+        }
     }
 
     /**
      * Here is the run method.  Just keep receiving game events
-     * and deal with each one.
-     * Remember that we're sent a {@link SOCGameTextMsg}(<tt>"*PING*"</tt>) once per second.
+     * through {@link #gameEventQ} and deal with each one.
+     * Remember that we're sent a {@link SOCTimingPing} event once per second,
+     * incrementing {@link #counter}.  That allows the bot to wait a certain
+     * time for other players before it decides whether to do something.
+     *<P>
+     * Nearly all bot actions start in this method; the overview of bot structures
+     * is in the {@link SOCRobotBrain class javadoc} for prominence.
+     * See comments within <tt>run()</tt> for minor details.
+     *<P>
+     * The brain thread will run until {@link #kill()} has been called or its pinger stops,
+     * or it receives a {@link SOCMessage#ROBOTDISMISS} request to exit the game.
      */
+    @Override
     public void run()
     {
         // Thread name for debug
@@ -812,46 +1273,32 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         if (pinger != null)
         {
             pinger.start();
+            //
+            // Along with actual game events, the pinger sends a TIMINGPING message
+            // once per second, to aid the robot's timekeeping counter.
+            //
 
-            try
+            while (alive)
             {
-                /** Our player number */
-                final int ourPN = ourPlayerData.getPlayerNumber();
-
-                boolean hasStartedTurn = true; // Variable to track whether turn-start actions have been taken
-                
-                //
-                // Along with actual game events, the pinger sends a SOCGameTextMsg
-                // once per second, to aid the robot's timekeeping counter.
-                //
-
-                while (alive)
+                try
                 {
                 	if(Thread.currentThread().isInterrupted())
                 		break; //exit the while loop so we can clean this thread
                 	
-                    SOCMessage mes;
+                    final SOCMessage mes = gameEventQ.get();  // Sleeps until message received
 
-                    //if (!gameEventQ.empty()) {
-                    mes = (SOCMessage) gameEventQ.get();  // Sleeps until message received
-
-                    //} else {
-                    //mes = null;
-                    //}
                     final int mesType;
-                    
-                    
                     if (mes != null)
                     {
+                        // Debug aid: When looking at message contents or setting a per-message breakpoint,
+                        // skip the pings; note (mesType != SOCMessage.TIMINGPING) here.
+
                         mesType = mes.getType();
                         numberOfMessagesReceived++; // this is our crude internal clock
-                        //D.ebugPrintln("mes - " + mes); //---MG
-                        //---MG
-//                        if (mesType != SOCMessage.GAMETEXTMSG) {
-//                        	D.ebugPrintln("mes - " + mes);
-//                        }
-                        // Debug aid: when looking at message contents: avoid pings:
-                        // check here for (mesType != SOCMessage.GAMETEXTMSG).
+                        if (mesType != SOCMessage.TIMINGPING)
+                            turnEventsCurrent.addElement(mes);
+                        //if (D.ebugOn)
+                        //    D.ebugPrintlnINFO("mes - " + mes); //---MG
                     }
                     else
                     {
@@ -902,7 +1349,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         counter = 0;
                     }
 
-                    if (waitingForTradeResponse && (counter > 100))
+                    if (waitingForTradeResponse && (counter > tradeResponseTimeoutSec))
                     {
                         // Remember other players' responses, call client.clearOffer,
                         // clear waitingForTradeResponse and counter.
@@ -920,57 +1367,46 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
                     if (mesType == SOCMessage.GAMESTATE)
                     {
-                        waitingForGameState = false;
-                        oldGameState = game.getGameState();
-                        int newState = ((SOCGameState) mes).getState();
-                        // Special handling for legacy state update.  Allow legacy agents to 
-                        //  treat this as they originally did, so we can contrast performance.  Non-legacy
-                        //  agents should ignore this game state.
-                        if (newState == SOCGame.PLAY1_LEGACY){
-                            if (isLegacy()) {
-                                game.setGameState(SOCGame.PLAY1);                                
-                            }
-                        }
-                        else {
-                            game.setGameState(newState);
-                        }
-                        if (game.getGameState() == SOCGame.PLAY) {
-                            // probably need to restrict - currently will call this after every action within a turn.  Set a flag when TURN is issued, unset here
-                            hasStartedTurn = false;                            
-                        }
-                        else if (hasStartedTurn == false && game.getGameState() == SOCGame.PLAY1){
-                            startTurnActions(game.getCurrentPlayerNumber());
-                            hasStartedTurn = true;
-                        }
-                        handleGAMESTATE((SOCGameState) mes);
-                        // depending on type of robot, set to play1 either when you see play1 or play2...
-                    }
-                    else if (mesType == SOCMessage.FIRSTPLAYER)
-                    {
-                        game.setFirstPlayer(((SOCFirstPlayer) mes).getPlayerNumber());
+                        handleGAMESTATE(((SOCGameState) mes).getState());
+                            // clears waitingForGameState, updates oldGameState, calls ga.setGameState
+                            // May call startTurnMainActions
+                            // If state is LOADING, sets waitingForGameState
+                            // depending on type of robot, set to play1 either when you see play1 or play2...
                     }
 
-                    else if (mesType == SOCMessage.SETTURN)
+                    else if (mesType == SOCMessage.STARTGAME)
                     {
-                        game.setCurrentPlayerNumber(((SOCSetTurn) mes).getPlayerNumber());
+                        SOCDisplaylessPlayerClient.handleSTARTGAME_checkIsBotsOnly(game);
+                            // might set game.isBotsOnly
+                        handleGAMESTATE(((SOCStartGame) mes).getGameState());
+                            // clears waitingForGameState, updates oldGameState, calls ga.setGameState
                     }
 
                     else if (mesType == SOCMessage.TURN)
                     {
+                        // Start of a new player's turn.
+                        // Update game and reset most of our state fields.
+                        // See also below: if ((mesType == SOCMessage.TURN) && ourTurn).
+
+                        handleGAMESTATE(((SOCTurn) mes).getGameState());
+                            // clears waitingForGameState, updates oldGameState, calls ga.setGameState
+
                         game.setCurrentPlayerNumber(((SOCTurn) mes).getPlayerNumber());
                         game.updateAtTurn();
 
                         //
                         // remove any expected states
                         //
-                        expectPLAY = false;
+                        expectROLL_OR_CARD = false;
                         expectPLAY1 = false;
                         expectPLACING_ROAD = false;
                         expectPLACING_SETTLEMENT = false;
                         expectPLACING_CITY = false;
+                        expectPLACING_SHIP = false;
                         expectPLACING_ROBBER = false;
                         expectPLACING_FREE_ROAD1 = false;
                         expectPLACING_FREE_ROAD2 = false;
+                        expectPLACING_INV_ITEM = false;
                         expectDICERESULT = false;
                         expectDISCARD = false;
                         expectMOVEROBBER = false;
@@ -998,6 +1434,9 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         negotiator.resetOffersMade();
                         negotiator.resetTradesMade();
 
+                        waitingForPickSpecialItem = null;
+                        waitingForSC_PIRI_FortressRequest = false;
+
                         //
                         // check or reset any special-building-phase decisions
                         //
@@ -1022,13 +1461,25 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         	resetBuildingPlan();
                         }
                         negotiator.resetTargetPieces();
+
+                        //
+                        // swap the message-history queues
+                        //
+                        {
+                            Vector<SOCMessage> oldPrev = turnEventsPrev;
+                            turnEventsPrev = turnEventsCurrent;
+                            oldPrev.clear();
+                            turnEventsCurrent = oldPrev;
+                        }
+
+                        turnExceptionCount = 0;
                     }
                     else if (mesType == SOCMessage.GAMESTATS)
                     {
                         handleGAMESTATS((SOCGameStats) mes);
                     }
 
-                    if (game.getCurrentPlayerNumber() == ourPN)
+                    if (game.getCurrentPlayerNumber() == ourPlayerNumber)
                     {
                         ourTurn = true;
                         waitingForSpecialBuild = false;
@@ -1038,7 +1489,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         ourTurn = false;
                     }
 
-                    if ((mesType == SOCMessage.TURN) && (ourTurn))
+                    if ((mesType == SOCMessage.TURN) && ourTurn)
                     {
                         //useful for debugging trade interactions
                         //if (ourPlayerData.getName().contains("partial") && ourTurn) {
@@ -1048,52 +1499,42 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         waitingForOurTurn = false;
 
                         // Clear some per-turn variables.
-                        // For others, find the code which calls game.updateAtTurn().
+                        // For others, see above: if (mesType == SOCMessage.TURN)
                         whatWeFailedToBuild = null;
                         failedBuildingAttempts = 0;
+                        rejectedPlayDevCardType = -1;
+                        rejectedPlayInvItem = null;
                     }
 
                     /**
                      * Handle some message types early.
+                     *
+                     * When reading the main flow of this method, skip past here;
+                     * search for "it's time to decide to build or take other normal actions".
                      */
                     switch (mesType)
                     {
                     case SOCMessage.PLAYERELEMENT:
-                        {
-                        handlePLAYERELEMENT((SOCPlayerElement) mes);
-
-                        // If this during the PLAY state, also updates the
+                        // If this during the ROLL_OR_CARD state, also updates the
                         // negotiator's is-selling flags.
-
                         // If our player is losing a resource needed for the buildingPlan, 
                         // clear the plan if this is for the Special Building Phase (on the 6-player board).
                         // In normal game play, we clear the building plan at the start of each turn.
-                        }
+
+                        handlePLAYERELEMENT((SOCPlayerElement) mes);
+                        break;
+
+                    case SOCMessage.PLAYERELEMENTS:
+                        // Multiple PLAYERELEMENT updates;
+                        // see comment above for actions taken.
+
+                        handlePLAYERELEMENTS((SOCPlayerElements) mes);
                         break;
 
                     case SOCMessage.RESOURCECOUNT:
-                        {
-                        SOCPlayer pl = game.getPlayer(((SOCResourceCount) mes).getPlayerNumber());
-
-                        if (((SOCResourceCount) mes).getCount() != pl.getResources().getTotal())
-                        {
-                            SOCResourceSet rsrcs = pl.getResources();
-
-                            if (D.ebugOn)
-                            {
-                                client.sendText(game, ">>> RESOURCE COUNT ERROR FOR PLAYER " + pl.getPlayerNumber() + ": " + ((SOCResourceCount) mes).getCount() + " != " + rsrcs.getTotal());
-                            }
-
-                            //
-                            //  fix it
-                            //
-                            if (pl.getPlayerNumber() != ourPN)
-                            {
-                                rsrcs.clear();
-                                rsrcs.setAmount(((SOCResourceCount) mes).getCount(), SOCResourceConstants.UNKNOWN);
-                            }
-                        }
-                        }
+                        handlePLAYERELEMENT
+                            (null, ((SOCResourceCount) mes).getPlayerNumber(), SOCPlayerElement.SET,
+                             PEType.RESOURCE_COUNT, ((SOCResourceCount) mes).getCount());
                         break;
 
                     case SOCMessage.DICERESULT:
@@ -1105,21 +1546,21 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         // For initial roads, also tracks their initial settlement in SOCPlayerTracker.
                         break;
 
+                    case SOCMessage.MOVEPIECE:
+                        {
+                            SOCMovePiece mpm = (SOCMovePiece) mes;
+                            SOCShip sh = new SOCShip
+                                (game.getPlayer(mpm.getPlayerNumber()), mpm.getFromCoord(), null);
+                            game.moveShip(sh, mpm.getToCoord());
+                        }
+                        break;
+
                     case SOCMessage.CANCELBUILDREQUEST:
                         handleCANCELBUILDREQUEST((SOCCancelBuildRequest) mes);
                         break;
 
                     case SOCMessage.MOVEROBBER:
-                        {
-                        //
-                        // Note: Don't call ga.moveRobber() because that will call the 
-                        // functions to do the stealing.  We just want to set where 
-                        // the robber moved, without seeing if something was stolen.
-                        // MOVEROBBER will be followed by PLAYERELEMENT messages to
-                        // report the gain/loss of resources.
-                        //
-                        handleMOVEROBBER((SOCMoveRobber) mes);
-                        }
+                        robberMoved(((SOCMoveRobber) mes).getCoordinates());
                         break;
 
                     case SOCMessage.MAKEOFFER:
@@ -1176,10 +1617,17 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                     case SOCMessage.ACCEPTOFFER:
                         if (waitingForTradeResponse && (robotParameters.getTradeFlag() == 1))
                         {
+                            final int acceptingPN = ((SOCAcceptOffer) mes).getAcceptingNumber();
+
                             if (((SOCAcceptOffer) mes).getOfferingNumber() == ourPN)
                             {
-                                handleTradeResponse(((SOCAcceptOffer) mes).getAcceptingNumber(), true);
+                                handleTradeResponse(acceptingPN, true);
                             }
+                            else if (acceptingPN < 0)
+                            {
+                                clearTradingFlags(false, false);
+                            }
+
                             //useful for debugging trade interactions
                             //if (ourPlayerData.getName().contains("partial") && ourTurn) {
                             //    System.err.println(numberOfMessagesReceived + ": Accept: " + mes.toString());
@@ -1196,27 +1644,87 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         //}
                         break;
 
-                    case SOCMessage.DEVCARDCOUNT:
-                        game.setNumDevCards(((SOCDevCardCount) mes).getNumDevCards());
-                        break;
-
-                    case SOCMessage.DEVCARD:
-                        handleDEVCARD((SOCDevCard) mes);
-                        break;
-
-                    case SOCMessage.SETPLAYEDDEVCARD:
+                    case SOCMessage.DEVCARDACTION:
                         {
-                        SOCPlayer player = game.getPlayer(((SOCSetPlayedDevCard) mes).getPlayerNumber());
-                        player.setPlayedDevCard(((SOCSetPlayedDevCard) mes).hasPlayedDevCard());
+                            SOCDevCardAction dcMes = (SOCDevCardAction) mes;
+                            if (dcMes.getAction() != SOCDevCardAction.CANNOT_PLAY)
+                            {
+                                handleDEVCARD(dcMes);
+                            } else {
+                                // rejected by server, can't play our requested card
+                                rejectedPlayDevCardType = dcMes.getCardType();
+                                waitingForGameState = false;
+                                expectPLACING_FREE_ROAD1 = false;
+                                expectWAITING_FOR_DISCOVERY = false;
+                                expectWAITING_FOR_MONOPOLY = false;
+                                expectPLACING_ROBBER = false;
+                            }
                         }
                         break;
 
-                    case SOCMessage.POTENTIALSETTLEMENTS:
+                    case SOCMessage.SIMPLEREQUEST:
+                        // These messages can almost always be ignored by bots,
+                        // unless we've just sent a request to attack a pirate fortress.
+                        // Some request types are handled at the bottom of the loop body;
+                        // search for SOCMessage.SIMPLEREQUEST
+
+                        if (ourTurn && waitingForSC_PIRI_FortressRequest)
                         {
-                        SOCPlayer player = game.getPlayer(((SOCPotentialSettlements) mes).getPlayerNumber());
-                        player.setPotentialSettlements(((SOCPotentialSettlements) mes).getPotentialSettlements());
+                            final SOCSimpleRequest rqMes = (SOCSimpleRequest) mes;
+
+                            if ((rqMes.getRequestType() == SOCSimpleRequest.SC_PIRI_FORT_ATTACK)
+                                && (rqMes.getPlayerNumber() == -1))
+                            {
+                                // Attack request was denied: End our turn now.
+                                // Reset method sets waitingForGameState, which will bypass
+                                // any further actions in the run() loop body.
+
+                                waitingForSC_PIRI_FortressRequest = false;
+                                resetFieldsAtEndTurn();
+                                client.endTurn(game);
+                            }
+                            // else, from another player; we can ignore it
                         }
                         break;
+
+                    case SOCMessage.SIMPLEACTION:
+                        // Most action types are handled later in the loop body;
+                        // search for SOCMessage.SIMPLEACTION
+
+                        switch(((SOCSimpleAction) mes).getActionType())
+                        {
+                        case SOCSimpleAction.SC_PIRI_FORT_ATTACK_RESULT:
+                            if (ourTurn && waitingForSC_PIRI_FortressRequest)
+                            {
+                                // Our player has won or lost an attack on a pirate fortress.
+                                // When we receive this message, other messages have already
+                                // been sent to update related game state. End our turn now.
+                                // Reset method sets waitingForGameState, which will bypass
+                                // any further actions in the run() loop body.
+
+                                waitingForSC_PIRI_FortressRequest = false;
+                                resetFieldsAtEndTurn();
+                                // client.endTurn not needed; making the attack implies sending endTurn
+                            }
+                            // else, from another player; we can ignore it
+
+                            break;
+                        }
+                        break;
+
+                    case SOCMessage.INVENTORYITEMACTION:
+                        if (((SOCInventoryItemAction) mes).action == SOCInventoryItemAction.CANNOT_PLAY)
+                        {
+                            final List<SOCInventoryItem> itms = ourPlayerData.getInventory().getByStateAndType
+                                (SOCInventory.PLAYABLE, ((SOCInventoryItemAction) mes).itemType);
+                            if (itms != null)
+                                rejectedPlayInvItem = itms.get(0);  // any item of same type# is similar enough here
+
+                            waitingForGameState = false;
+                            expectPLACING_INV_ITEM = false;  // in case was rejected placement (SC_FTRI gift port, etc)
+                        }
+                        break;
+
                     case SOCMessage.GAMETEXTMSG:
                         // Let the brain handle inter-agent text communication (possibly vacuously)
                         SOCGameTextMsg gtm = (SOCGameTextMsg) mes;
@@ -1238,63 +1746,76 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
                     debugInfo();
 
-                    if ((game.getGameState() == SOCGame.PLAY) && (!waitingForGameState))
+                    if ((game.getGameState() == SOCGame.ROLL_OR_CARD) && ! waitingForGameState)
                     {
                         rollOrPlayKnightOrExpectDice();
 
                         // On our turn, ask client to roll dice or play a knight;
                         // on other turns, update flags to expect dice result.
-                        // Clears expectPLAY to false.
+                        // Clears expectROLL_OR_CARD to false.
                         // Sets either expectDICERESULT, or expectPLACING_ROBBER and waitingForGameState.
                     }
 
-                    if ((game.getGameState() == SOCGame.PLACING_ROBBER) && (!waitingForGameState))
+                    if (ourTurn && (game.getGameState() == SOCGame.WAITING_FOR_ROBBER_OR_PIRATE) && ! waitingForGameState)
                     {
-                        
+                        // TODO handle moving the pirate too
+                        // For now, always decide to move the robber.
+                        // Once we move the robber, will also need to deal with state WAITING_FOR_ROB_CLOTH_OR_RESOURCE.
+                        expectPLACING_ROBBER = true;
+                        waitingForGameState = true;
+                        counter = 0;
+                        client.choosePlayer(game, SOCChoosePlayer.CHOICE_MOVE_ROBBER);
+                        pause(200);
+                    }
 
-                        if ((!waitingForOurTurn) && (ourTurn))
+                    else if ((game.getGameState() == SOCGame.PLACING_ROBBER) && ! waitingForGameState)
+                    {
+                        if ((! waitingForOurTurn) && ourTurn)
                         {
-                            if (!((expectPLAY || expectPLAY1) && (counter < 4000)))
+                            if (! ((expectROLL_OR_CARD || expectPLAY1) && (counter < 4000)))
                             {
                             	//MOVEROBBER: save
 //                            	if(!saved){
 //                            		saveGame();
 //                            	}
-                            	moveRobber(); //moving this here from the end of the method shouldn't modify the logic in any way, but will help us save the correct brain state
-                                if (moveRobberOnSeven == true)
+                            	moveRobber();
+                                    // call before updating expect/waitingFor fields,
+                                    // in case a 3rd-party bot wants to note/save current brain state
+                                counter = 0;
+
+                                if (moveRobberOnSeven)
                                 {
+                                    // robber moved because 7 rolled on dice
                                     moveRobberOnSeven = false;
                                     waitingForGameState = true;
-                                    counter = 0;
                                     expectPLAY1 = true;
                                 }
                                 else
                                 {
                                     waitingForGameState = true;
-                                    counter = 0;
 
-                                    if (oldGameState == SOCGame.PLAY)
+                                    if (oldGameState == SOCGame.ROLL_OR_CARD)
                                     {
-                                        expectPLAY = true;
+                                        // robber moved from playing knight card before dice roll
+                                        expectROLL_OR_CARD = true;
                                     }
                                     else if (oldGameState == SOCGame.PLAY1)
                                     {
+                                        // robber moved from playing knight card after dice roll
                                         expectPLAY1 = true;
                                     }
                                 }
-
-                                counter = 0;
-                                
                             }
                         }
-                        expectPLACING_ROBBER = false; //nor moving this here
+
+                        expectPLACING_ROBBER = false;
                     }
 
-                    if ((game.getGameState() == SOCGame.WAITING_FOR_DISCOVERY) && (!waitingForGameState))
+                    if ((game.getGameState() == SOCGame.WAITING_FOR_DISCOVERY) && ! waitingForGameState)
                     {
-                        if ((!waitingForOurTurn) && (ourTurn))
+                        if ((! waitingForOurTurn) && ourTurn)
                         {
-                            if (!(expectPLAY1) && (counter < 4000))
+                            if (! (expectPLAY1) && (counter < 4000))
                             {
                             	//Choose discovery save
 //                            	if(!saved){
@@ -1303,16 +1824,16 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                                 waitingForGameState = true;
                                 expectPLAY1 = true;
                                 counter = 0;
-                                client.discoveryPick(game, decisionMaker.resourceChoices);
+                                client.pickResources(game, decisionMaker.resourceChoices);
                                 pause(3);
                             }
                         }
                         expectWAITING_FOR_DISCOVERY = false;
                     }
 
-                    if ((game.getGameState() == SOCGame.WAITING_FOR_MONOPOLY) && (!waitingForGameState))
+                    if ((game.getGameState() == SOCGame.WAITING_FOR_MONOPOLY) && ! waitingForGameState)
                     {
-                        if ((!waitingForOurTurn) && (ourTurn))
+                        if ((! waitingForOurTurn) && ourTurn)
                         {
                             if (!(expectPLAY1) && (counter < 4000))
                             {
@@ -1323,92 +1844,106 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                                 waitingForGameState = true;
                                 expectPLAY1 = true;
                                 counter = 0;
-                                client.monopolyPick(game, decisionMaker.monopolyChoice);
+                                client.pickResourceType(game, monopolyStrategy.getMonopolyChoice());
                                 pause(3);
                             }
                         }
                         expectWAITING_FOR_MONOPOLY = false;
                     }
 
-                    if (waitingForTradeMsg && (mesType == SOCMessage.GAMETEXTMSG) && (((SOCGameTextMsg) mes).getNickname().equals(SOCServer.SERVERNAME)))
+                    if (ourTurn && (! waitingForOurTurn)
+                        && (game.getGameState() == SOCGame.PLACING_INV_ITEM) && (! waitingForGameState))
                     {
-                        String text = ((SOCGameTextMsg) mes).getText();
-                        //
-                        // This might be the trade message we've been waiting for
-                        //  Check for both directions of the trade - this could be either us doing a bank trade, or us having accepted a counter-offer.
+                        planAndPlaceInvItem();  // choose and send a placement location
+                    }
+
+                    if (waitingForTradeMsg && (mesType == SOCMessage.BANKTRADE))
+                    {
+                        final int pn = ((SOCBankTrade) mes).getPlayerNumber();
+                        final boolean wasAllowed = (pn >= 0);
+
+                        if ((pn == ourPlayerNumber) || ! wasAllowed)
+                            //
+                            // This is the bank/port trade confirmation announcement we've been waiting for
+                            //
+                            clearTradingFlags(true, wasAllowed);
+
                         //  NB: It would be preferable to check for the actual appropriate message type, but unfortunately bank trade messages are processed
                         //      prior to the processing of the associated resource exchange.
-                        //
-                        if (text.startsWith(client.getNickname() + " traded ")
-                            || (text.contains(" traded ") && text.endsWith(" from " + client.getNickname() + "."))
-                            || text.startsWith(SOCServer.MSG_ILLEGAL_TRADE)
-                            || text.startsWith(SOCServer.MSG_REJECTED_TRADE_CONFIRMATION))
-                        {
-                            clearTradingFlags(text);
-                        }
                     }
 
-                    if (waitingForDevCard && (mesType == SOCMessage.GAMETEXTMSG) && (((SOCGameTextMsg) mes).getNickname().equals(SOCServer.SERVERNAME)))
+                    if (waitingForDevCard && (mesType == SOCMessage.SIMPLEACTION)
+                        && (((SOCSimpleAction) mes).getPlayerNumber() == ourPlayerNumber)
+                        && (((SOCSimpleAction) mes).getActionType() == SOCSimpleAction.DEVCARD_BOUGHT))
                     {
                         //
-                        // This might be the dev card message we've been waiting for
+                        // This is the "dev card bought" message we've been waiting for
                         //
-                        if (((SOCGameTextMsg) mes).getText().equals(client.getNickname() + " bought a development card."))
-                        {
-                            waitingForDevCard = false;
-                        }
+                        waitingForDevCard = false;
                     }
 
+                    /**
+                     * Planning: If our turn and not waiting for something,
+                     * it's time to decide to build or take other normal actions.
+                     */
                     if (! isWaiting() && ((game.getGameState() == SOCGame.PLAY1) || (game.getGameState() == SOCGame.SPECIAL_BUILDING))
-                        && (!waitingForGameState) && (!waitingForTradeMsg) && (!waitingForTradeResponse) && (!waitingForDevCard)
-                        && (!expectPLACING_ROAD) && (!expectPLACING_SETTLEMENT) && (!expectPLACING_CITY) && (!expectPLACING_ROBBER) && (!expectPLACING_FREE_ROAD1) && (!expectPLACING_FREE_ROAD2) && (!expectWAITING_FOR_DISCOVERY) && (!expectWAITING_FOR_MONOPOLY))
+                        && ! (waitingForGameState || waitingForTradeMsg || waitingForTradeResponse || waitingForDevCard
+                              || expectPLACING_ROAD || expectPLACING_SETTLEMENT || expectPLACING_CITY
+                              || expectPLACING_SHIP || expectPLACING_FREE_ROAD1 || expectPLACING_FREE_ROAD2
+                              || expectPLACING_ROBBER || expectWAITING_FOR_DISCOVERY || expectWAITING_FOR_MONOPOLY
+                              || waitingForSC_PIRI_FortressRequest || (waitingForPickSpecialItem != null)))
                     {
-                        // Time to decide to build, or take other normal actions.                        
                         expectPLAY1 = false;
 
                         // 6-player: check Special Building Phase
                         // during other players' turns.
                         if ((! ourTurn) && waitingForOurTurn && gameIs6Player
-                             && (! decidedIfSpecialBuild) && (!expectPLACING_ROBBER))
+                             && (! decidedIfSpecialBuild) && (! expectPLACING_ROBBER))
                         {
                             decidedIfSpecialBuild = true;
 
                             /**
                              * It's not our turn.  We're not doing anything else right now.
-                             * Gamestate has passed PLAY, so we know what resources to expect.
+                             * Gamestate has passed ROLL_OR_CARD, so we know what resources to expect.
                              * Do we want to Special Build?  Check the same conditions as during our turn.
                              * Make a plan if we don't have one,
-                             * and if we haven't given up building
-                             * attempts this turn.
+                             * and if we haven't given up building attempts this turn.
                              */
 
-                            if ((getBuildingPlan().isEmpty()) && (ourPlayerData.getResources().getTotal() > 1) && (failedBuildingAttempts < MAX_DENIED_BUILDING_PER_TURN))
+                            if (getBuildingPlan().isEmpty()
+                                && (ourPlayerData.getResources().getTotal() > 1)
+                                && (failedBuildingAttempts < MAX_DENIED_BUILDING_PER_TURN)
+                                && ! (game.isGameOptionSet("PLP") && (game.getPlayerCount() < 5)))
                             {
                             	resetBuildingPlan();
                                 planBuilding();
 
                                 /*
-                                 * planBuilding takes these actions:
+                                 * planBuilding takes these actions, sets buildingPlan and other fields
+                                 * (see its javadoc):
                                  *
                                 decisionMaker.planStuff(robotParameters.getStrategyType());
 
                                 if (!buildingPlan.empty())
                                 {
                                     lastTarget = (SOCPossiblePiece) buildingPlan.peek();
-                                    negotiator.setTargetPiece(ourPlayerData.getPlayerNumber(), (SOCPossiblePiece) buildingPlan.peek());
+                                    negotiator.setTargetPiece(ourPlayerNumber, buildingPlan.peek());
                                 }
                                  */
+
                                 BP plan = getBuildingPlan();
                                 if ( ! plan.isEmpty())
                                 {
-                                    // Do we have the resources right now?
-                                    final SOCPossiblePiece targetPiece = (SOCPossiblePiece) plan.getPlannedPiece(0);
-                                    final SOCResourceSet targetResources = SOCPlayingPiece.getResourcesToBuild(targetPiece.getType());
+                                    // If we have the resources right now, ask to Special Build
+
+                                    final SOCPossiblePiece targetPiece = plan.getPlannedPiece(0);
+                                    final SOCResourceSet targetResources = targetPiece.getResourcesToBuild();
+                                        // may be null
 
                                     if ((ourPlayerData.getResources().contains(targetResources)))
                                     {
                                         // Ask server for the Special Building Phase.
-                                        // (TODO) if FAST_STRATEGY: Maybe randomly don't ask?
+                                        // (TODO) if FAST_STRATEGY: Maybe randomly don't ask, to lower opponent difficulty?
                                         waitingForSpecialBuild = true;
                                         client.buildRequest(game, -1);
                                         pause(1); // TODO: This was 100, which I didn't find prior to refactoring the pause functionality.  Whoops.
@@ -1417,9 +1952,9 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                             }
                         }
 
-                        if ((!waitingForOurTurn) && (ourTurn))
+                        if ((! waitingForOurTurn) && ourTurn)
                         {
-                            if (!(expectPLAY && (counter < 4000)))
+                            if (! (expectROLL_OR_CARD && (counter < 4000)))
                             {
                                 counter = 0;
 
@@ -1434,8 +1969,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                                 }
 
                                 // TODO: Game logic starts here...
-                                getActionForPLAY1();
-                                
+                                planAndDoActionForPLAY1();
                             }
                         }
                     }
@@ -1445,7 +1979,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                      * Call client.putPiece.
                      * Works when it's our turn and we have an expect flag set
                      * (such as expectPLACING_SETTLEMENT, in these game states:
-                     * START1A - START2B
+                     * START1A - START2B or - START3B
                      * PLACING_SETTLEMENT, PLACING_ROAD, PLACING_CITY
                      * PLACING_FREE_ROAD1, PLACING_FREE_ROAD2
                      */
@@ -1470,37 +2004,62 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                      */
                     switch (mesType)
                     {
-                    case SOCMessage.SETTURN:
-                        game.setCurrentPlayerNumber(((SOCSetTurn) mes).getPlayerNumber());
-                        break;
-
                     case SOCMessage.PUTPIECE:
                         /**
                          * this is for player tracking
+                         *
+                         * For initial placement of our own pieces, also checks
+                         * and clears expectPUTPIECE_FROM_START1A,
+                         * and sets expectSTART1B, etc.  The final initial putpiece
+                         * clears expectPUTPIECE_FROM_START2B and sets expectROLL_OR_CARD.
                          */
-                        handlePUTPIECE_updateTrackers((SOCPutPiece) mes);
+                        {
+                            final SOCPutPiece mpp = (SOCPutPiece) mes;
+                            final int pn = mpp.getPlayerNumber();
+                            final int coord = mpp.getCoordinates();
+                            final int pieceType = mpp.getPieceType();
+                            handlePUTPIECE_updateTrackers(pn, coord, pieceType);
+                        }
 
-                        // For initial placement of our own pieces, also checks
-                        // and clears expectPUTPIECE_FROM_START1A,
-                        // and sets expectSTART1B, etc.  The final initial putpiece
-                        // clears expectPUTPIECE_FROM_START2B and sets expectPLAY.
+                        break;
 
+                    case SOCMessage.MOVEPIECE:
+                        /**
+                         * this is for player tracking of moved ships
+                         */
+                        {
+                            final SOCMovePiece mpp = (SOCMovePiece) mes;
+                            final int pn = mpp.getPlayerNumber();
+                            final int coord = mpp.getToCoord();
+                            final int pieceType = mpp.getPieceType();
+                            // TODO what about getFromCoord()? Should mark that loc as unoccupied in trackers
+                            handlePUTPIECE_updateTrackers(pn, coord, pieceType);
+                        }
                         break;
 
                     case SOCMessage.DICERESULT:
                         if (expectDICERESULT)
                         {
                             expectDICERESULT = false;
-    
+
                             if (((SOCDiceResult) mes).getResult() == 7)
                             {
-                                moveRobberOnSeven = true;
+                                final boolean robWithoutRobber = game.isGameOptionSet(SOCGameOptionSet.K_SC_PIRI);
+                                    // In scenario SC_PIRI there's no robber to be moved. Instead,
+                                    // current player will be prompted soon to choose a player to rob on 7
+
+                                if (! robWithoutRobber)
+                                    moveRobberOnSeven = true;
     
                                 if (ourPlayerData.getResources().getTotal() > 7)
+                                {
                                     expectDISCARD = true;
-
-                                else if (ourTurn)
-                                    expectPLACING_ROBBER = true;
+                                } else if (ourTurn) {
+                                    if (! robWithoutRobber)
+                                        expectPLACING_ROBBER = true;
+                                    else
+                                        expectPLAY1 = true;
+                                }
                             }
                             else
                             {
@@ -1509,18 +2068,47 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         }
                         break;
 
+                    case SOCMessage.SIMPLEREQUEST:
+                        {
+                            // Some request types are handled at the top of the loop body;
+                            //   search for SOCMessage.SIMPLEREQUEST
+                            // Some are handled here
+                            // Most can be ignored by bots
+
+                            final SOCSimpleRequest rqMes = (SOCSimpleRequest) mes;
+                            switch (rqMes.getRequestType())
+                            {
+                            case SOCSimpleRequest.PROMPT_PICK_RESOURCES:
+                                // gold hex
+                                counter = 0;
+                                // try to make a plan if we don't have one
+                                if (buildingPlan.isEmpty())
+                                    planBuilding();
+                                client.pickResources(game, decisionMaker.pickFreeResources(rqMes.getValue1()));
+                                waitingForGameState = true;
+                                if (game.isInitialPlacement())
+                                {
+                                    if (game.isGameOptionSet(SOCGameOptionSet.K_SC_3IP))
+                                        expectSTART3B = true;
+                                    else
+                                        expectSTART2B = true;
+                                } else {
+                                    expectPLAY1 = true;
+                                }
+                                break;
+                            }
+                        }
+                        break;
+
                     case SOCMessage.DISCARDREQUEST:
                     	expectDISCARD = false;
 
-                        /**
-                         * If we haven't recently discarded...
-                         */
-
-                        //	if (!((expectPLACING_ROBBER || expectPLAY1) &&
-                        //	      (counter < 4000))) {
-                        if ((game.getCurrentDice() == 7) && (ourTurn))
+                        if ((game.getCurrentDice() == 7) && ourTurn)
                         {
-                            expectPLACING_ROBBER = true;
+                            if (! game.isGameOptionSet(SOCGameOptionSet.K_SC_PIRI))
+                                expectPLACING_ROBBER = true;
+                            else
+                                expectPLAY1 = true;
                         }
                         else
                         {
@@ -1528,38 +2116,83 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         }
 
                         counter = 0;
-                        discard(((SOCDiscardRequest) mes).getNumberOfDiscards());
+                        client.discard(game, discardStrategy.discard
+                            (((SOCDiscardRequest) mes).getNumberOfDiscards(), buildingPlan));
 
-                        //	}
                         break;
 
                     case SOCMessage.CHOOSEPLAYERREQUEST:
-                        chooseRobberVictim(((SOCChoosePlayerRequest) mes).getChoices());
+                        {
+                            final SOCChoosePlayerRequest msg = (SOCChoosePlayerRequest) mes;
+                            final int choicePl = robberStrategy.chooseRobberVictim
+                                (msg.getChoices(), msg.canChooseNone());
+                            counter = 0;
+                            client.choosePlayer(game, choicePl);
+                        }
+                        break;
+
+                    case SOCMessage.CHOOSEPLAYER:
+                        {
+                            final int vpn = ((SOCChoosePlayer) mes).getChoice();
+                            // Cloth is more valuable.
+                            // TODO decide when we should choose resources instead
+                            client.choosePlayer(game, -(vpn + 1));
+                        }
+                        break;
+
+                    case SOCMessage.SETSPECIALITEM:
+                        if (waitingForPickSpecialItem != null)
+                        {
+                            final SOCSetSpecialItem siMes = (SOCSetSpecialItem) mes;
+                            if (siMes.typeKey.equals(waitingForPickSpecialItem))
+                            {
+                                // This could be the "pick special item" message we've been waiting for,
+                                // or a related SET/CLEAR message that precedes it
+
+                                switch (siMes.op)
+                                {
+                                case SOCSetSpecialItem.OP_PICK:
+                                    waitingForPickSpecialItem = null;
+
+                                    // Now that this is received, can continue our turn.
+                                    // Any specific action needed? Not for SC_WOND.
+                                    break;
+
+                                case SOCSetSpecialItem.OP_DECLINE:
+                                    waitingForPickSpecialItem = null;
+
+                                    // TODO how to prevent asking again? (similar to whatWeFailedtoBuild)
+                                    break;
+
+                                // ignore SET or CLEAR that precedes the PICK message
+                                }
+                            }
+                        }
                         break;
 
                     case SOCMessage.ROBOTDISMISS:
-                        if ((!expectDISCARD) && (!expectPLACING_ROBBER))
+                        if ((! expectDISCARD) && (! expectPLACING_ROBBER))
                         {
-                            client.leaveGame(game, "dismiss msg", false);
+                            client.leaveGame(game, "dismiss msg", false, false);
                             alive = false;
                         }
                         break;
 
-                    case SOCMessage.GAMETEXTMSG:
-                        if (((SOCGameTextMsg) mes).getText().equals("*PING*"))
-                        {
-                            // Once-per-second message from the pinger thread
-                            counter++;
-                        }
+                    case SOCMessage.TIMINGPING:
+                        // Once-per-second message from the pinger thread
+                        counter++;
                         break;
 
                     }  // switch (mesType) - for some types, at bottom of loop body
 
-                    if (counter > 15000)
+                    if (ourTurn && (counter > 15000))
                     {
-                        // We've been waiting too long, commit suicide.
+                        // We've been waiting too long, must be a bug: Leave the game.
+                        // This is a fallback, server has SOCForceEndTurnThread which
+                        // should have already taken action.
+                        // Before v1.1.20, would leave game even during other (human) players' turns.
                     	// TODO: Debug here?
-                        client.leaveGame(game, "counter 15000", false);
+                        client.leaveGame(game, "counter 15000", true, false);
                         alive = false;
                     }
 
@@ -1569,7 +2202,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         // Apparently can't decide where we can initially place:
                         // Leave the game.
                     	// TODO: Debug here?
-                        client.leaveGame(game, "failedBuildingAttempts at start", false);
+                        client.leaveGame(game, "failedBuildingAttempts at start", true, false);
                         alive = false;
                     }
 
@@ -1581,18 +2214,24 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                        }
                        }
                      */
-                    yield();
+
+                    Thread.yield();
                 }
             }catch(InterruptedException e){
             	//do nothing as the clean up is executed after exiting the catch block 
             }
-            catch (Throwable e)
+            catch (Exception e)
             {
-                // Ignore errors due to game reset in another thread
+                // Print exception; ignore errors due to game reset in another thread
                 if (alive && ((game == null) || (game.getGameState() != SOCGame.RESET_OLD)))
                 {
-                    D.ebugPrintlnINFO("*** Robot caught an exception - " + e);
-                    System.err.println("*** Robot caught an exception - " + e);
+                    ++turnExceptionCount;  // TODO end our turn if too many
+
+                    String eMsg = (turnExceptionCount == 1)
+                        ? "*** Robot " + ourPlayerName + " caught an exception - " + e
+                        : "*** Robot " + ourPlayerName + " caught an exception (" + turnExceptionCount + " this turn) - " + e;
+                    D.ebugPrintlnINFO(eMsg);
+                    System.err.println(eMsg);
                     e.printStackTrace();
                 }
             }
@@ -1604,40 +2243,153 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
         //D.ebugPrintln("STOPPING AND DEALLOCATING");
         gameEventQ = null;
+
         client.addCleanKill();
         client = null;
+
         game = null;
         ourPlayerData = null;
         dummyCancelPlayerData = null;
         whatWeWantToBuild = null;
         whatWeFailedToBuild = null;
+        rejectedPlayInvItem = null;
         ourPlayerTracker = null;
         playerTrackers = null;
+
         pinger.stopPinger();
         pinger = null;
     }
 
     /**
-     * Plan what to do during PLAY1 game state
+     * Bot is ending its turn; reset state control fields to act during other players' turns.
+     *<UL>
+     * <LI> {@link #waitingForGameState} = true
+     * <LI> {@link #expectROLL_OR_CARD} = true
+     * <LI> {@link #waitingForOurTurn} = true
+     * <LI> {@link #doneTrading} = false only if {@link #robotParameters} allow trade
+     * <LI> {@link #counter} = 0
+     * <LI> clear/{@link #resetBuildingPlan()}
+     * <LI> {@link SOCRobotNegotiator#resetIsSelling() negotiator.resetIsSelling()},
+     *      {@link SOCRobotNegotiator#resetOffersMade() .resetOffersMade()},
+     *      {@link SOCRobotNegotiator#resetTargetPieces() .resetTargetPieces()}
+     *</UL>
+     *<P>
+     * Called only after {@link #endTurnActions()} returns true.
+     * Does not call {@link SOCRobotClient#endTurn(SOCGame)}.
+     * @since 2.0.00
+     */
+    protected void resetFieldsAtEndTurn()
+    {
+        waitingForGameState = true;
+        counter = 0;
+        expectROLL_OR_CARD = true;
+        waitingForOurTurn = true;
+
+        doneTrading = (robotParameters.getTradeFlag() != 1);
+
+        //D.ebugPrintln("!!! ENDING TURN !!!");
+        negotiator.resetIsSelling();
+        negotiator.resetOffersMade();
+        negotiator.resetTradesMade();
+        resetBuildingPlan();
+        negotiator.resetTargetPieces();
+    }
+
+    /**
+     * Look for and take any scenario-specific final actions before ending the turn.
+     * Is called before {@link #endTurnActions()}.
+     *<P>
+     * For example, {@link SOCGameOptionSet#K_SC_PIRI _SC_PIRI} will check if we've reached the fortress
+     * and have 5 or more warships, and if so will attack the fortress.  Doing so ends the turn, so
+     * we don't try to attack before end of turn.
+     *<P>
+     * {@link SOCGameOptionSet#K_SC_FTRI _SC_FTRI} can play a gift port from our inventory to place for
+     * better bank trades.
+     *<P>
+     * <B>NOTE:</B> For now this method assumes it's called only in the {@code SC_FTRI} or {@code SC_PIRI} scenario.
+     * Caller must check the game for any relevant scenario SOCGameOptions before calling.
+     * Also assumes not {@link #waitingForGameState} or any other pending action.
+     *
+     * @return true if an action was taken <B>and</B> turn shouldn't be ended yet, false otherwise
+     * @since 2.0.00
+     */
+    protected boolean considerScenarioTurnFinalActions()
+    {
+        // NOTE: for now this method assumes it's called only in the SC_FTRI or SC_PIRI scenario
+
+        if (game.isGameOptionSet(SOCGameOptionSet.K_SC_FTRI))
+        {
+            // SC_FTRI
+
+            // check inventory for gift ports
+            SOCInventoryItem itm = null;
+            for (SOCInventoryItem i : ourPlayerData.getInventory().getByState(SOCInventory.PLAYABLE))
+            {
+                if (i.itype > 0)
+                    continue;  // not a port; most likely a SOCDevCard
+                if ((rejectedPlayInvItem != null) && (i.itype == rejectedPlayInvItem.itype))
+                    continue;
+
+                itm = i;
+                break;  // unlikely to have more than one in inventory
+            }
+
+            if (itm != null)
+            {
+                // Do we have somewhere to place one?
+                if (ourPlayerData.getPortMovePotentialLocations(false) == null)
+                    return false;
+
+                // Set fields, make the request
+                return planAndPlaceInvItemPlacement_SC_FTRI(itm);
+            }
+        } else {
+            // SC_PIRI
+
+            // require 5+ warships; game.canAttackPirateFortress checks that we've reached the fortress with adjacent ship
+            if ((ourPlayerData.getNumWarships() < 5) || (null == game.canAttackPirateFortress()))
+                return false;
+
+            waitingForSC_PIRI_FortressRequest = true;
+            client.simpleRequest(game, ourPlayerNumber, SOCSimpleRequest.SC_PIRI_FORT_ATTACK, 0, 0);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Plan what to do during {@code PLAY1} game state and do that planned action, or end turn.
+     * Calls some or all of these strategy/decision methods, which third-party bots may override:
+     *<UL>
+     * <LI> {@link #playKnightCardIfShould()}
+     * <LI> {@link #planBuilding()}
+     * <LI> {@link #buildOrGetResourceByTradeOrCard()}
+     * <LI> {@link #considerScenarioTurnFinalActions()}
+     *</UL>
+     * If nothing to do, will call {@link #resetFieldsAtEndTurn()} and {@link SOCRobotClient#endTurn(SOCGame)}.
+     *<P>
+     * Third-party bots may instead choose to override this entire method.
      * NOTE: method required for SmartSettlers agent to override
      */
-	protected void getActionForPLAY1() {
-		/**
+    protected void planAndDoActionForPLAY1()
+    {
+        /**
          * if we haven't played a dev card yet, and we have a knight, 
          * decide if we should play it for the purpose of acquiring largest army
+         *
+         * If we're in SPECIAL_BUILDING (not PLAY1),
+         * can't trade or play development cards.
+         *
+         * In scenario _SC_PIRI (which has no robber and
+         * no largest army), play one whenever we have
+         * it, someone else has resources, and we can
+         * convert a ship to a warship.
          */
-        if ((game.getGameState() == SOCGame.PLAY1) && ! ourPlayerData.hasPlayedDevCard() && ourPlayerData.getDevCards().getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.KNIGHT) > 0)
-        {         
-        	if (decisionMaker.shouldPlayKnightForLA()) {
-        		/**
-                 * play a knight card
-                 */
-                expectPLACING_ROBBER = true;
-                waitingForGameState = true;
-                counter = 0;
-                client.playDevCard(game, SOCDevCardConstants.KNIGHT);
-                pause(3);
-        	}                                   
+        if ((game.getGameState() == SOCGame.PLAY1) && ! ourPlayerData.hasPlayedDevCard())
+        {
+            playKnightCardIfShould();  // might set expectPLACING_ROBBER and waitingForGameState
         }
 
         /**
@@ -1645,20 +2397,23 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
          * and if we haven't given up building
          * attempts this turn.
          */
-        if (!expectPLACING_ROBBER && (getBuildingPlan().isEmpty()) && (ourPlayerData.getResources().getTotal() > 1) && (failedBuildingAttempts < MAX_DENIED_BUILDING_PER_TURN))
+        if ( (! expectPLACING_ROBBER) && (getBuildingPlan().isEmpty())
+             && (ourPlayerData.getResources().getTotal() > 1)
+             && (failedBuildingAttempts < MAX_DENIED_BUILDING_PER_TURN))
         {
         	resetBuildingPlan();
             planBuilding();
 
             /*
-             * planBuilding takes these actions:
+             * planBuilding takes these actions, sets buildingPlan and other fields
+             * (see its javadoc):
              *
             decisionMaker.planStuff(robotParameters.getStrategyType());
 
             if (!buildingPlan.empty())
             {
                 lastTarget = (SOCPossiblePiece) buildingPlan.peek();
-                negotiator.setTargetPiece(ourPlayerData.getPlayerNumber(), (SOCPossiblePiece) buildingPlan.peek());
+                negotiator.setTargetPiece(ourPlayerNumber, buildingPlan.peek());
             }
              */
             
@@ -1668,7 +2423,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
         //D.ebugPrintln("DONE PLANNING");
         BP plan = getBuildingPlan();
-        if (!expectPLACING_ROBBER && !plan.isEmpty())
+        if (! expectPLACING_ROBBER && ! plan.isEmpty())
         {
             // Time to build something.
 
@@ -1680,45 +2435,100 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         /**
          * see if we're done with our turn
          */
-        if (!(isWaiting() || expectPLACING_SETTLEMENT || expectPLACING_FREE_ROAD1 || expectPLACING_FREE_ROAD2 || expectPLACING_ROAD || expectPLACING_CITY || expectWAITING_FOR_DISCOVERY || expectWAITING_FOR_MONOPOLY || expectPLACING_ROBBER || waitingForTradeMsg || waitingForTradeResponse || waitingForDevCard))
+        if (! (isWaiting() || expectPLACING_SETTLEMENT || expectPLACING_FREE_ROAD1 || expectPLACING_FREE_ROAD2
+               || expectPLACING_ROAD || expectPLACING_CITY || expectPLACING_SHIP
+               || expectWAITING_FOR_DISCOVERY || expectWAITING_FOR_MONOPOLY
+               || expectPLACING_ROBBER || waitingForTradeMsg || waitingForTradeResponse
+               || waitingForDevCard
+               || waitingForGameState
+               || (waitingForPickSpecialItem != null)))
         {
-            boolean finishTurnNow = endTurnActions();
-            if (finishTurnNow) {
+            // Any last things for turn from game's scenario?
+            boolean scenActionTaken = false;
+            if (game.isGameOptionSet(SOCGameOptionSet.K_SC_FTRI)
+                || game.isGameOptionSet(SOCGameOptionSet.K_SC_PIRI))
+            {
+                // possibly attack pirate fortress
+                // or place a gift port for better bank trades
+                scenActionTaken = considerScenarioTurnFinalActions();
+            }
 
-                waitingForGameState = true;
-                counter = 0;
-                expectPLAY = true;
-                waitingForOurTurn = true;
+            boolean finishTurnNow = (! scenActionTaken) && endTurnActions();
 
-                if (robotParameters.getTradeFlag() == 1)
-                {
-                    doneTrading = false;
-                }
-                else
-                {
-                    doneTrading = true;
-                }
+            if (finishTurnNow)
+            {
+                resetFieldsAtEndTurn();
+                    /*
+                     * These state fields are reset:
+                     *
+                    waitingForGameState = true;
+                    counter = 0;
+                    expectROLL_OR_CARD = true;
+                    waitingForOurTurn = true;
 
-                //D.ebugPrintln("!!! ENDING TURN !!!");
-                negotiator.resetIsSelling();
-                negotiator.resetOffersMade();
-                negotiator.resetTradesMade();
-                resetBuildingPlan();
-                negotiator.resetTargetPieces();
+                    doneTrading = (robotParameters.getTradeFlag() != 1);
+
+                    //D.ebugPrintln("!!! ENDING TURN !!!");
+                    negotiator.resetIsSelling();
+                    negotiator.resetOffersMade();
+                    negotiator.resetTradesMade();
+                    resetBuildingPlan();
+                    negotiator.resetTargetPieces();
+                     */
+
                 pause(3);
                 client.endTurn(game);
             }
         }
 		
-	}
-	/**
+    }
+
+    /**
      * We need this method to override it in children classes. 
-     * It doesn't do anything here
-     * @param mes
+     *<P>
+     * Handle a game state change from {@link SOCGameState} or another message
+     * which has a Game State field. Clears {@link #waitingForGameState}
+     * (unless {@code newState} is {@link SOCGame#LOADING} or {@link SOCGame#LOADING_RESUMING}),
+     * updates {@link #oldGameState} if state value is actually changing, then calls
+     * {@link SOCDisplaylessPlayerClient#handleGAMESTATE(SOCGame, int)}.
+     *<P>
+     * When state moves from {@link SOCGame#ROLL_OR_CARD} to {@link SOCGame#PLAY1},
+     * calls {@link #startTurnMainActions()}.
+     *
+     * @param newState  New game state, like {@link SOCGame#ROLL_OR_CARD}; if 0, does nothing
      */
-    protected void handleGAMESTATE(SOCGameState mes) {
-    	//Do nothing. This is needed for the children classes
-	}
+    protected void handleGAMESTATE(final int newState)
+    {
+        if (newState == 0)
+            return;
+
+        waitingForGameState = ((gs == SOCGame.LOADING) || (gs == SOCGame.LOADING_RESUMING));  // almost always false
+        int currGS = game.getGameState();
+        if (currGS != newState)
+            oldGameState = currGS;  // if no actual change, don't overwrite previously known oldGameState
+
+        // Special handling for legacy state update.  Allow legacy agents to 
+        //  treat this as they originally did, so we can contrast performance.  Non-legacy
+        //  agents should ignore this game state.
+        if (newState == SOCGame.PLAY1_LEGACY) {
+            if (isLegacy()) {
+                newState = SOCGame.PLAY1;
+            }
+        }
+
+        SOCDisplaylessPlayerClient.handleGAMESTATE(game, newState);
+
+        if (newState == SOCGame.ROLL_OR_CARD)
+        {
+            // probably need to restrict - currently will call this after every action within a turn.  Set a flag when TURN is issued, unset here
+            waitingForTurnMain = true;
+        }
+        else if ((gs == SOCGame.PLAY1) && waitingForTurnMain)
+        {
+            startTurnMainActions();
+            waitingForTurnMain = false;
+        }
+    }
 	
 	/**
      * We need this method to override it in children classes. 
@@ -1729,21 +2539,40 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     	game.setCurrentDice(mes.getResult());
 		
 	}
+
 	/**
      * We need this method to override it in children classes. 
      * All it does is to move the robber on the board inside the game object and to reset the moveRobberOnSeven flag.
-     * @param mes
+     *<P>
+     * Update game data and bot flags when robot or pirate has moved,
+     * including clear {@link #moveRobberOnSeven} flag.
+     * Third-party bots can override if needed; if so, be sure to call {@code super.robberMoved(..)}.
+     *<P>
+     * Doesn't call server-only {@link SOCGame#moveRobber(int, int)} because that would call the
+     * functions to do the stealing. We just want to set where the robber moved.
+     * Server's {@code MoveRobber} message will be followed by messages like {@code PlayerElement}
+     * to report the gain/loss of resources.
+     *
+     * @param newHex  New hex coordinate of robber if &gt; 0, pirate if &lt;= 0 (invert before using)
      */
-    protected void handleMOVEROBBER(SOCMoveRobber mes) {
+    protected void robberMoved(final int newHex)
+    {
         moveRobberOnSeven = false;
-        game.getBoard().setRobberHex(((SOCMoveRobber) mes).getCoordinates(), true);
-		
-	}
-	/**
-     * Stop waiting for responses to a trade offer.
-     * Remember other players' responses,
+
+        if (newHex > 0)
+            game.getBoard().setRobberHex(newHex, true);
+        else
+            ((SOCBoardLarge) game.getBoard()).setPirateHex(-newHex, true);
+    }
+
+    /**
+     * Stop waiting for responses to a trade offer, no one has accepted it.
+     * Remember other players' responses or non-responses,
      * Call {@link SOCRobotClient#clearOffer(SOCGame) client.clearOffer},
      * clear {@link #waitingForTradeResponse} and {@link #counter}.
+     * Call {@link SOCRobotNegotiator#recordResourcesFromNoResponse(SOCTradeOffer)}.
+     * @see #clearTradingFlags(boolean, boolean)
+     * @see #handleTradeResponse(int, boolean)
      * @since 1.1.09
      */
     protected void tradeStopWaitingClearOffer()
@@ -1770,19 +2599,85 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
 
     /**
+     * If we haven't played a dev card yet this turn, and we have a knight, and we can get
+     * largest army, play the knight. Must be our turn and gameState {@code PLAY1}.
+     * {@link SOCPlayer#hasPlayedDevCard() ourPlayerData.hasPlayedDevCard()} must be false.
+     *<P>
+     * In scenario {@code _SC_PIRI} (which has no robber and no largest army), play one
+     * whenever we have it, someone else has resources, and we can convert a ship to a warship.
+     *<P>
+     * If we call {@link #playKnightCard()}, it sets the flags
+     * {@code expectPLACING_ROBBER} and {@code waitingForGameState}.
+     *
+     * @see #rollOrPlayKnightOrExpectDice()
+     * @since 2.0.00
+     */
+    private void playKnightCardIfShould()
+    {
+        // Make sure we have an old KNIGHT dev card, etc;
+        // for _SC_PIRI, also checks if # of warships ships less than # of ships
+        if (! game.canPlayKnight(ourPlayerNumber))
+            return;
+
+        final boolean canGrowArmy;
+
+        if (game.isGameOptionSet(SOCGameOptionSet.K_SC_PIRI))
+        {
+            // Convert ship to warship:
+            // Play whenever we have one and someone else has resources
+
+            boolean anyOpponentHasRsrcs = false;
+            for (int pn = 0; pn < game.maxPlayers; ++pn)
+            {
+                if ((pn == ourPlayerNumber) || game.isSeatVacant(pn))
+                    continue;
+
+                if (game.getPlayer(pn).getResources().getTotal() > 0)
+                {
+                    anyOpponentHasRsrcs = true;
+                    break;
+                }
+            }
+
+            canGrowArmy = anyOpponentHasRsrcs;
+        } else {
+            canGrowArmy = decisionMaker.shouldPlayKnightForLA();
+        }
+
+        if (canGrowArmy
+            && (rejectedPlayDevCardType != SOCDevCardConstants.KNIGHT))
+        {
+            /**
+             * play a knight card
+             * (or, in scenario _SC_PIRI, a Convert to Warship card)
+             */
+            playKnightCard();  // sets expectPLACING_ROBBER, waitingForGameState
+        }
+    }
+
+    /**
      * If it's our turn and we have an expect flag set
      * (such as {@link #expectPLACING_SETTLEMENT}), then
-     * call {@link SOCRobotClient#putPiece(SOCGame, SOCPlayingPiece) client.putPiece}.
+     * call {@link SOCRobotClient#putPiece(SOCGame, SOCPlayingPiece) client.putPiece}
+     * ({@code game}, {@link #whatWeWantToBuild}).
      *<P>
      * Looks for one of these game states:
      *<UL>
-     * <LI> {@link SOCGame#START1A} - {@link SOCGame#START2B}
+     * <LI> {@link SOCGame#START1A} - {@link SOCGame#START3B}
      * <LI> {@link SOCGame#PLACING_SETTLEMENT}
      * <LI> {@link SOCGame#PLACING_ROAD}
      * <LI> {@link SOCGame#PLACING_CITY}
+     * <LI> {@link SOCGame#PLACING_SHIP}
      * <LI> {@link SOCGame#PLACING_FREE_ROAD1}
      * <LI> {@link SOCGame#PLACING_FREE_ROAD2}
      *</UL>
+     * Does nothing if {@link #waitingForGameState}, {@link #waitingForOurTurn}, <tt>! {@link #ourTurn}</tt>,
+     * or if state's corresponding <tt>expectPLACING_&lt;piecetype&gt;</tt> flag isn't set.
+     *<P>
+     * If all goes well, server will reply with a PutPiece message
+     * to be handled in {@link #handlePUTPIECE_updateTrackers(int, int, int)}.
+     *
+     * @see #buildRequestPlannedPiece()
      * @since 1.1.09
      */
     protected void placeIfExpectPlacing()
@@ -1792,190 +2687,236 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
         switch (game.getGameState())
         {
-            case SOCGame.PLACING_SETTLEMENT:
+        case SOCGame.PLACING_SETTLEMENT:
+            if (ourTurn && (! waitingForOurTurn) && (expectPLACING_SETTLEMENT))
             {
-                if ((ourTurn) && (!waitingForOurTurn) && (expectPLACING_SETTLEMENT))
-                {
                 	//placing settlement save
 //                	if(!saved){
 //                		saveGame();
 //                	}
-                    expectPLACING_SETTLEMENT = false;
-                    waitingForGameState = true;
-                    counter = 0;
-                    expectPLAY1 = true;
+                expectPLACING_SETTLEMENT = false;
+                waitingForGameState = true;
+                counter = 0;
+                expectPLAY1 = true;
     
-                    //D.ebugPrintln("!!! PUTTING PIECE "+whatWeWantToBuild+" !!!");
-                    pause(1);
-                    client.putPiece(game, whatWeWantToBuild);
-                    pause(2);
-                }
+                //D.ebugPrintln("!!! PUTTING PIECE "+whatWeWantToBuild+" !!!");
+                pause(1);
+                client.putPiece(game, whatWeWantToBuild);
+                pause(2);
             }
             break;
 
-            case SOCGame.PLACING_ROAD:
+        case SOCGame.PLACING_ROAD:
+            if (ourTurn && (! waitingForOurTurn) && (expectPLACING_ROAD))
             {
-                if ((ourTurn) && (!waitingForOurTurn) && (expectPLACING_ROAD))
-                {
                 	//placing road save
 //                	if(!saved){
 //                		saveGame();
 //                	}
-                    expectPLACING_ROAD = false;
-                    waitingForGameState = true;
-                    counter = 0;
-                    expectPLAY1 = true;
+                expectPLACING_ROAD = false;
+                waitingForGameState = true;
+                counter = 0;
+                expectPLAY1 = true;
 
-                    pause(1);
-                    client.putPiece(game, whatWeWantToBuild);
-                    pause(2);
-                }
+                pause(1);
+                client.putPiece(game, whatWeWantToBuild);
+                pause(2);
             }
             break;
 
-            case SOCGame.PLACING_CITY:
+        case SOCGame.PLACING_CITY:
+            if (ourTurn && (! waitingForOurTurn) && (expectPLACING_CITY))
             {
-                if ((ourTurn) && (!waitingForOurTurn) && (expectPLACING_CITY))
-                {
                 	//placing city save
 //                	if(!saved){
 //                		saveGame();
 //                	}
-                    expectPLACING_CITY = false;
-                    waitingForGameState = true;
-                    counter = 0;
-                    expectPLAY1 = true;
+                expectPLACING_CITY = false;
+                waitingForGameState = true;
+                counter = 0;
+                expectPLAY1 = true;
 
-                    pause(1);
-                    client.putPiece(game, whatWeWantToBuild);
-                    pause(2);
-                }
+                pause(1);
+                client.putPiece(game, whatWeWantToBuild);
+                pause(2);
             }
             break;
 
-            case SOCGame.PLACING_FREE_ROAD1:
+        case SOCGame.PLACING_SHIP:
+            if (ourTurn && (! waitingForOurTurn) && (expectPLACING_SHIP))
             {
-                if ((ourTurn) && (!waitingForOurTurn) && (expectPLACING_FREE_ROAD1))
-                {
+                expectPLACING_SHIP = false;
+                waitingForGameState = true;
+                counter = 0;
+                expectPLAY1 = true;
+
+                pause(500);
+                client.putPiece(game, whatWeWantToBuild);
+                pause(1000);
+            }
+            break;
+
+        case SOCGame.PLACING_FREE_ROAD1:
+            if (ourTurn && (! waitingForOurTurn) && (expectPLACING_FREE_ROAD1))
+            {
                 	//placing first free road save
 //                	if(!saved){
 //                		saveGame();
 //                	}
-                    expectPLACING_FREE_ROAD1 = false;
-                    waitingForGameState = true;
-                    counter = 0;
-                    expectPLACING_FREE_ROAD2 = true;
-                    // D.ebugPrintln("!!! PUTTING PIECE 1 " + whatWeWantToBuild + " !!!");
-                    pause(1);
-                    client.putPiece(game, whatWeWantToBuild);
-                    pause(2);
-                }
+                expectPLACING_FREE_ROAD1 = false;
+                waitingForGameState = true;
+                counter = 0;
+                expectPLACING_FREE_ROAD2 = true;
+
+                // D.ebugPrintln("!!! PUTTING PIECE 1 " + whatWeWantToBuild + " !!!");
+                pause(1);
+                client.putPiece(game, whatWeWantToBuild);  // either ROAD or SHIP
+                pause(2);
             }
             break;
 
-            case SOCGame.PLACING_FREE_ROAD2:
+        case SOCGame.PLACING_FREE_ROAD2:
+            if (ourTurn && (! waitingForOurTurn) && (expectPLACING_FREE_ROAD2))
             {
-                if ((ourTurn) && (!waitingForOurTurn) && (expectPLACING_FREE_ROAD2))
-                {
                 	//placing second free road save
 //                	if(!saved){
 //                		saveGame();
 //                	}
-                    expectPLACING_FREE_ROAD2 = false;
-                    waitingForGameState = true;
-                    counter = 0;
-                    expectPLAY1 = true;
+                expectPLACING_FREE_ROAD2 = false;
+                waitingForGameState = true;
+                counter = 0;
+                expectPLAY1 = true;
     
-                    BP plan = getBuildingPlan(); //TODO: this is dangerous as we expect the plan not to be empty, but this may change in memory over time 
-                    SOCPossiblePiece posPiece = plan.getPlannedPiece(0); 
-                    plan.advancePlan();
-                    //(SOCPossiblePiece) buildingPlan.pop();
+                BP plan = getBuildingPlan(); //TODO: this is dangerous as we expect the plan not to be empty, but this may change in memory over time 
+                SOCPossiblePiece posPiece = plan.advancePlan();
+                //(SOCPossiblePiece) buildingPlan.pop();
     
-                    if (posPiece.getType() == SOCPossiblePiece.ROAD)
-                    {
-                        // D.ebugPrintln("posPiece = " + posPiece);
-                        whatWeWantToBuild = new SOCRoad(ourPlayerData, posPiece.getCoordinates(), null);
-                        // D.ebugPrintln("$ POPPED OFF");
-                        // D.ebugPrintln("!!! PUTTING PIECE 2 " + whatWeWantToBuild + " !!!");
-                        pause(1);
-                        client.putPiece(game, whatWeWantToBuild);
-                        pause(2);
-                    }
-                }
+                if (posPiece.getType() == SOCPossiblePiece.ROAD)
+                    whatWeWantToBuild = new SOCRoad(ourPlayerData, posPiece.getCoordinates(), null);
+                else
+                    whatWeWantToBuild = new SOCShip(ourPlayerData, posPiece.getCoordinates(), null);
+
+                // D.ebugPrintln("posPiece = " + posPiece);
+                // D.ebugPrintln("$ POPPED OFF");
+                // D.ebugPrintln("!!! PUTTING PIECE 2 " + whatWeWantToBuild + " !!!");
+                pause(1);
+                client.putPiece(game, whatWeWantToBuild);
+                pause(2);
             }
             break;
             
-            //same as with placing robber: do the action first and then change states for the following cases
-            case SOCGame.START1A:
-            {	
-                if ((!waitingForOurTurn) && (ourTurn) && (!(expectPUTPIECE_FROM_START1A && (counter < 4000))))
+        //same as with placing robber: do the action first and then change states for the following cases
+        case SOCGame.START1A:
+            {
+                if ((! waitingForOurTurn) && ourTurn && (! (expectPUTPIECE_FROM_START1A && (counter < 4000))))
                 {
                 	//START1A: save
 //                	if(!saved){
 //                		saveGame();
 //                	}
-                    decisionMaker.planInitialSettlements();
-                    placeFirstSettlement();
+                    final int firstSettleNode = decisionMaker.planInitialSettlements();
+                    placeFirstSettlement(firstSettleNode);
                     expectPUTPIECE_FROM_START1A = true;
                     waitingForGameState = true;
                     counter = 0;
                 }
+
                 expectSTART1A = false;
             }
             break;
 
             case SOCGame.START1B:
             {
-    
-                if ((!waitingForOurTurn) && (ourTurn) && (!(expectPUTPIECE_FROM_START1B && (counter < 4000))))
+                if ((! waitingForOurTurn) && ourTurn && (! (expectPUTPIECE_FROM_START1B && (counter < 4000))))
                 {
                 	//START1B: save
 //                	if(!saved){
 //                		saveGame();
 //                	}
-                    placeInitRoad();
+                    planAndPlaceInitRoad();
+
                     expectPUTPIECE_FROM_START1B = true;
                     counter = 0;
                     waitingForGameState = true;
+                    waitingForOurTurn = true;  // ignore next player's GameState(START1A) message seen before Turn(nextPN)
                     pause(3);
                 }
+
                 expectSTART1B = false;
             }
             break;
 
             case SOCGame.START2A:
             {
-                if ((!waitingForOurTurn) && (ourTurn) && (!(expectPUTPIECE_FROM_START2A && (counter < 4000))))
+                if ((! waitingForOurTurn) && ourTurn && (! (expectPUTPIECE_FROM_START2A && (counter < 4000))))
                 {
                 	//START2A: save
 //                	if(!saved){
 //            			saveGame();
 //                	}
-                	decisionMaker.planSecondSettlement();
-                    placeSecondSettlement();
+                    final int secondSettleNode = decisionMaker.planSecondSettlement();
+                    placeInitSettlement(decisionMaker.secondSettlement);
+
                     expectPUTPIECE_FROM_START2A = true;
                     counter = 0;
                     waitingForGameState = true;
                 }
+
                 expectSTART2A = false;
             }
             break;
 
             case SOCGame.START2B:
             {
-                if ((!waitingForOurTurn) && (ourTurn) && (!(expectPUTPIECE_FROM_START2B && (counter < 4000))))
+                if ((! waitingForOurTurn) && ourTurn && (! (expectPUTPIECE_FROM_START2B && (counter < 4000))))
                 {
                 	//START2B: save
 //                	if(!saved){
 //                		saveGame();
 //                	}
-                	placeInitRoad();
+                    planAndPlaceInitRoad();
+
                     expectPUTPIECE_FROM_START2B = true;
                     counter = 0;
                     waitingForGameState = true;
+                    waitingForOurTurn = true;  // ignore next player's GameState(START2A) message seen before Turn(nextPN)
                     pause(3);
                 }
+
                 expectSTART2B = false;
+            }
+            break;
+
+        case SOCGame.START3A:
+            {
+                if ((! waitingForOurTurn) && ourTurn && (! (expectPUTPIECE_FROM_START3A && (counter < 4000))))
+                {
+                    final int secondSettleNode = openingBuildStrategy.planSecondSettlement();  // TODO planThirdSettlement
+                    placeInitSettlement(secondSettleNode);
+
+                    expectPUTPIECE_FROM_START3A = true;
+                    counter = 0;
+                    waitingForGameState = true;
+                }
+
+                expectSTART3A = false;
+            }
+            break;
+
+        case SOCGame.START3B:
+            {
+                if ((! waitingForOurTurn) && ourTurn && (! (expectPUTPIECE_FROM_START3B && (counter < 4000))))
+                {
+                    planAndPlaceInitRoad();
+
+                    expectPUTPIECE_FROM_START3B = true;
+                    counter = 0;
+                    waitingForGameState = true;
+                    waitingForOurTurn = true;  // ignore next player's GameState(START3A) message seen before Turn(nextPN)
+                    pause(1500);
+                }
+
+                expectSTART3B = false;
             }
             break;
 
@@ -1983,23 +2924,49 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
 
     /**
+     * Play a Knight card.
+     * In scenario {@link SOCGameOptionSet#K_SC_PIRI _SC_PIRI}, play a "Convert to Warship" card.
+     * Sets {@link #expectPLACING_ROBBER}, {@link #waitingForGameState}.
+     * Calls {@link SOCRobotClient#playDevCard(SOCGame, int) client.playDevCard}({@link SOCDevCardConstants#KNIGHT KNIGHT}).
+     *<P>
+     * In scenario {@code _SC_PIRI}, the server response messages are different, but we
+     * still use those two flag fields; see {@link #expectPLACING_ROBBER} javadoc.
+     *
+     * @see #playKnightCardIfShould()
+     * @since 2.0.00
+     */
+    private void playKnightCard()
+    {
+        expectPLACING_ROBBER = true;
+        waitingForGameState = true;
+        counter = 0;
+        client.playDevCard(game, SOCDevCardConstants.KNIGHT);
+        pause(1500);
+    }
+
+    /**
      * On our turn, ask client to roll dice or play a knight;
      * on other turns, update flags to expect dice result.
      *<P>
-     * Call when gameState {@link SOCGame#PLAY} && ! {@link #waitingForGameState}.
+     * Call when gameState {@link SOCGame#ROLL_OR_CARD} && ! {@link #waitingForGameState}.
      *<P>
-     * Clears {@link #expectPLAY} to false.
+     * Clears {@link #expectROLL_OR_CARD} to false.
      * Sets either {@link #expectDICERESULT}, or {@link #expectPLACING_ROBBER} and {@link #waitingForGameState}.
+     *<P>
+     * In scenario {@code _SC_PIRI}, don't play a Knight card before dice roll, because the scenario has
+     * no robber: Playing before the roll won't un-block any of our resource hexes, and it might put us
+     * over 7 resources.
      *
+     * @see #playKnightCardIfShould()
      * @since 1.1.08
      */
     protected void rollOrPlayKnightOrExpectDice()
     {
-        expectPLAY = false;
+        expectROLL_OR_CARD = false;
 
-        if ((!waitingForOurTurn) && (ourTurn))
+        if ((! waitingForOurTurn) && ourTurn)
         {
-            if (!expectPLAY1 && !expectDISCARD && !expectPLACING_ROBBER && !(expectDICERESULT && (counter < 4000)))
+            if (!expectPLAY1 && !expectDISCARD && !expectPLACING_ROBBER && ! (expectDICERESULT && (counter < 4000)))
             {
             	
             	//collect data at each turn start, before making the first action of rolling or playing knight
@@ -2023,7 +2990,12 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                  * if we have a knight card and the robber
                  * is on one of our numbers, play the knight card
                  */
-            	if (ourPlayerData.getDevCards().getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.KNIGHT) > 0 && decisionMaker.shouldPlayKnight(false)) {            	
+            	if (ourPlayerData.getInventory().hasPlayable(SOCDevCardConstants.KNIGHT)
+                    && (rejectedPlayDevCardType != SOCDevCardConstants.KNIGHT)
+                    && (! game.isGameOptionSet(SOCGameOptionSet.K_SC_PIRI))  // scenario has no robber; wait until after roll
+                    && (! ourPlayerData.getNumbers().hasNoResourcesForHex(game.getBoard().getRobberHex()))
+                    && decisionMaker.shouldPlayKnight(false))
+                {
                 	//PLAYB save, but this robot assumes we should play a knight and we have one
 //                	if(!saved){
 //                		expectPLAY = true;
@@ -2031,11 +3003,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 //                		expectPLAY = false;
 //                	}
             		// TODO: I assume the hasplayedcard flag is set when we handle the message?
-            		expectPLACING_ROBBER = true;
-                    waitingForGameState = true;
-                    counter = 0;
-                    client.playDevCard(game, SOCDevCardConstants.KNIGHT);
-                    pause(3);
+            		playKnightCard();  // sets expectPLACING_ROBBER, waitingForGameState
                 }
                 else
                 {
@@ -2061,21 +3029,31 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             expectDICERESULT = true;
         }
     }
-    
 
     /**
-     * Either ask to build a piece, or use trading or development cards to get resources to build it.
+     * Either ask to build a planned piece, or use trading or development cards to get resources to build it.
      * Examines {@link #buildingPlan} for the next piece wanted.
+     * Sets {@link #whatWeWantToBuild} by calling {@link #buildRequestPlannedPiece()}
+     * or using a Road Building dev card.
+     *<P>
+     * If we need resources and we can't get them through the robber,
+     * the {@link SOCDevCardConstants#ROADS Road Building} or
+     * {@link SOCDevCardConstants#MONO Monopoly} or
+     * {@link SOCDevCardConstants#DISC Discovery} development cards,
+     * then trades with the bank ({@link #tradeWithBank(SOCBuildPlan)})
+     * or with other players ({@link #makeOffer(SOCBuildPlan)}).
      *<P>
      * Call when these conditions are all true:
      * <UL>
+     *<LI> {@link #ourTurn}
+     *<LI> {@link #planBuilding()} already called
+     *<LI> ! {@link #buildingPlan}.empty()
      *<LI> gameState {@link SOCGame#PLAY1} or {@link SOCGame#SPECIAL_BUILDING}
-     *<LI> <tt>waitingFor...</tt> flags all false ({@link #waitingForGameState}, etc) except possibly {@link #waitingForSpecialBuild}
+     *<LI> <tt>waitingFor...</tt> flags all false ({@link #waitingForGameState}, etc)
+     *     except possibly {@link #waitingForSpecialBuild}
      *<LI> <tt>expect...</tt> flags all false ({@link #expectPLACING_ROAD}, etc)
      *<LI> ! {@link #waitingForOurTurn}
-     *<LI> {@link #ourTurn}
-     *<LI> ! ({@link #expectPLAY} && (counter < 4000))
-     *<LI> ! {@link #buildingPlan}.empty()
+     *<LI> ! ({@link #expectROLL_OR_CARD} && (counter < 4000))
      *</UL>
      *<P>
      * May set any of these flags:
@@ -2083,13 +3061,23 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      *<LI> {@link #waitingForGameState}, and {@link #expectWAITING_FOR_DISCOVERY} or {@link #expectWAITING_FOR_MONOPOLY}
      *<LI> {@link #waitingForTradeMsg} or {@link #waitingForTradeResponse} or {@link #doneTrading}
      *<LI> {@link #waitingForDevCard}, or {@link #waitingForGameState} and {@link #expectPLACING_SETTLEMENT} (etc).
+     *<LI> {@link #waitingForPickSpecialItem}
+     *<LI> Scenario actions such as {@link #waitingForSC_PIRI_FortressRequest}
      *</UL>
-     * @param plan the building plan to follow when deciding, as this may change in the memory and is risky to call it repeatedly
+     *<P>
+     * In a future iteration of the run() loop with the expected {@code PLACING_} state, the
+     * bot will build {@link #whatWeWantToBuild} by calling {@link #placeIfExpectPlacing()}.
      *
+     * @param plan the building plan to follow when deciding, as this may change in the memory and is risky to call it repeatedly
      * @since 1.1.08
+     * @throws IllegalStateException  if {@code plan}{@link Stack#isEmpty() .isEmpty()}
      */
     protected void buildOrGetResourceByTradeOrCard(BP plan)
+        throws IllegalStateException
     {
+        if (buildingPlan.isEmpty())
+            throw new IllegalStateException("buildingPlan empty when called");
+
     	//PLAY1 save
 //    	if(!saved){
 //    		saveGame();
@@ -2105,8 +3093,13 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
          * check to see if this is a Road Building plan
          */
         boolean roadBuildingPlan = false;
+        // TODO handle ships here
 
-        if (gameStatePLAY1 && (! ourPlayerData.hasPlayedDevCard()) && (ourPlayerData.getNumPieces(SOCPlayingPiece.ROAD) >= 2) && (ourPlayerData.getDevCards().getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.ROADS) > 0))
+        if (gameStatePLAY1
+            && (! ourPlayerData.hasPlayedDevCard())
+            && (ourPlayerData.getNumPieces(SOCPlayingPiece.ROAD) >= 2)
+            && ourPlayerData.getInventory().hasPlayable(SOCDevCardConstants.ROADS)
+            && (rejectedPlayDevCardType != SOCDevCardConstants.ROADS))
         {
         	// TODO: Move isRoadBuildingPlan into DM class.  The existing implementation is iffy because it assumes
         	//  the road building involves the first two steps - it may be that we want to build a road to allow a settlement,
@@ -2117,25 +3110,35 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         	//  with the current implementation.
         	
             //D.ebugPrintln("** Checking for Road Building Plan **");
-            SOCPossiblePiece topPiece = (SOCPossiblePiece) plan.getPlannedPiece(0); 
-            // NB: In lieu of a pop with a conditional push, I use a peek with a conditional pop
+            SOCPossiblePiece topPiece = plan.getPlannedPiece(0); 
 
             //D.ebugPrintln("$ POPPED "+topPiece);
-            if ((topPiece != null) && (topPiece.getType() == SOCPossiblePiece.ROAD) && plan.getPlanDepth()>1)
+            if ((topPiece != null) && (topPiece.instanceof SOCPossibleRoad) && (plan.getPlanDepth() > 1))
             {
-                SOCPossiblePiece secondPiece = (SOCPossiblePiece) plan.getPlannedPiece(1);
+                SOCPossiblePiece secondPiece = plan.getPlannedPiece(1);
 
                 //D.ebugPrintln("secondPiece="+secondPiece);
-                if ((secondPiece != null) && (secondPiece.getType() == SOCPossiblePiece.ROAD))
+                if ((secondPiece != null) && (secondPiece instanceof SOCPossibleRoad))
                 {
                     roadBuildingPlan = true;
-                    whatWeWantToBuild = new SOCRoad(ourPlayerData, topPiece.getCoordinates(), null);
+
+                    // TODO for now, 2 coastal roads/ships are always built as roads, not ships;
+                    // builds ships only if the 2 possible pieces are non-coastal ships
+                    if ((topPiece instanceof SOCPossibleShip)
+                        && (! ((SOCPossibleShip) topPiece).isCoastalRoadAndShip )
+                        && (secondPiece instanceof SOCPossibleShip)
+                        && (! ((SOCPossibleShip) secondPiece).isCoastalRoadAndShip ))
+                        whatWeWantToBuild = new SOCShip(ourPlayerData, topPiece.getCoordinates(), null);
+                    else
+                        whatWeWantToBuild = new SOCRoad(ourPlayerData, topPiece.getCoordinates(), null);
+
                     if (! whatWeWantToBuild.equals(whatWeFailedToBuild))
                     {
                     	if (decisionMaker.shouldPlayRoadbuilding()) {
 	                        waitingForGameState = true;
 	                        counter = 0;
 	                        expectPLACING_FREE_ROAD1 = true;
+                                plan.advancePlan();  // consume topPiece
 	
 	                        //D.ebugPrintln("!! PLAYING ROAD BUILDING CARD");
 	                        client.playDevCard(game, SOCDevCardConstants.ROADS);
@@ -2146,158 +3149,273 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         cancelWrongPiecePlacementLocal(whatWeWantToBuild);
                         // cancel sets whatWeWantToBuild = null;
                     }
-                    plan.advancePlan();
                 }
             }
         }
 
-        if (! roadBuildingPlan)
+        if (roadBuildingPlan)
         {
-            // Defer this - we want the ability for the negotiator to change plans on the fly based on results of trading
-            //SOCPossiblePiece targetPiece = (SOCPossiblePiece) buildingPlan.getPlannedPiece(0);
-            //SOCResourceSet targetResources = SOCPlayingPiece.getResourcesToBuild(targetPiece.getType());
+            return;  // <---- Early return: Road Building dev card ----
+        }
 
-            //D.ebugPrintln("^^^ targetPiece = "+targetPiece);
-            //D.ebugPrintln("^^^ ourResources = "+ourPlayerData.getResources());
+        // Defer this - we want the ability for the negotiator to change plans on the fly based on results of trading
+        //SOCPossiblePiece targetPiece = buildingPlan.getPlannedPiece(0);
+        //SOCResourceSet targetResources = targetPiece.getResourcesToBuild();  // may be null
 
-            negotiator.setTargetPiece(ourPlayerData.getPlayerNumber(), plan);
+        //D.ebugPrintln("^^^ targetPiece = "+targetPiece);
+        //D.ebugPrintln("^^^ ourResources = "+ourPlayerData.getResources());
+
+        negotiator.setTargetPiece(ourPlayerNumber, plan);
+
+        ///
+        /// if we have a 2 free resources card and we need
+        /// at least 2 resources, play the card
+        ///
+        if (gameStatePLAY1
+            && (! ourPlayerData.hasPlayedDevCard())
+            && ourPlayerData.getInventory().hasPlayable(SOCDevCardConstants.DISC)
+            && (rejectedPlayDevCardType != SOCDevCardConstants.DISC)
+            && decisionMaker.shouldPlayDiscovery())
+        {                
+            decisionMaker.chooseFreeResources(plan);
 
             ///
-            /// if we have a 2 free resources card and we need
-            /// at least 2 resources, play the card
+            /// play the card
             ///
-            if (gameStatePLAY1 && (! ourPlayerData.hasPlayedDevCard()) && (ourPlayerData.getDevCards().getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.DISC) > 0) && decisionMaker.shouldPlayDiscovery())
-            {                
-                decisionMaker.chooseFreeResources(plan);
+            expectWAITING_FOR_DISCOVERY = true;
+            waitingForGameState = true;
+            counter = 0;
+            client.playDevCard(game, SOCDevCardConstants.DISC);
+            pause(3);                
+        }
 
+        if (! expectWAITING_FOR_DISCOVERY)
+        {
+            ///
+            /// if we have a monopoly card, play it
+            /// and take what there is most of
+            ///
+            if (gameStatePLAY1
+                && (! ourPlayerData.hasPlayedDevCard())
+                && (ourPlayerData.getInventory().hasPlayable(SOCDevCardConstants.MONO)
+                && (rejectedPlayDevCardType != SOCDevCardConstants.MONO)
+                && monopolyStrategy.decidePlayMonopoly())
+            {
                 ///
                 /// play the card
                 ///
-                expectWAITING_FOR_DISCOVERY = true;
+            	// TODO: Consider the possibility of making trades and then playing monopoly (eg offer a 2 for 1 and then grab it back)
+                expectWAITING_FOR_MONOPOLY = true;
                 waitingForGameState = true;
                 counter = 0;
-                client.playDevCard(game, SOCDevCardConstants.DISC);
-                pause(3);                
+                client.playDevCard(game, SOCDevCardConstants.MONO);
+                pause(3);
             }
 
-            if (!expectWAITING_FOR_DISCOVERY)
+            if (! expectWAITING_FOR_MONOPOLY)
             {
-                ///
-                /// if we have a monopoly card, play it
-                /// and take what there is most of
-                ///
-                if (gameStatePLAY1 && (! ourPlayerData.hasPlayedDevCard()) && (ourPlayerData.getDevCards().getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.MONO) > 0) && decisionMaker.chooseMonopoly())
-                {
-                    ///
-                    /// play the card
-                    ///
-                	// TODO: Consider the possibility of making trades and then playing monopoly (eg offer a 2 for 1 and then grab it back)
-                    expectWAITING_FOR_MONOPOLY = true;
-                    waitingForGameState = true;
-                    counter = 0;
-                    client.playDevCard(game, SOCDevCardConstants.MONO);
-                    pause(3);
+                if (gameStatePLAY1 && (! doneTrading))
+                { 
+                //  Remove this condition - we may want to trade regardless of our current ability 
+                //  to build.  Default implementation checks this anyway
+                // && (!ourPlayerData.getResources().contains(targetResources)))
+                
+                    waitingForTradeResponse = false;
+
+                    if (robotParameters.getTradeFlag() == 1
+                    		&& !disableTrades)
+                    {
+                        D.ebugPrintlnINFO("TRY OFFERING");
+                        makeOffer(plan);
+                        // makeOffer will set waitingForTradeResponse or doneTrading.
+                        // NB: With some implementations, makeOffer may instruct the brain to wait
+                        // In that case, return from this function
+                        if (isWaiting() ) {
+                            return;
+                        }
+                    }
                 }
 
-                if (!expectWAITING_FOR_MONOPOLY)
+                if (! isWaiting() && gameStatePLAY1 && ! waitingForTradeResponse && ! waitingForTradeMsg)
                 {
-                    if (gameStatePLAY1 && (!doneTrading)) { 
-                    //  Remove this condition - we may want to trade regardless of our current ability 
-                    //  to build.  Default implementation checks this anyway
-                    // && (!ourPlayerData.getResources().contains(targetResources)))
-                    
-                        waitingForTradeResponse = false;
-
-                        if (robotParameters.getTradeFlag() == 1
-                        		&& !disableTrades)
-                        {
-                            D.ebugPrintlnINFO("TRY OFFERING");
-                            makeOffer(plan);
-                            // makeOffer will set waitingForTradeResponse or doneTrading.
-                            // NB: With some implementations, makeOffer may instruct the brain to wait
-                            // In that case, return from this function
-                            if (isWaiting() ) {
-                                return;
-                            }
-                        }
-                    }
-
-                    if (!isWaiting() && gameStatePLAY1 && !waitingForTradeResponse && !waitingForTradeMsg)
+                    /**
+                     * trade with the bank/ports
+                     */
+                    D.ebugPrintlnINFO("TRY BANK TRADE");
+                    if (tradeWithBank(plan))
                     {
-                        /**
-                         * trade with the bank/ports
-                         */
-                        D.ebugPrintlnINFO("TRY BANK TRADE");
-                        if (tradeWithBank(plan))
-                        {
-                            counter = 0;
-                            waitingForTradeMsg = true;
-                            pause(3);
-                        }
+                        counter = 0;
+                        waitingForTradeMsg = true;
+                        pause(3);
                     }
+                }
 
-                    ///
-                    /// build if we can
-                    ///
-                    SOCPossiblePiece targetPiece = (SOCPossiblePiece) plan.getPlannedPiece(0);
-                    SOCResourceSet targetResources = SOCPlayingPiece.getResourcesToBuild(targetPiece.getType());
-                    if (!isWaiting() && !waitingForTradeMsg && !waitingForTradeResponse && ourPlayerData.getResources().contains(targetResources))
-                    {
-                        // Calls buildingPlan.pop().
-                        // Checks against whatWeFailedToBuild to see if server has rejected this already.
-                        // Calls client.buyDevCard or client.buildRequest.
-                        // Sets waitingForDevCard, or waitingForGameState and expectPLACING_SETTLEMENT (etc).
+                ///
+                /// build if we can
+                ///
+                SOCPossiblePiece targetPiece = (SOCPossiblePiece) plan.getPlannedPiece(0);
+                SOCResourceSet targetResources = SOCPlayingPiece.getResourcesToBuild(targetPiece.getType());
+                if ((! isWaiting() && ! (waitingForTradeMsg || waitingForTradeResponse))
+                    && ourPlayerData.getResources().contains(targetResources))
+                {
+                    // Remember that targetPiece == buildingPlan.peek().
+                    // Calls buildingPlan.pop().
+                    // Checks against whatWeFailedToBuild to see if server has rejected this already.
+                    // Calls client.buyDevCard or client.buildRequest.
+                    // Sets waitingForDevCard, or waitingForGameState and expectPLACING_SETTLEMENT (etc).
+                    // Sets waitingForPickSpecialItem if target piece is SOCPossiblePickSpecialItem.
 
-                        D.ebugPrintlnINFO("MAKE BUILD REQUEST - " + targetPiece);
-                        buildRequestPlannedPiece(targetPiece, plan);
-                    }
+                    D.ebugPrintlnINFO("MAKE BUILD REQUEST - " + targetPiece);
+                    buildRequestPlannedPiece(targetPiece, plan);
                 }
             }
         }
     }
 
     /**
+     * On our turn, server is expecting us to choose a placement location for a {@link SOCInventoryItem}.
+     * Try to plan a location and send placement request command(s).
+     *<P>
+     * Call only when these conditions are all true:
+     *<UL>
+     * <LI> {@link #ourTurn} &amp;&amp; ! {@link #waitingForOurTurn}
+     * <LI> game state {@link SOCGame#PLACING_INV_ITEM PLACING_INV_ITEM}
+     * <LI> ! {@link #waitingForGameState}
+     *</UL>
+     * If the piece can be planned and placed, will set {@link #waitingForGameState}
+     * and either {@link #expectPLAY1} or another expect flag, and send placement commands.
+     * If nothing could be planned and placed, does not set {@link #waitingForGameState}.
+     *
+     * @throws IllegalStateException if called with {@link #waitingForGameState} true
+     * @since 2.0.00
+     */
+    protected void planAndPlaceInvItem()
+        throws IllegalStateException
+    {
+        if (waitingForGameState)
+            throw new IllegalStateException();
+
+        SOCInventoryItem itm = game.getPlacingItem();
+        if (itm == null)
+            return;  // in case of bugs; shouldn't happen in a consistent game
+
+        if (game.isGameOptionSet(SOCGameOptionSet.K_SC_FTRI))
+        {
+            planAndPlaceInvItemPlacement_SC_FTRI(itm);
+        } else {
+            System.err.println
+                ("L2720: Game " + game.getName() + " bot " + client.getNickname()
+                 + ": No PLACING_INV_ITEM handler for scenario " + game.getGameOptionStringValue("SC"));
+
+            // End turn? Probably cleaner to let server force-end it. So do nothing here.
+            // TODO revisit that: Per PLACING_INV_ITEM javadoc:
+            // "For some kinds of item, placement can be canceled by calling ga.cancelPlaceInventoryItem"
+        }
+    }
+
+    /**
+     * For scenario {@link SOCGameOptionSet#K_SC_FTRI _SC_FTRI}, try to plan a location and
+     * send placement request command(s) for a "gift" trade port on the player's turn.
+     *<P>
+     * Calls {@link SOCPlayer#getPortMovePotentialLocations(boolean)}; this method is safe to call
+     * when the player has nowhere to place.
+     *<P>
+     * Called from {@link #planAndPlaceInvItem()}, see that method for required conditions to call
+     * and described brain-state results after calling.  Assumes caller has checked those conditions
+     * and:
+     *<UL>
+     * <LI> {@link #ourTurn}
+     * <LI> game state {@link SOCGame#PLACING_INV_ITEM PLACING_INV_ITEM} or {@link SOCGame#PLAY1 PLAY1}
+     * <LI> ! {@link #waitingForGameState}
+     *</UL>
+     *
+     * @param itm The gift port which must be placed; not {@code null}.
+     *     Can be as prompted by server, or from player's {@link SOCInventoryItem}s.
+     * @return true if {@code itm} was planned and/or placed
+     * @since 2.0.00
+     */
+    private boolean planAndPlaceInvItemPlacement_SC_FTRI(final SOCInventoryItem itm)
+    {
+        if (itm == null)
+            return false;
+        if ((rejectedPlayInvItem != null) && (itm.itype == rejectedPlayInvItem.itype))
+            return false;  // rbrain must plan something else instead
+
+        List<Integer> edges = ourPlayerData.getPortMovePotentialLocations(true);
+        if (edges.isEmpty())
+        {
+            // TODO any action to keep it moving?
+            rejectedPlayInvItem = itm;  // don't re-plan same thing for next move this turn
+
+            return false;  // <--- Early return: No choices despite gamestate ---
+        }
+
+        final int ptype = itm.itype;  // reminder: will be negative or 0
+        waitingForGameState = true;
+        counter = 0;
+
+        if (game.getGameState() == SOCGame.PLACING_INV_ITEM)
+        {
+            // This is a first draft for overall functionality, not for the smartest placement strategy.
+            // TODO smarter planning; consider settlement & dice number locations / hex types against
+            // the port type from itm if not null; if null iterate inv items
+            // but reject if chooses rejectedPlayInvItem again
+            final int edge = edges.get(0).intValue();
+
+            // Expected response from server: GAMESTATE(PLAY1) and
+            // then SIMPLEREQUEST confirming placement location,
+            // or SIMPLEREQUEST rejecting it; TODO don't plan further building
+            // until that's seen (new flag field?) because will need to recalc
+            // building speed estimates (BSEs) with the new port.
+
+            expectPLAY1 = true;
+            client.simpleRequest(game, ourPlayerNumber, SOCSimpleRequest.TRADE_PORT_PLACE, edge, 0);
+        } else {
+            // State PLAY1; assume inv is from inventory
+
+            // Expected response from server: GAMESTATE(PLACING_INV_ITEM).
+            // If client's request is rejected because nowhere to place right now,
+            // will respond with SOCInventoryItemAction(CANNOT_PLAY)
+            // and rbrain will clear expectPLACING_INV_ITEM.
+
+            expectPLACING_INV_ITEM = true;
+            client.playInventoryItem(game, ourPlayerNumber, ptype);
+        }
+
+        pause(1000);
+        return true;
+    }
+
+    /**
      * Handle a PUTPIECE for this game, by updating game data.
      * For initial roads, also track their initial settlement in SOCPlayerTracker.
-     * In general, most tracking is done a bit later in {@link #handlePUTPIECE_updateTrackers(SOCPutPiece)}.
+     * In general, most tracking is done a bit later in {@link #handlePUTPIECE_updateTrackers(int, int, int)}.
      * @since 1.1.08
      */
+    @SuppressWarnings("fallthrough")
     protected void handlePUTPIECE_updateGameData(SOCPutPiece mes)
     {
-        final SOCPlayer pl = game.getPlayer(mes.getPlayerNumber());
-        final int coord = mes.getCoordinates();
-
         switch (mes.getPieceType())
         {
+        case SOCPlayingPiece.SHIP:  // fall through to ROAD
         case SOCPlayingPiece.ROAD:
 
-            if ((game.getGameState() == SOCGame.START1B) || (game.getGameState() == SOCGame.START2B))
+            if (game.isInitialPlacement())  // START1B, START2B, START3B
             {
                 //
-                // Before processing this road, track the settlement that goes with it.
+                // Before processing this road/ship, track the settlement that goes with it.
                 // This was deferred until road placement, in case a human player decides
                 // to cancel their settlement and place it elsewhere.
                 //
-                SOCPlayerTracker tr = (SOCPlayerTracker) playerTrackers.get
-                    (Integer.valueOf(mes.getPlayerNumber()));
+                SOCPlayerTracker tr = playerTrackers[mes.getPlayerNumber()];
                 SOCSettlement se = tr.getPendingInitSettlement();
                 if (se != null)
                     trackNewSettlement(se, false);
             }
-            SOCRoad rd = new SOCRoad(pl, coord, null);
-            game.putPiece(rd);
-            break;
+            // fall through to default
 
-        case SOCPlayingPiece.SETTLEMENT:
-
-            SOCSettlement se = new SOCSettlement(pl, coord, null);
-            game.putPiece(se);
-            break;
-
-        case SOCPlayingPiece.CITY:
-
-            SOCCity ci = new SOCCity(pl, coord, null);
-            game.putPiece(ci);
+        default:
+            SOCDisplaylessPlayerClient.handlePUTPIECE(mes, game);
             break;
         }
     }
@@ -2305,14 +3423,16 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     /**
      * Handle a CANCELBUILDREQUEST for this game.
      *<P>
-     *<b> During game startup</b> (START1B or START2B): <BR>
+     *<b> During game startup</b> (START1B, START2B, or START3B): <BR>
      *    When sent from server to client, CANCELBUILDREQUEST means the current
      *    player wants to undo the placement of their initial settlement.
+     *    This handler method calls {@link SOCGame#undoPutInitSettlement(SOCPlayingPiece)}
+     *    and {@link SOCPlayerTracker#setPendingInitSettlement(SOCSettlement) tracker.setPendingInitSettlement(null)}.
      *<P>
      *<b> During piece placement</b> (PLACING_ROAD, PLACING_CITY, PLACING_SETTLEMENT,
      *                         PLACING_FREE_ROAD1, or PLACING_FREE_ROAD2): <BR>
      *    When sent from server to client, CANCELBUILDREQUEST means the player
-     *    has sent an illegal PUTPIECE (bad building location). 
+     *    has sent an illegal PUTPIECE (bad building location).
      *    Humans can probably decide a better place to put their road,
      *    but robots must cancel the build request and decide on a new plan.
      *
@@ -2325,6 +3445,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         {
         case SOCGame.START1A:
         case SOCGame.START2A:
+        case SOCGame.START3A:
             if (ourTurn)
             {
                 cancelWrongPiecePlacement(mes);
@@ -2333,6 +3454,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
         case SOCGame.START1B:
         case SOCGame.START2B:
+        case SOCGame.START3B:
             if (ourTurn)
             {
                 cancelWrongPiecePlacement(mes);
@@ -2340,7 +3462,8 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             else
             {
                 //
-                // human player placed, then cancelled placement.
+                // Human player placed, then cancelled placement
+                // (assume mes.getPieceType() == SOCPlayingPiece.SETTLEMENT).
                 // Our robot wouldn't do that, and if it's ourTurn,
                 // the cancel happens only if we try an illegal placement.
                 //
@@ -2352,8 +3475,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                 // "forget" to track this cancelled initial settlement.
                 // Wait for human player to place a new one.
                 //
-                SOCPlayerTracker tr = (SOCPlayerTracker) playerTrackers.get
-                    (Integer.valueOf(pnum));
+                SOCPlayerTracker tr = playerTrackers[pnum];
                 tr.setPendingInitSettlement(null);
             }
             break;
@@ -2362,6 +3484,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         case SOCGame.PLACING_ROAD:        // has given location -> is bad location
         case SOCGame.PLACING_SETTLEMENT:
         case SOCGame.PLACING_CITY:
+        case SOCGame.PLACING_SHIP:
         case SOCGame.PLACING_FREE_ROAD1:  // JM TODO how to break out?
         case SOCGame.PLACING_FREE_ROAD2:  // JM TODO how to break out?
         case SOCGame.SPECIAL_BUILDING:
@@ -2385,23 +3508,30 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                 cancelWrongPiecePlacement(mes);
             } else {
                 // Should not occur
-                D.ebugPrintlnINFO("Unexpected CANCELBUILDREQUEST at state " + gstate);
+                System.err.println
+                    ("L2521 SOCRobotBrain: " + client.getNickname() + ": Unhandled CANCELBUILDREQUEST at state " + gstate);
             }
 
         }  // switch (gameState)
     }
 
     /**
-     * Note that a player has replied to our offer.  Determine whether to keep waiting
-     *  for responses, and update negotiator appropriately
-     * @param playerNum
-     * @param accept
+     * Note that a player has replied to our offer, or we've accepted another player's offer.
+     * Determine whether to keep waiting for responses, and update negotiator appropriately.
+     * If {@code accepted}, also clears {@link #waitingForTradeResponse}
+     * by calling {@link #clearTradingFlags(boolean, boolean)}.
+     *
+     * @param playerNum  Player number: The other player accepting or rejecting our offer,
+     *     or {@link #ourPlayerNumber} if called for accepting another player's offer
+     * @param accept  True if offer was accepted, false if rejected
+     * @see #tradeStopWaitingClearOffer()
      */
     protected void handleTradeResponse(int playerNum, boolean accept) {
         waitingForTradeResponsePlayer[playerNum] = false;
         tradeAccepted |= accept;
         
-        boolean everyoneResponded = true;
+        boolean everyoneResponded = true,
+            allHumansRejected = (tradeResponseTimeoutSec > TRADE_RESPONSE_TIMEOUT_SEC_BOTS_ONLY);
         D.ebugPrintlnINFO("ourPlayerData.getCurrentOffer() = " + ourPlayerData.getCurrentOffer());
 
         for (int i = 0; i < game.maxPlayers; i++)
@@ -2410,6 +3540,8 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
             if (waitingForTradeResponsePlayer[i]) {
                 everyoneResponded = false;
+                if (! game.getPlayer(pn).isRobot())
+                    allHumansRejected = false;
                 break;
             }
         }
@@ -2418,31 +3550,44 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
         if (everyoneResponded)
         {
-            if (!tradeAccepted) {
+            if (! tradeAccepted) {
                 negotiator.addToOffersMade(ourPlayerData.getCurrentOffer());
             }
             client.clearOffer(game);
-            waitingForTradeResponse = false;
+            clearTradingFlags(false, true);
         }
-    
+        else if (allHumansRejected)
+        {
+            // can now shorten timeout
+            tradeResponseTimeoutSec = TRADE_RESPONSE_TIMEOUT_SEC_BOTS_ONLY;
+        }
     }
     
     /**
      * Handle a MAKEOFFER for this game.
      * if another player makes an offer, that's the
-     * same as a rejection, but still wants to deal.
+     * same as a rejection from them, but still wants to deal.
      * Call {@link #considerOffer(SOCTradeOffer)}, and if
      * we accept, clear our {@link #buildingPlan} so we'll replan it.
-     * Ignore our own MAKEOFFERs echoed from server.
+     * Ignore our own MAKEOFFERs echoed from server
+     * and "not allowed" replies from server ({@link SOCTradeOffer#getFrom()} &lt; 0).
+     * Call {@link SOCRobotNegotiator#recordResourcesFromOffer(SOCTradeOffer)}.
      * @since 1.1.08
      * TODO: Move logic of follow up into the negotiator
      */
     protected void handleMAKEOFFER(SOCMakeOffer mes)
     {
         SOCTradeOffer offer = mes.getOffer();
-        game.getPlayer(offer.getFrom()).setCurrentOffer(offer);
+        final int fromPN = offer.getFrom();
+        if (fromPN < 0)
+        {
+            return;  // <---- Ignore "not allowed" from server ----
+        }
 
-        if ((offer.getFrom() == ourPlayerData.getPlayerNumber()))
+        final SOCPlayer offeredFromPlayer = game.getPlayer(fromPN);
+        offeredFromPlayer.setCurrentOffer(offer);
+
+        if (fromPN == ourPlayerNumber)
         {
             return;  // <---- Ignore our own offers ----
         }
@@ -2451,7 +3596,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         
         if (waitingForTradeResponse)
         {
-            handleTradeResponse(offer.getFrom(), false);            
+            handleTradeResponse(fromPN, false);            
         }
 
         ///
@@ -2462,7 +3607,15 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         D.ebugPrintlnINFO("%%% ourResponseToOffer = " + ourResponseToOffer);
 
         if (ourResponseToOffer < 0)
-            return;
+            return;  // <--- Early return: SOCRobotNegotiator.IGNORE_OFFER ---
+
+        // Before pausing, note current offer and turn.
+        // If that game data changes during the pause, we'll need to reconsider the current offer.
+        // While brain thread is paused, robot client's message thread is still running
+        // and will update game data if conditions change.
+
+        final long offeredAt = offeredFromPlayer.getCurrentOfferTime();
+        final int currentPN = game.getCurrentPlayerNumber();
 
         /* This needs to instead use the specifiable relative pause framework.
          * int delayLength = Math.abs(rand.nextInt() % 500) + 3500;
@@ -2470,30 +3623,78 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         {
             delayLength *= 2;  // usually, pause is half-length in 6-player
         }*/
-        pause(3); 
+        pause(1500); 
 
-        switch (ourResponseToOffer) {
+        // See if trade conditions still apply after pause;
+        // reconsider if needed
+
+        if (currentPN != game.getCurrentPlayerNumber())
+        {
+            return;  // <--- new turn; will react to newly queued messages to reset brain fields for new turn ---
+        }
+
+        if (offeredAt != offeredFromPlayer.getCurrentOfferTime())
+        {
+            offer = offeredFromPlayer.getCurrentOffer();
+            if ((offer == null) || ! offer.getTo()[ourPlayerNumber])
+            {
+                return;  // <--- nothing offered to us now ---
+            }
+
+            ourResponseToOffer = considerOffer(offer);
+        }
+
+        switch (ourResponseToOffer)
+        {
             case SOCRobotNegotiator.ACCEPT_OFFER:
-                client.acceptOffer(game, offer.getFrom());
+                {
+                    // since response is ACCEPT_OFFER, offer validity has already been checked
 
-                // We need to process the server's notification of this trade before proceeding
-                waitingForTradeMsg = true;
+                    boolean[] offeredTo = offer.getTo();
 
-                /// clear our building plan, so that we replan
-                resetBuildingPlan();
-                negotiator.setTargetPiece(ourPlayerData.getPlayerNumber(), null);
+                    // pause a bit if this was offered to at least one human player.
+                    for (int i = 0; i < offeredTo.length; i++)
+                    {
+                        if (offeredTo[i] && ! game.getPlayer(i).isRobot())
+                        {
+                            // offered to at least one human player; wait for the human brain to catch up
+                            // TODO: figure out how to interrupt the Thread.sleep once all humans have responded
+                            //  to the trade offer if it's faster than the pause time.
+
+                            pause((BOTS_PAUSE_FOR_HUMAN_TRADE * 1000 - 1500);
+                                // already waited 1.5 seconds: see pause above
+                            break;      // one wait for all humans is enough
+                        }
+                    }
+
+                    client.acceptOffer(game, fromPN);
+
+                    // We need to process the server's notification of this trade before proceeding
+                    waitingForTradeMsg = true;
+
+                    /// clear our building plan, so that we replan
+                    resetBuildingPlan();
+                    negotiator.setTargetPiece(ourPlayerData.getPlayerNumber(), null);
+                }
+
                 break;
+
             case SOCRobotNegotiator.REJECT_OFFER:
-                if (!waitingForTradeResponse)
+                if (! waitingForTradeResponse)
                     client.rejectOffer(game);
+
                 break;
+
             case SOCRobotNegotiator.COUNTER_OFFER:
-                if (!makeCounterOffer(offer))
+                if (! makeCounterOffer(offer))
                     client.rejectOffer(game);
+
                 break;
+
             case SOCRobotNegotiator.COMPLETE_OFFER:
-                if (!makeCompletedOffer(offer))
+                if (! makeCompletedOffer(offer))
                     client.rejectOffer(game);
+
                 break;
         }
     }
@@ -2501,78 +3702,75 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     /**
      * Handle a REJECTOFFER for this game.
      * watch rejections of other players' offers, and of our offers.
+     * If everyone's rejected our offer, clear {@link #waitingForTradeResponse}.
      * @since 1.1.08
      */
     protected void handleREJECTOFFER(SOCRejectOffer mes)
     {
         int rejector = mes.getPlayerNumber();
-        if (waitingForTradeResponse){
-        	handleTradeResponse(mes.getPlayerNumber(), false);//clear trading flags
+
+        if (waitingForTradeResponse)
+        {
+            handleTradeResponse(mes.getPlayerNumber(), false);  // clear trading flags
             // If this is false, it means the rejected trade was accepted by another player.
             //  Since it has been cleared from the data object, it unfortunately cannot be
             //  passed to the negotiator.
             //  TODO: Rework so that we have access to this?
             negotiator.recordResourcesFromReject(rejector);
-        }else
-        	negotiator.recordResourcesFromRejectAlt(rejector); 
+        }
+        else
+        {
+            negotiator.recordResourcesFromRejectAlt(rejector);
+        }
     }
 
     /**
-     * Handle a DEVCARD for this game.
+     * Handle a DEVCARDACTION for this game.
      * No brain-specific action.
+     * Ignores messages where {@link SOCDevCardAction#getCardTypes()} != {@code null}.
+     *<P>
+     * Before v2.0.00 this method was {@code handleDEVCARD}.
+     *
      * @since 1.1.08
      */
-    protected void handleDEVCARD(SOCDevCard mes)
+    protected void handleDEVCARDACTION(SOCDevCardAction mes)
     {
-        SOCDevCardSet plCards = game.getPlayer(mes.getPlayerNumber()).getDevCards();
+        if (mes.getCardTypes() != null)
+            return;  // <--- ignore: bots don't care about game-end VP card reveals ---
+
         final int cardType = mes.getCardType();
         SOCPlayer pl = game.getPlayer(mes.getPlayerNumber());
-        
+        SOCInventory cardsInv = pl.getInventory();
+
         switch (mes.getAction())
         {
-        case SOCDevCard.DRAW:
-            plCards.add(1, SOCDevCardSet.NEW, cardType);
+        case SOCDevCardAction.DRAW:
+            cardsInv.addDevCard(1, SOCInventory.NEW, cardType);
             break;
 
-        case SOCDevCard.PLAY:
-            plCards.subtract(1, SOCDevCardSet.OLD, cardType);
-            //handle the discovery,roadbuilding and monopoly card plays
-            switch (cardType) {
-			case SOCDevCardConstants.DISC:
-				pl.numDISCCards++;
-				break;
-
-			case SOCDevCardConstants.MONO:
-				pl.numMONOCards++;
-				break;
-			
-			case SOCDevCardConstants.ROADS:
-				pl.numRBCards++;
-			break;
-			
-			default:
-				//this is a knight so ignore
-				break;
-			}
-            
+        case SOCDevCardAction.PLAY:
+            plCards.removeDevCard(SOCInventory.OLD, cardType);
+            pl.updateDevCardsPlayed(cardType);
             break;
 
-        case SOCDevCard.ADDOLD:
-            plCards.add(1, SOCDevCardSet.OLD, cardType);
+        case SOCDevCardAction.ADD_OLD:
+            cardsInv.addDevCard(1, SOCInventory.OLD, cardType);
             break;
 
-        case SOCDevCard.ADDNEW:
-            plCards.add(1, SOCDevCardSet.NEW, cardType);
+        case SOCDevCardAction.ADD_NEW:
+            cardsInv.addDevCard(1, SOCInventory.NEW, cardType);
             break;
         }
     }
 
     /**
      * Handle a PUTPIECE for this game, by updating {@link SOCPlayerTracker}s.
+     * Also handles the "move piece to here" part of MOVEPIECE.
      *<P>
      * For initial placement of our own pieces, this method also checks
      * and clears expectPUTPIECE_FROM_START1A, and sets expectSTART1B, etc.
-     * The final initial putpiece clears expectPUTPIECE_FROM_START2B and sets expectPLAY.
+     * The final initial putpiece clears expectPUTPIECE_FROM_START2B and sets expectROLL_OR_CARD.
+     * As part of the PUTPIECE request, brain set those expectPUTPIECE flags in {@link #placeIfExpectPlacing()}.
      *<P>
      * For initial settlements, won't track here:
      * Delay tracking until the corresponding road is placed,
@@ -2580,49 +3778,56 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * This prevents the need for tracker "undo" work if a human
      * player changes their mind on where to place the settlement.
      *
+     * @param pn  Piece's player number
+     * @param coord  Piece coordinate
+     * @param pieceType  Piece type, as in {@link SOCPlayingPiece#SETTLEMENT}
      * @since 1.1.08
      */
-    public void handlePUTPIECE_updateTrackers(SOCPutPiece mes)
+    public void handlePUTPIECE_updateTrackers(final int pn, final int coord, final int pieceType)
     {
-        final int pn = mes.getPlayerNumber();
-        final int coord = mes.getCoordinates();
-        final int pieceType = mes.getPieceType();
-
         switch (pieceType)
         {
         case SOCPlayingPiece.ROAD:
 
             SOCRoad newRoad = new SOCRoad(game.getPlayer(pn), coord, null);
-            trackNewRoad(newRoad, false);
-
+            trackNewRoadOrShip(newRoad, false);
             break;
 
         case SOCPlayingPiece.SETTLEMENT:
 
             SOCPlayer newSettlementPl = game.getPlayer(pn);
             SOCSettlement newSettlement = new SOCSettlement(newSettlementPl, coord, null);
-            if ((game.getGameState() == SOCGame.START1B) || (game.getGameState() == SOCGame.START2B))
+            if ((game.getGameState() == SOCGame.START1B) || (game.getGameState() == SOCGame.START2B)
+                || (game.getGameState() == SOCGame.START3B))
             {
-                // Track it after the road is placed
+                // Track it soon, after the road is placed
                 // (in handlePUTPIECE_updateGameData)
-                SOCPlayerTracker tr = (SOCPlayerTracker) playerTrackers.get
-                    (Integer.valueOf(newSettlementPl.getPlayerNumber()));
+                // but not yet, in case player cancels placement.
+                SOCPlayerTracker tr = playerTrackers[newSettlementPl.getPlayerNumber()];
                 tr.setPendingInitSettlement(newSettlement);
             }
             else
             {
                 // Track it now
                 trackNewSettlement(newSettlement, false);
-            }                            
-
+            }
             break;
 
         case SOCPlayingPiece.CITY:
 
             SOCCity newCity = new SOCCity(game.getPlayer(pn), coord, null);
             trackNewCity(newCity, false);
-
             break;
+
+        case SOCPlayingPiece.SHIP:
+
+            SOCShip newShip = new SOCShip(game.getPlayer(pn), coord, null);
+            trackNewRoadOrShip(newShip, false);
+            break;
+
+        case SOCPlayingPiece.VILLAGE:
+            return;  // <--- Early return: Piece is part of board initial layout, not tracked player info ---
+
         }
 
         if (D.ebugOn)
@@ -2630,7 +3835,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             SOCPlayerTracker.playerTrackersDebug(playerTrackers);
         }
 
-        if (pn != ourPlayerData.getPlayerNumber())
+        if (pn != ourPlayerNumber)
         {
             return;  // <---- Not our piece ----
         }
@@ -2639,28 +3844,53 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
          * Update expect-vars during initial placement of our pieces.
          */
 
-        if (expectPUTPIECE_FROM_START1A && (pieceType == SOCPlayingPiece.SETTLEMENT) && (mes.getCoordinates() == ourPlayerData.getLastSettlementCoord()))
+        if (expectPUTPIECE_FROM_START1A && (pieceType == SOCPlayingPiece.SETTLEMENT)
+            && (coord == ourPlayerData.getLastSettlementCoord()))
         {
             expectPUTPIECE_FROM_START1A = false;
             expectSTART1B = true;
         }
 
-        if (expectPUTPIECE_FROM_START1B && (pieceType == SOCPlayingPiece.ROAD) && (mes.getCoordinates() == ourPlayerData.getLastRoadCoord()))
+        if (expectPUTPIECE_FROM_START1B
+            && ((pieceType == SOCPlayingPiece.ROAD) || (pieceType == SOCPlayingPiece.SHIP))
+            && (coord == ourPlayerData.getLastRoadCoord()))
         {
             expectPUTPIECE_FROM_START1B = false;
             expectSTART2A = true;
         }
 
-        if (expectPUTPIECE_FROM_START2A && (pieceType == SOCPlayingPiece.SETTLEMENT) && (mes.getCoordinates() == ourPlayerData.getLastSettlementCoord()))
+        if (expectPUTPIECE_FROM_START2A && (pieceType == SOCPlayingPiece.SETTLEMENT)
+            && (coord == ourPlayerData.getLastSettlementCoord()))
         {
             expectPUTPIECE_FROM_START2A = false;
             expectSTART2B = true;
         }
 
-        if (expectPUTPIECE_FROM_START2B && (pieceType == SOCPlayingPiece.ROAD) && (mes.getCoordinates() == ourPlayerData.getLastRoadCoord()))
+        if (expectPUTPIECE_FROM_START2B
+            && ((pieceType == SOCPlayingPiece.ROAD) || (pieceType == SOCPlayingPiece.SHIP))
+            && (coord == ourPlayerData.getLastRoadCoord()))
         {
             expectPUTPIECE_FROM_START2B = false;
-            expectPLAY = true;
+            if (! game.isGameOptionSet(SOCGameOptionSet.K_SC_3IP))
+                expectROLL_OR_CARD = true;    // wait for regular game play to start; other players might still place first
+            else
+                expectSTART3A = true;
+        }
+
+        if (expectPUTPIECE_FROM_START3A
+            && (pieceType == SOCPlayingPiece.SETTLEMENT)
+            && (coord == ourPlayerData.getLastSettlementCoord()))
+        {
+            expectPUTPIECE_FROM_START3A = false;
+            expectSTART3B = true;
+        }
+
+        if (expectPUTPIECE_FROM_START3B
+            && ((pieceType == SOCPlayingPiece.ROAD) || (pieceType == SOCPlayingPiece.SHIP))
+            && (coord == ourPlayerData.getLastRoadCoord()))
+        {
+            expectPUTPIECE_FROM_START3B = false;
+            expectROLL_OR_CARD = true;
         }
 
     }
@@ -2668,14 +3898,26 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     /**
      * Have the client ask to build this piece, unless we've already
      * been told by the server to not build it.
-     * Calls {@link #buildingPlan}.pop().
+     * Calls {@link #buildingPlan}.{@link SOCBuildPlan#advancePlan() advancePlan()}.
+     * Sets {@link #whatWeWantToBuild}, {@link #waitingForDevCard},
+     * or {@link #waitingForPickSpecialItem}.
+     * Called from {@link #buildOrGetResourceByTradeOrCard()}.
+     *<P>
      * Checks against {@link #whatWeFailedToBuild} to see if server has rejected this already.
      * Calls <tt>client.buyDevCard()</tt> or <tt>client.buildRequest()</tt>.
-     * Sets {@link #waitingForDevCard}, or {@link #waitingForGameState} and
-     * {@link #expectPLACING_SETTLEMENT} (etc).
+     * Sets {@link #waitingForDevCard} or {@link #waitingForPickSpecialItem},
+     * or sets {@link #waitingForGameState} and a flag like {@link #expectPLACING_SETTLEMENT} (etc).
+     *<P>
+     * Preconditions: Call only when:
+     *<UL>
+     * <LI> Gamestate is {@link SOCGame#PLAY1} or {@link SOCGame#SPECIAL_BUILDING}
+     * <LI> <tt>! ({@link #waitingForTradeMsg} || {@link #waitingForTradeResponse})</tt>
+     * <LI> ourPlayerData.getResources().{@link SOCResourceSet#contains(soc.game.ResourceSet) contains}(targetPieceResources)
+     *</UL>
      *
      * @param targetPiece  This should be the top piece of {@link #buildingPlan}.
      * @param plan 
+     * @see #placeIfExpectPlacing()
      * @since 1.1.08
      */
     protected void buildRequestPlannedPiece(SOCPossiblePiece targetPiece, BP plan)
@@ -2683,7 +3925,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         D.ebugPrintlnINFO("$ POPPED " + targetPiece);
         lastMove = targetPiece;
         currentDRecorder = (currentDRecorder + 1) % 2;
-        negotiator.setTargetPiece(ourPlayerData.getPlayerNumber(), plan);
+        negotiator.setTargetPiece(ourPlayerNumber, plan);
 
         plan.advancePlan();
 
@@ -2709,7 +3951,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                 cancelWrongPiecePlacementLocal(whatWeWantToBuild);
                 // cancel sets whatWeWantToBuild = null;
             }
-            
+
             break;
 
         case SOCPlayingPiece.SETTLEMENT:
@@ -2726,7 +3968,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                 cancelWrongPiecePlacementLocal(whatWeWantToBuild);
                 // cancel sets whatWeWantToBuild = null;
             }
-            
+
             break;
 
         case SOCPlayingPiece.CITY:
@@ -2745,19 +3987,60 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             }
 
             break;
+
+        case SOCPlayingPiece.SHIP:
+            waitingForGameState = true;
+            counter = 0;
+            expectPLACING_SHIP = true;
+            whatWeWantToBuild = new SOCShip(ourPlayerData, targetPiece.getCoordinates(), null);
+            if (! whatWeWantToBuild.equals(whatWeFailedToBuild))
+            {
+                /*
+                System.err.println("L2733: " + ourPlayerData.getName() + ": !!! BUILD REQUEST FOR A SHIP AT "
+                    + Integer.toHexString(targetPiece.getCoordinates()) + " !!!");
+                D.ebugPrintlnINFO("!!! BUILD REQUEST FOR A SHIP AT " + Integer.toHexString(targetPiece.getCoordinates()) + " !!!");
+                 */
+                client.buildRequest(game, SOCPlayingPiece.SHIP);
+            } else {
+                // We already tried to build this.
+                cancelWrongPiecePlacementLocal(whatWeWantToBuild);
+                // cancel sets whatWeWantToBuild = null;
+            }
+
+            break;
+
+        case SOCPossiblePiece.PICK_SPECIAL:
+            {
+                final SOCPossiblePickSpecialItem psi = (SOCPossiblePickSpecialItem) targetPiece;
+                waitingForPickSpecialItem = psi.typeKey;
+                whatWeWantToBuild = null;  // targetPiece isn't a SOCPlayingPiece
+                counter = 0;
+
+                client.pickSpecialItem(game, psi.typeKey, psi.gi, psi.pi);
+            }
+            break;
+
+        default:
+            // shouldn't occur: print for debugging
+            System.err.println
+                (ourPlayerData.getName() + ": buildRequestPlannedPiece: Unknown piece type " + targetPiece.getType());
         }
     }
 
     /**
      * Plan the next building plan and target.
      * Should be called from {@link #run()} under these conditions: <BR>
-     * (!expectPLACING_ROBBER && (buildingPlan.empty()) && (ourPlayerData.getResources().getTotal() > 1) && (failedBuildingAttempts < MAX_DENIED_BUILDING_PER_TURN))
+     * ( !expectPLACING_ROBBER && buildingPlan.empty() && (ourPlayerData.getResources().getTotal() > 1)
+     * && (failedBuildingAttempts < MAX_DENIED_BUILDING_PER_TURN))
      *<P>
-     * Sets these fields/actions: <BR>
-     *  {@link SOCRobotDM#planStuff(int)} <BR>
-     *  {@link #buildingPlan} <BR>
-     *  {@link #lastTarget} <BR>
-     *  {@link SOCRobotNegotiator#setTargetPiece(int, SOCPossiblePiece)}
+     * Sets these fields and makes these calls:
+     *<UL>
+     * <LI> {@link SOCRobotDM#planStuff(int) SOCRobotDM.planStuff}
+     *      ({@link SOCRobotDM#FAST_STRATEGY FAST_STRATEGY} or {@link SOCRobotDM#SMART_STRATEGY SMART_STRATEGY})
+     * <LI> {@link #buildingPlan}
+     * <LI> {@link #lastTarget}
+     * <LI> {@link SOCRobotNegotiator#setTargetPiece(int, SOCPossiblePiece)}
+     *</UL>
      *
      * @since 1.1.08
      * TODO: Parallel plans - how?
@@ -2766,7 +4049,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     {
         decisionMaker.planStuff();
         BP plan = getBuildingPlan();
-        if (!plan.isEmpty())
+        if (! plan.isEmpty())
         {
             // Looks like this is only for logging, so no problem if it's not our actual target
         	lastTarget =  plan.getPlannedPiece(0);
@@ -2776,110 +4059,173 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
 
     /**
+     * Handle a PLAYERELEMENTS for this game.
+     * See {@link #handlePLAYERELEMENT(SOCPlayer, int, int, PEType, int)} for actions taken.
+     * @since 2.0.00
+     */
+    protected void handlePLAYERELEMENTS(SOCPlayerElements mes)
+    {
+        final int pn = mes.getPlayerNumber();
+        final SOCPlayer pl = (pn != -1) ? game.getPlayer(pn) : null;
+        final int action = mes.getAction();
+        final int[] etypes = mes.getElementTypes(), amounts = mes.getAmounts();
+
+        for (int i = 0; i < etypes.length; ++i)
+            handlePLAYERELEMENT(pl, pn, action, PEType.valueOf(etypes[i]), amounts[i]);
+    }
+
+    /**
      * Handle a PLAYERELEMENT for this game.
+     * See {@link #handlePLAYERELEMENT(SOCPlayer, int, int, PEType, int)} for actions taken.
+     * @since 1.1.08
+     */
+    protected void handlePLAYERELEMENT(SOCPlayerElement mes)
+    {
+        final int pn = mes.getPlayerNumber();
+        final int action = mes.getAction(), amount = mes.getAmount();
+        final PEType etype = PEType.valueOf(mes.getElementType());
+
+        handlePLAYERELEMENT(null, pn, action, etype, amount);
+    }
+
+    /**
+     * Handle a player information update from a {@link SOCPlayerElement} or {@link SOCPlayerElements} message:
      * Update a player's amount of a resource or a building type.
      *<P>
-     * If this during the {@link SOCGame#PLAY} state, then update the
+     * If this during the {@link SOCGame#ROLL_OR_CARD} state, then update the
      * {@link SOCRobotNegotiator}'s is-selling flags.
      *<P>
-     * If our player is losing a resource needed for the {@link #buildingPlan}, 
+     * If our player is losing a resource needed for the {@link #buildingPlan},
      * clear the plan if this is for the Special Building Phase (on the 6-player board).
      * In normal game play, we clear the building plan at the start of each turn.
      *<P>
      * Otherwise, only the game data is updated, nothing brain-specific.
      *
-     * @since 1.1.08
+     * @param pl   Player to update; some elements take null. If null and {@code pn != -1}, will find {@code pl}
+     *     using {@link SOCGame#getPlayer(int) game.getPlayer(pn)}.
+     * @param pn   Player number from message (sometimes -1 for none or all)
+     * @param action   {@link SOCPlayerElement#SET}, {@link SOCPlayerElement#GAIN GAIN},
+     *     or {@link SOCPlayerElement#LOSE LOSE}
+     * @param etype  Element type, such as {@link PEType#SETTLEMENTS} or {@link PEType#NUMKNIGHTS}
+     * @param amount  The new value to set, or the delta to gain/lose
+     * @since 2.0.00
      */
-    protected void handlePLAYERELEMENT(SOCPlayerElement mes)
+    @SuppressWarnings("fallthrough")
+    protected void handlePLAYERELEMENT
+        (SOCPlayer pl, final int pn, final int action, final PEType etype, final int amount)
     {
-        SOCPlayer pl = game.getPlayer(mes.getPlayerNumber());
+        if (etype == null)
+            return;
+        if ((pl == null) && (pn != -1))
+            pl = game.getPlayer(pn);
 
-        switch (mes.getElementType())
+        switch (etype)
         {
-        case SOCPlayerElement.ROADS:
-
+        case ROADS:
             SOCDisplaylessPlayerClient.handlePLAYERELEMENT_numPieces
-                (mes, pl, SOCPlayingPiece.ROAD);
+                (pl, action, SOCPlayingPiece.ROAD, amount);
             break;
 
-        case SOCPlayerElement.SETTLEMENTS:
-
+        case SETTLEMENTS:
             SOCDisplaylessPlayerClient.handlePLAYERELEMENT_numPieces
-                (mes, pl, SOCPlayingPiece.SETTLEMENT);
+                (pl, action, SOCPlayingPiece.SETTLEMENT, amount);
             break;
 
-        case SOCPlayerElement.CITIES:
-
+        case CITIES:
             SOCDisplaylessPlayerClient.handlePLAYERELEMENT_numPieces
-                (mes, pl, SOCPlayingPiece.CITY);
+                (pl, action, SOCPlayingPiece.CITY, amount);
             break;
 
-        case SOCPlayerElement.NUMKNIGHTS:
+        case SHIPS:
+            SOCDisplaylessPlayerClient.handlePLAYERELEMENT_numPieces
+                (pl, action, SOCPlayingPiece.SHIP, amount);
+            break;
 
+        case NUMKNIGHTS:
             // PLAYERELEMENT(NUMKNIGHTS) is sent after a Soldier card is played.
             SOCDisplaylessPlayerClient.handlePLAYERELEMENT_numKnights
-                (mes, pl, game);
+                (game, pl, action, amount);
             break;
 
-        case SOCPlayerElement.CLAY:
-
+        case CLAY:
             handlePLAYERELEMENT_numRsrc
-                (mes, pl, SOCResourceConstants.CLAY, "CLAY");
+                (pl, action, SOCResourceConstants.CLAY, "CLAY", amount);
             break;
 
-        case SOCPlayerElement.ORE:
-            
+        case ORE:
             handlePLAYERELEMENT_numRsrc
-                (mes, pl, SOCResourceConstants.ORE, "ORE");
+                (pl, action, SOCResourceConstants.ORE, "ORE", amount);
             break;
 
-        case SOCPlayerElement.SHEEP:
-
+        case SHEEP:
             handlePLAYERELEMENT_numRsrc
-                (mes, pl, SOCResourceConstants.SHEEP, "SHEEP");
+                (pl, action, SOCResourceConstants.SHEEP, "SHEEP", amount);
             break;
 
-        case SOCPlayerElement.WHEAT:
-
+        case WHEAT:
             handlePLAYERELEMENT_numRsrc
-                (mes, pl, SOCResourceConstants.WHEAT, "WHEAT");
+                (pl, action, SOCResourceConstants.WHEAT, "WHEAT", amount);
             break;
 
-        case SOCPlayerElement.WOOD:
-
+        case WOOD:
             handlePLAYERELEMENT_numRsrc
-                (mes, pl, SOCResourceConstants.WOOD, "WOOD");
+                (pl, action, SOCResourceConstants.WOOD, "WOOD", amount);
             break;
 
-        case SOCPlayerElement.UNKNOWN:
-
+        case UNKNOWN_RESOURCE:
             /**
              * Note: if losing unknown resources, we first
              * convert player's known resources to unknown resources,
              * then remove mes's unknown resources from player.
              */
             handlePLAYERELEMENT_numRsrc
-                (mes, pl, SOCResourceConstants.UNKNOWN, "UNKNOWN");
+                (pl, action, SOCResourceConstants.UNKNOWN, "UNKNOWN", amount);
             break;
 
-        case SOCPlayerElement.ASK_SPECIAL_BUILD:
-            if (0 != mes.getValue())
+        case RESOURCE_COUNT:
+            if (amount != pl.getResources().getTotal())
             {
-                try {
-                    game.askSpecialBuild(pl.getPlayerNumber(), false);  // set per-player, per-game flags
+                SOCResourceSet rsrcs = pl.getResources();
+
+                if (D.ebugOn)
+                {
+                    client.sendText(game, ">>> RESOURCE COUNT ERROR FOR PLAYER " + pl.getPlayerNumber()
+                        + ": " + amount + " != " + rsrcs.getTotal());
                 }
-                catch (RuntimeException e) {}
-            } else {
-                pl.setAskedSpecialBuild(false);
+
+                //
+                //  fix it
+                //
+                if (pl.getPlayerNumber() != ourPlayerNumber)
+                {
+                    rsrcs.clear();
+                    rsrcs.setAmount(amount, SOCResourceConstants.UNKNOWN);
+                }
             }
             break;
 
+        case SCENARIO_WARSHIP_COUNT:
+            if (expectPLACING_ROBBER && (action == SOCPlayerElement.GAIN))
+            {
+                // warship card successfully played; clear the flag fields
+                expectPLACING_ROBBER = false;
+                waitingForGameState = false;
+            }
+            // fall through to default, so handlePLAYERELEMENT_simple will update game data
+
+        default:
+            // handle ASK_SPECIAL_BUILD, NUM_PICK_GOLD_HEX_RESOURCES, SCENARIO_CLOTH_COUNT, etc;
+            // those are all self-contained informational fields that don't need any reaction from a bot.
+
+            SOCDisplaylessPlayerClient.handlePLAYERELEMENT_simple
+                (game, pl, pn, action, etype, amount, ourPlayerName);
+            break;
         }
 
         ///
-        /// if this during the PLAY state, then update the is selling flags
+        /// if this during the ROLL_OR_CARD state, then update the is selling flags
         ///
-        if (game.getGameState() == SOCGame.PLAY)
+        if (game.getGameState() == SOCGame.ROLL_OR_CARD)
         {
             negotiator.resetIsSelling();
         }
@@ -2899,36 +4245,42 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      *     if they don't match already.
      *</ul>
      *<P>
-     * If our player is losing a resource needed for the {@link #buildingPlan}, 
+     * If our player is losing a resource needed for the {@link #buildingPlan},
      * clear the plan if this is for the Special Building Phase (on the 6-player board).
      * In normal game play, we clear the building plan at the start of each turn.
      *<P>
+     * Before v2.0.00 this method directly took a {@link SOCPlayerElement} instead of that message's
+     * {@code action} and {@code amount} fields.
      *
-     * @param mes      Message with amount and action (SET/GAIN/LOSE)
      * @param pl       Player to update
+     * @param action   {@link SOCPlayerElement#SET}, {@link SOCPlayerElement#GAIN GAIN},
+     *     or {@link SOCPlayerElement#LOSE LOSE}
      * @param rtype    Type of resource, like {@link SOCResourceConstants#CLAY}
      * @param rtypeStr Resource type name, for debugging
+     * @param amount   The new value to set, or the delta to gain/lose
+     * @since 1.1.00
      */
+    @SuppressWarnings("unused")  // unnecessary dead-code warning "if (D.ebugOn)"
     protected void handlePLAYERELEMENT_numRsrc
-        (SOCPlayerElement mes, SOCPlayer pl, int rtype, String rtypeStr)
+        (SOCPlayer pl, final int action, int rtype, String rtypeStr, final int amount)
     {
         /**
          * for SET, check the amount of unknown resources against
          * what we think we know about our player.
          */
-        if (D.ebugOn && (pl == ourPlayerData) && (mes.getAction() == SOCPlayerElement.SET)) 
+        if (D.ebugOn && (pl == ourPlayerData) && (action == SOCPlayerElement.SET)) 
         {
-            if (mes.getValue() != ourPlayerData.getResources().getAmount(rtype))
+            if (amount != ourPlayerData.getResources().getAmount(rtype))
             {
                 client.sendText(game, ">>> RSRC ERROR FOR " + rtypeStr
-                    + ": " + mes.getValue() + " != " + ourPlayerData.getResources().getAmount(rtype));
+                    + ": " + amount + " != " + ourPlayerData.getResources().getAmount(rtype));
             }
         }
 
         /**
          * Update game data.
          */
-        handleResources(mes.getAction(), pl, rtype, mes.getValue());        
+        handleResources(action, pl, rtype, amount);
 
         /**
          * Clear building plan, if we just lost a resource we need.
@@ -2938,12 +4290,12 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
          */
         BP plan = getBuildingPlan();
         if (waitingForSpecialBuild && (pl == ourPlayerData)
-            && (mes.getAction() != SOCPlayerElement.GAIN)
+            && (action != SOCPlayerElement.GAIN)
             && ! plan.isEmpty())
         {
         	// TODO: This is only for the expansion - TBD if this is something we need to preserve
-            final SOCPossiblePiece targetPiece = (SOCPossiblePiece) plan.getPlannedPiece(0);
-            final SOCResourceSet targetResources = SOCPlayingPiece.getResourcesToBuild(targetPiece.getType());
+            final SOCPossiblePiece targetPiece = plan.getPlannedPiece(0);
+            final SOCResourceSet targetResources = targetPiece.getResourcesToBuild();  // may be null
 
             if (! ourPlayerData.getResources().contains(targetResources))
             {
@@ -2966,6 +4318,8 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     
     /**
      * Run a newly placed settlement through the playerTrackers.
+     * Called only after {@link SOCGame#putPiece(SOCPlayingPiece)}
+     * or {@link SOCGame#putTempPiece(SOCPlayingPiece)}.
      *<P>
      * During initial board setup, settlements aren't tracked when placed.
      * They are deferred until their corresponding road placement, in case
@@ -2979,48 +4333,46 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      *
      * @param newSettlement The newly placed settlement for the playerTrackers
      * @param isCancel Is this our own robot's settlement placement, rejected by the server?
-     *     If so, this method call will cancel its placement within the game data / robot data. 
+     *     If so, this method call will cancel its placement within the game data / robot data.
+     * @since 1.1.00
      */
     protected void trackNewSettlement(SOCSettlement newSettlement, final boolean isCancel)
     {
-        Iterator<SOCPlayerTracker> trackersIter;
-        trackersIter = playerTrackers.values().iterator();
-
-        while (trackersIter.hasNext())
+        for (final SOCPlayerTracker tracker : playerTrackers)
         {
-            SOCPlayerTracker tracker = trackersIter.next();
+            if (tracker == null)
+                continue;
+
             if (! isCancel)
                 tracker.addNewSettlement(newSettlement, playerTrackers);
             else
                 tracker.cancelWrongSettlement(newSettlement);
         }
 
-        trackersIter = playerTrackers.values().iterator();
-
-        while (trackersIter.hasNext())
+        for (final SOCPlayerTracker tracker : playerTrackers)
         {
-            SOCPlayerTracker tracker = trackersIter.next();
-            Iterator posRoadsIter = tracker.getPossibleRoads().values().iterator();
+            if (tracker == null)
+                continue;
+
+            Iterator<SOCPossibleRoad> posRoadsIter = tracker.getPossibleRoads().values().iterator();
 
             while (posRoadsIter.hasNext())
             {
-                ((SOCPossibleRoad) posRoadsIter.next()).clearThreats();
+                posRoadsIter.next().clearThreats();
             }
 
-            Iterator posSetsIter = tracker.getPossibleSettlements().values().iterator();
+            Iterator<SOCPossibleSettlement> posSetsIter = tracker.getPossibleSettlements().values().iterator();
 
             while (posSetsIter.hasNext())
             {
-                ((SOCPossibleSettlement) posSetsIter.next()).clearThreats();
+                posSetsIter.next().clearThreats();
             }
         }
 
-        trackersIter = playerTrackers.values().iterator();
-
-        while (trackersIter.hasNext())
+        for (final SOCPlayerTracker tracker : playerTrackers)
         {
-            SOCPlayerTracker tracker = (SOCPlayerTracker) trackersIter.next();
-            tracker.updateThreats(playerTrackers);
+            if (tracker != null)
+                tracker.updateThreats(playerTrackers);
         }
 
         if (isCancel)
@@ -3032,94 +4384,64 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         /// see if this settlement bisected someone else's road
         ///
         int[] roadCount = { 0, 0, 0, 0, 0, 0 };  // Length should be SOCGame.MAXPLAYERS
-        SOCBoard board = game.getBoard();
-        Enumeration adjEdgeEnum = board.getAdjacentEdgesToNode(newSettlement.getCoordinates()).elements();
+        final SOCBoard board = game.getBoard();
 
-        while (adjEdgeEnum.hasMoreElements())
+        for (final int adjEdge : board.getAdjacentEdgesToNode(newSettlement.getCoordinates()))
         {
-            Integer adjEdge = (Integer) adjEdgeEnum.nextElement();
-            Enumeration roadEnum = board.getRoads().elements();
+            final SOCRoutePiece rs = board.roadOrShipAtEdge(adjEdge);
+            if (rs == null)
+                continue;
 
-            while (roadEnum.hasMoreElements())
+            final int roadPN = rs.getPlayerNumber();
+
+            roadCount[roadPN]++;
+
+            if (roadCount[roadPN] == 2)
             {
-                SOCRoad road = (SOCRoad) roadEnum.nextElement();
-
-                if (road.getCoordinates() == adjEdge.intValue())
+                if (roadPN != ourPlayerNumber)
                 {
-                    roadCount[road.getPlayer().getPlayerNumber()]++;
-
-                    if (roadCount[road.getPlayer().getPlayerNumber()] == 2)
+                    ///
+                    /// this settlement bisects another players road
+                    ///
+                    final SOCPlayerTracker tracker = playerTrackers[roadPN];
+                    if (tracker != null)
                     {
-                        if (road.getPlayer().getPlayerNumber() != ourPlayerData.getPlayerNumber())
-                        {
-                            ///
-                            /// this settlement bisects another players road
-                            ///
-                            trackersIter = playerTrackers.values().iterator();
-
-                            while (trackersIter.hasNext())
-                            {
-                                SOCPlayerTracker tracker = (SOCPlayerTracker) trackersIter.next();
-
-                                if (tracker.getPlayer().getPlayerNumber() == road.getPlayer().getPlayerNumber())
-                                {
-                                    //D.ebugPrintln("$$ updating LR Value for player "+tracker.getPlayer().getPlayerNumber());
-                                    //tracker.updateLRValues();
-                                }
-
-                                //tracker.recalcLongestRoadETA();
-                            }
-                        }
-
-                        break;
+                        //D.ebugPrintln("$$ updating LR Value for player "+tracker.getPlayer().getPlayerNumber());
+                        //tracker.updateLRValues();
                     }
                 }
+
+                break;
             }
         }
         
-        int pNum = newSettlement.getPlayer().getPlayerNumber();
+        final int pNum = newSettlement.getPlayerNumber();
 
         ///
         /// update the speedups from possible settlements
         ///
-        trackersIter = playerTrackers.values().iterator();
+        final SOCPlayerTracker tracker = playerTrackers[pNum];
 
-        while (trackersIter.hasNext())
+        if (tracker != null)
         {
-            SOCPlayerTracker tracker = (SOCPlayerTracker) trackersIter.next();
+            Iterator<SOCPossibleSettlement> posSetsIter = tracker.getPossibleSettlements().values().iterator();
 
-            if (tracker.getPlayer().getPlayerNumber() == pNum)
+            while (posSetsIter.hasNext())
             {
-                Iterator posSetsIter = tracker.getPossibleSettlements().values().iterator();
-
-                while (posSetsIter.hasNext())
-                {
-                    ((SOCPossibleSettlement) posSetsIter.next()).updateSpeedup();
-                }
-
-                break;
+                posSetsIter.next().updateSpeedup();
             }
         }
 
         ///
         /// update the speedups from possible cities
         ///
-        trackersIter = playerTrackers.values().iterator();
-
-        while (trackersIter.hasNext())
+        if (tracker != null)
         {
-            SOCPlayerTracker tracker = (SOCPlayerTracker) trackersIter.next();
+            Iterator<SOCPossibleCity> posCitiesIter = tracker.getPossibleCities().values().iterator();
 
-            if (tracker.getPlayer().getPlayerNumber() == pNum)
+            while (posCitiesIter.hasNext())
             {
-                Iterator posCitiesIter = tracker.getPossibleCities().values().iterator();
-
-                while (posCitiesIter.hasNext())
-                {
-                    ((SOCPossibleCity) posCitiesIter.next()).updateSpeedup();
-                }
-
-                break;
+                posCitiesIter.next().updateSpeedup();
             }
         }
     }
@@ -3128,17 +4450,19 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * Run a newly placed city through the PlayerTrackers.
      * @param newCity  The newly placed city
      * @param isCancel Is this our own robot's city placement, rejected by the server?
-     *     If so, this method call will cancel its placement within the game data / robot data. 
+     *     If so, this method call will cancel its placement within the game data / robot data.
+     * @since 1.1.00
      */
-    protected void trackNewCity(SOCCity newCity, final boolean isCancel)
+    protected void trackNewCity(final SOCCity newCity, final boolean isCancel)
     {
-        Iterator trackersIter = playerTrackers.values().iterator();
+        final int newCityPN = newCity.getPlayerNumber();
 
-        while (trackersIter.hasNext())
+        for (final SOCPlayerTracker tracker : playerTrackers)
         {
-            SOCPlayerTracker tracker = (SOCPlayerTracker) trackersIter.next();
+            if (tracker == null)
+                continue;
 
-            if (tracker.getPlayer().getPlayerNumber() == newCity.getPlayer().getPlayerNumber())
+            if (tracker.getPlayer().getPlayerNumber() == newCityPN)
             {
                 if (! isCancel)
                     tracker.addOurNewCity(newCity);
@@ -3157,19 +4481,18 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         ///
         /// update the speedups from possible settlements
         ///
-        trackersIter = playerTrackers.values().iterator();
-
-        while (trackersIter.hasNext())
+        for (final SOCPlayerTracker tracker : playerTrackers)
         {
-            SOCPlayerTracker tracker = (SOCPlayerTracker) trackersIter.next();
+            if (tracker == null)
+                continue;
 
-            if (tracker.getPlayer().getPlayerNumber() == newCity.getPlayer().getPlayerNumber())
+            if (tracker.getPlayer().getPlayerNumber() == newCityPN)
             {
-                Iterator posSetsIter = tracker.getPossibleSettlements().values().iterator();
+                Iterator<SOCPossibleSettlement> posSetsIter = tracker.getPossibleSettlements().values().iterator();
 
                 while (posSetsIter.hasNext())
                 {
-                    ((SOCPossibleSettlement) posSetsIter.next()).updateSpeedup();
+                    posSetsIter.next().updateSpeedup();
                 }
 
                 break;
@@ -3179,19 +4502,18 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         ///
         /// update the speedups from possible cities
         ///
-        trackersIter = playerTrackers.values().iterator();
-
-        while (trackersIter.hasNext())
+        for (final SOCPlayerTracker tracker : playerTrackers)
         {
-            SOCPlayerTracker tracker = (SOCPlayerTracker) trackersIter.next();
+            if (tracker == null)
+                continue;
 
-            if (tracker.getPlayer().getPlayerNumber() == newCity.getPlayer().getPlayerNumber())
+            if (tracker.getPlayer().getPlayerNumber() == newCityPN)
             {
-                Iterator posCitiesIter = tracker.getPossibleCities().values().iterator();
+                Iterator<SOCPossibleCity> posCitiesIter = tracker.getPossibleCities().values().iterator();
 
                 while (posCitiesIter.hasNext())
                 {
-                    ((SOCPossibleCity) posCitiesIter.next()).updateSpeedup();
+                    posCitiesIter.next().updateSpeedup();
                 }
 
                 break;
@@ -3200,27 +4522,32 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
 
     /**
-     * Run a newly placed road through the playerTrackers.
-     * 
-     * @param newRoad  The newly placed road
+     * Run a newly placed road or ship through the playerTrackers.
+     *<P>
+     * Before v2.0.00 this method was {@code trackNewRoad}.
+     *
+     * @param newPiece  The newly placed road or ship
      * @param isCancel Is this our own robot's road placement, rejected by the server?
-     *     If so, this method call will cancel its placement within the game data / robot data. 
+     *     If so, this method call will cancel its placement within the game data / robot data.
+     * @since 1.1.00
      */
-    protected void trackNewRoad(SOCRoad newRoad, final boolean isCancel)
+    protected void trackNewRoadOrShip(final SOCRoutePiece newPiece, final boolean isCancel)
     {
-        Iterator trackersIter = playerTrackers.values().iterator();
+        final int newRoadPN = newPiece.getPlayerNumber();
 
-        while (trackersIter.hasNext())
+        for (final SOCPlayerTracker tracker : playerTrackers)
         {
-            SOCPlayerTracker tracker = (SOCPlayerTracker) trackersIter.next();
+            if (tracker == null)
+                continue;
+
             tracker.takeMonitor();
 
             try
             {
                 if (! isCancel)
-                    tracker.addNewRoad(newRoad, playerTrackers);
+                    tracker.addNewRoadOrShip(newPiece, playerTrackers);
                 else
-                    tracker.cancelWrongRoad(newRoad);
+                    tracker.cancelWrongRoadOrShip(newPiece);
             }
             catch (Exception e)
             {
@@ -3230,32 +4557,32 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                     System.err.println("Exception caught - " + e);
                     e.printStackTrace();
                 }
+            } finally {
+                tracker.releaseMonitor();
             }
-
-            tracker.releaseMonitor();
         }
 
-        trackersIter = playerTrackers.values().iterator();
-
-        while (trackersIter.hasNext())
+        for (final SOCPlayerTracker tracker : playerTrackers)
         {
-            SOCPlayerTracker tracker = (SOCPlayerTracker) trackersIter.next();
+            if (tracker == null)
+                continue;
+
             tracker.takeMonitor();
 
             try
             {
-                Iterator posRoadsIter = tracker.getPossibleRoads().values().iterator();
+                Iterator<SOCPossibleRoad> posRoadsIter = tracker.getPossibleRoads().values().iterator();
 
                 while (posRoadsIter.hasNext())
                 {
-                    ((SOCPossibleRoad) posRoadsIter.next()).clearThreats();
+                    posRoadsIter.next().clearThreats();
                 }
 
-                Iterator posSetsIter = tracker.getPossibleSettlements().values().iterator();
+                Iterator<SOCPossibleSettlement> posSetsIter = tracker.getPossibleSettlements().values().iterator();
 
                 while (posSetsIter.hasNext())
                 {
-                    ((SOCPossibleSettlement) posSetsIter.next()).clearThreats();
+                    posSetsIter.next().clearThreats();
                 }
             }
             catch (Exception e)
@@ -3266,25 +4593,25 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                     System.err.println("Exception caught - " + e);
                     e.printStackTrace();
                 }
+            } finally {
+                tracker.releaseMonitor();
             }
-
-            tracker.releaseMonitor();
         }
 
         ///
         /// update LR values and ETA
         ///
-        trackersIter = playerTrackers.values().iterator();
-
-        while (trackersIter.hasNext())
+        for (final SOCPlayerTracker tracker : playerTrackers)
         {
-            SOCPlayerTracker tracker = (SOCPlayerTracker) trackersIter.next();
+            if (tracker == null)
+                continue;
+
             tracker.updateThreats(playerTrackers);
             tracker.takeMonitor();
 
             try
             {
-                if (tracker.getPlayer().getPlayerNumber() == newRoad.getPlayer().getPlayerNumber())
+                if (tracker.getPlayer().getPlayerNumber() == newRoadPN)
                 {
                     //D.ebugPrintln("$$ updating LR Value for player "+tracker.getPlayer().getPlayerNumber());
                     //tracker.updateLRValues();
@@ -3300,12 +4627,12 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                     System.err.println("Exception caught - " + e);
                     e.printStackTrace();
                 }
+            } finally {
+                tracker.releaseMonitor();
             }
-
-            tracker.releaseMonitor();
         }
     }
-    
+
     /**
      *  We've asked for an illegal piece placement.
      *  Cancel and invalidate this planned piece, make a new plan.
@@ -3314,15 +4641,29 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      *  Also handles illegal requests to buy development cards
      *  (piece type -2 in {@link SOCCancelBuildRequest}).
      *<P>
+     *  Must update game data by calling {@link SOCGame#setGameState(int)} before calling this method.
+     *<P>
      *  This method increments {@link #failedBuildingAttempts},
      *  but won't leave the game if we've failed too many times.
      *  The brain's run loop should make that decision.
+     *<UL>
+     * <LI> If {@link SOCGame#getGameState()} is {@link SOCGame#PLAY1},
+     *   server likely denied us due to resources, not due to building plan
+     *   being interrupted by another player's building before our special building phase.
+     *   (Could also be due to a bug in the chosen building plan.)
+     *   Will clear our building plan so we'll make a new one.
+     * <LI> In other gamestates, assumes requested piece placement location was illegal.
+     *   Will call {@link #cancelWrongPiecePlacementLocal(SOCPlayingPiece)}
+     *   so we don't try again to build there.
+     * <LI> Either way, sends a {@code CancelBuildRequest} message to the server.
+     *</UL>
      *
-     * @param mes Cancelmessage from server, including piece type
+     * @param mes Cancel message from server, including piece type
+     * @since 1.1.00
      */
     protected void cancelWrongPiecePlacement(SOCCancelBuildRequest mes)
     {
-        final boolean cancelBuyDevCard = (mes.getPieceType() == -2);
+        final boolean cancelBuyDevCard = (mes.getPieceType() == SOCPossiblePiece.CARD);  // == -2
         if (cancelBuyDevCard)
         {
             waitingForDevCard = false;
@@ -3330,6 +4671,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             whatWeFailedToBuild = whatWeWantToBuild;
             ++failedBuildingAttempts;
         }
+        waitingForGameState = false;
 
         final int gameState = game.getGameState();
 
@@ -3349,6 +4691,8 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             case SOCGame.START1B:
             case SOCGame.START2A:
             case SOCGame.START2B:
+            case SOCGame.START3A:
+            case SOCGame.START3B:
                 coord = lastStartingPieceCoord;
                 break;
 
@@ -3356,10 +4700,11 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                 if (whatWeWantToBuild != null)
                     coord = whatWeWantToBuild.getCoordinates();
             }
+
             if (coord != -1)
             {
                 SOCPlayingPiece cancelPiece;
-    
+
                 /**
                  * First, invalidate that piece in trackers, so we don't try again to
                  * build it. If we treat it like another player's new placement, we
@@ -3370,26 +4715,30 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                 case SOCPlayingPiece.ROAD:
                     cancelPiece = new SOCRoad(dummyCancelPlayerData, coord, null);
                     break;
-    
+
                 case SOCPlayingPiece.SETTLEMENT:
                     cancelPiece = new SOCSettlement(dummyCancelPlayerData, coord, null);
                     break;
-    
+
                 case SOCPlayingPiece.CITY:
                     cancelPiece = new SOCCity(dummyCancelPlayerData, coord, null);
                     break;
-    
+
+                case SOCPlayingPiece.SHIP:
+                    cancelPiece = new SOCShip(dummyCancelPlayerData, coord, null);
+                    break;
+
                 default:
                     cancelPiece = null;  // To satisfy javac
                 }
-    
+
                 cancelWrongPiecePlacementLocal(cancelPiece);
             }
         } else {
             /**
              *  stop trying to build it now, but don't prevent
              *  us from trying later to build it.
-             */ 
+             */
             whatWeWantToBuild = null;
             resetBuildingPlan();
         }
@@ -3412,18 +4761,18 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             expectPLACING_ROAD = false;
             expectPLACING_SETTLEMENT = false;
             expectPLACING_CITY = false;
+            expectPLACING_SHIP = false;
             decidedIfSpecialBuild = true;
-            if (cancelBuyDevCard)
+            if (! cancelBuyDevCard)
             {
-                waitingForGameState = false;  // don't wait for PLACING_ after buy dev card
-            } else {
                 // special building, currently in state PLACING_* ;
                 // get our resources back, get state PLAY1 or SPECIALBUILD
-                waitingForGameState = true;  
+                waitingForGameState = true;
+                expectPLAY1 = true;
                 client.cancelBuildRequest(game, mes.getPieceType());
             }
         }
-        else if (gameState <= SOCGame.START2B)
+        else if (gameState <= SOCGame.START3B)
         {
             switch (gameState)
             {
@@ -3446,8 +4795,17 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                 expectPUTPIECE_FROM_START2B = false;
                 expectSTART2B = true;
                 break;
+
+            case SOCGame.START3A:
+                expectPUTPIECE_FROM_START3A = false;
+                expectSTART3A = true;
+                break;
+
+            case SOCGame.START3B:
+                expectPUTPIECE_FROM_START3B = false;
+                expectSTART3B = true;
+                break;
             }
-            waitingForGameState = false;
             // The run loop will check if failedBuildingAttempts > (2 * MAX_DENIED_BUILDING_PER_TURN).
             // This bot will leave the game there if it can't recover.
         } else {
@@ -3464,13 +4822,14 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * Take this piece out of trackers, without sending any response back to the server.
      *<P>
      * This method invalidates that piece in trackers, so we don't try again to
-     * build it. Since we treat it like another player's new placement, we
+     * build there. Since we treat it like another player's new placement, we
      * can remove any of our planned pieces depending on this one.
      *<P>
      * Also calls {@link SOCPlayer#clearPotentialSettlement(int)},
      * clearPotentialRoad, or clearPotentialCity.
      *
      * @param cancelPiece Type and coordinates of the piece to cancel; null is allowed but not very useful.
+     * @since 1.1.00
      */
     protected void cancelWrongPiecePlacementLocal(SOCPlayingPiece cancelPiece)
     {
@@ -3480,10 +4839,14 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
             switch (cancelPiece.getType())
             {
+            case SOCPlayingPiece.SHIP:  // fall through to ROAD
             case SOCPlayingPiece.ROAD:
-                trackNewRoad((SOCRoad) cancelPiece, true);
-                ourPlayerData.clearPotentialRoad(coord);
-                if (game.getGameState() <= SOCGame.START2B)
+                trackNewRoadOrShip((SOCRoutePiece) cancelPiece, true);
+                if (cancelPiece.getType() == SOCPlayingPiece.ROAD)
+                    ourPlayerData.clearPotentialRoad(coord);
+                else
+                    ourPlayerData.clearPotentialShip(coord);
+                if (game.getGameState() <= SOCGame.START3B)
                 {
                     // needed for placeInitRoad() calculations
                     ourPlayerData.clearPotentialSettlement(lastStartingRoadTowardsNode);
@@ -3507,15 +4870,20 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
 
     /**
-     * kill this brain
+     * Kill this brain's thread: clears its "alive" flag, stops pinger,
+     * puts a null message into the event queue.
      */
     public void kill()
     {
+        final SOCRobotPinger p = pinger;
+
         alive = false;
 //        System.err.println(ourPlayerData.getName() + " - number of messages received while alive: " + numberOfMessagesReceived);
 
         try
         {
+            if (p != null)
+                p.stopPinger();
             gameEventQ.put(null);
         }
         catch (Exception exc) {}
@@ -3540,43 +4908,64 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     
     /**
      * Force an actual ms pause to wait for trade responses
+     *<P>
+     * When {@link SOCGame#isBotsOnly}, pause only 25% as long, to quicken the simulation
+     * but not make it too fast to allow a person to observe.
+     * Can change {@link #BOTS_ONLY_FAST_PAUSE_FACTOR} to adjust that percentage.
+     *
      * @param msec
      */
-    private void forcePause(int msec) {
-    	 if (pauseFaster && ! waitingForTradeResponse)
+    private void forcePause(int msec)
+    {
+        if (game.isBotsOnly)
+        {
+            msec = (int) (msec * BOTS_ONLY_FAST_PAUSE_FACTOR);
+            if (msec == 0)
+                return;  // will still yield within run() loop
+        } else if (pauseFaster && ! waitingForTradeResponse) {
              msec = (msec / 2) + (msec / 4);
+        }
 
          try
          {
-             yield();
-             sleep(msec);
+             Thread.yield();
+             if (msec > 2)  // skip very short sleeps from small BOTS_ONLY_FAST_PAUSE_FACTOR
+                 sleep(msec);
          }
          catch (InterruptedException exc) {}
     }
 
     /**
      * place planned first settlement
+     * @param firstSettlement  First settlement's node coordinate
+     * @see #placeInitSettlement(int)
      */
-    protected void placeFirstSettlement()
+    protected void placeFirstSettlement(final int firstSettlement)
     {
         //D.ebugPrintln("BUILD REQUEST FOR SETTLEMENT AT "+Integer.toHexString(firstSettlement));
         pause(1);
-        lastStartingPieceCoord = decisionMaker.firstSettlement;
-        client.putPiece(game, new SOCSettlement(ourPlayerData, decisionMaker.firstSettlement, null));
+        lastStartingPieceCoord = firstSettlement;
+        client.putPiece(game, new SOCSettlement(ourPlayerData, firstSettlement, null));
         pause(2);
     }
 
     /**
-     * place planned second settlement
+     * Place planned initial settlement after first one.
+     * @param initSettlement  Second or third settlement's node coordinate,
+     *   from {@link OpeningBuildStrategy#planSecondSettlement()} or
+     *   from {@link OpeningBuildStrategy#planThirdSettlement()};
+     *   should not be -1
+     * @see #placeFirstSettlement(int)
      */
-    protected void placeSecondSettlement()
+    protected void placeInitSettlement(final int initSettlement)
     {
-        if (decisionMaker.secondSettlement == -1)
+        if (initSettlement)
         {
             // This could mean that the server (incorrectly) asked us to
             // place another second settlement, after we've cleared the
             // potentialSettlements contents.
-            System.err.println("robot assert failed: secondSettlement -1, " + ourPlayerData.getName() + " leaving game " + game.getName());
+            System.err.println("robot assert failed: initSettlement -1, "
+                + ourPlayerData.getName() + " leaving game " + game.getName());
             failedBuildingAttempts = 2 + (2 * MAX_DENIED_BUILDING_PER_TURN);
             waitingForGameState = false;
             return;
@@ -3584,8 +4973,8 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
         //D.ebugPrintln("BUILD REQUEST FOR SETTLEMENT AT "+Integer.toHexString(secondSettlement));
         pause(1);
-        lastStartingPieceCoord = decisionMaker.secondSettlement;
-        client.putPiece(game, new SOCSettlement(ourPlayerData, decisionMaker.secondSettlement, null));
+        lastStartingPieceCoord = initSettlement;
+        client.putPiece(game, new SOCSettlement(ourPlayerData, initSettlement, null));
         pause(2);
     }
 
@@ -3600,36 +4989,31 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * and call {@link SOCPlayer#clearPotentialSettlement(int) ourPlayerData.clearPotentialSettlement(nodeCoord)}.
      * The {@link #lastStartingRoadTowardsNode} field holds this coordinate.
      */
-    public void placeInitRoad()
+    public void planAndPlaceInitRoad()
     {
-        final int settlementNode = ourPlayerData.getLastSettlementCoord();
+        // TODO handle ships here
 
-        int[] roadInfo = decisionMaker.planInitRoad(settlementNode);
-        int roadEdge = roadInfo[0];
-        int destination = roadInfo[1];
+        final int roadEdge = openingBuildStrategy.planInitRoad();
 
         //D.ebugPrintln("!!! PUTTING INIT ROAD !!!");
         pause(1);
 
         //D.ebugPrintln("Trying to build a road at "+Integer.toHexString(roadEdge));
         lastStartingPieceCoord = roadEdge;
-        lastStartingRoadTowardsNode = destination;
+        lastStartingRoadTowardsNode = openingBuildStrategy.getPlannedInitRoadDestinationNode();
         client.putPiece(game, new SOCRoad(ourPlayerData, roadEdge, null));
         pause(2);
-
     }
    
     /**
-     * move the robber
+     * Select a new robber location and move the robber there.
+     * Calls {@link RobberStrategy#getBestRobberHex()}.
+     *<P>
+     * Currently the robot always chooses to move the robber, never the pirate.
      */
     protected void moveRobber()
     {
-        D.ebugPrintlnINFO("%%% MOVEROBBER");
-
-        int robberHex = game.getBoard().getRobberHex();
-
-        int bestHex = decisionMaker.selectMoveRobber(robberHex);
-        
+        final int bestHex = robberStrategy.getBestRobberHex();
 
         D.ebugPrintlnINFO("!!! MOVING ROBBER !!!");
         client.moveRobber(game, ourPlayerData, bestHex);
@@ -3637,205 +5021,15 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
 
     /**
-     * discard some resources
+     * make bank trades or port trades to get the required resources for executing a plan, if possible.
+     * Calls {@link SOCRobotNegotiator#getOfferToBank(SOCBuildPlan, SOCResourceSet)}.
      *
-     * TODO: Move this logic into DM
-     * @param numDiscards  the number of resources to discard
-     */
-    protected void discard(int numDiscards)
-    {
-        //D.ebugPrintln("DISCARDING...");
-
-        /**
-         * if we have a plan, then try to keep the resources
-         * needed for that plan, otherwise discard at random
-         */
-        SOCResourceSet discards = new SOCResourceSet();
-        BP plan = getBuildingPlan();
-        /**
-         * make a plan if we don't have one
-         */
-        if (plan.isEmpty())
-        {
-            decisionMaker.planStuff();
-        }
-        plan = getBuildingPlan();
-        if (!plan.isEmpty())
-        {
-            SOCPossiblePiece targetPiece = plan.getPlannedPiece(0);
-            negotiator.setTargetPiece(ourPlayerData.getPlayerNumber(), plan);
-
-            //D.ebugPrintln("targetPiece="+targetPiece);
-            SOCResourceSet targetResources = SOCPlayingPiece.getResourcesToBuild(targetPiece.getType());
-
-            /**
-             * figure out what resources are NOT the ones we need
-             */
-            SOCResourceSet leftOvers = ourPlayerData.getResources().copy();
-
-            for (int rsrc = SOCResourceConstants.CLAY;
-                    rsrc <= SOCResourceConstants.WOOD; rsrc++)
-            {
-                if (leftOvers.getAmount(rsrc) > targetResources.getAmount(rsrc))
-                {
-                    leftOvers.subtract(targetResources.getAmount(rsrc), rsrc);
-                }
-                else
-                {
-                    leftOvers.setAmount(0, rsrc);
-                }
-            }
-
-            SOCResourceSet neededRsrcs = ourPlayerData.getResources().copy();
-            neededRsrcs.subtract(leftOvers);
-
-            /**
-             * figure out the order of resources from
-             * easiest to get to hardest
-             */
-
-            //D.ebugPrintln("our numbers="+ourPlayerData.getNumbers());
-            SOCBuildingSpeedEstimate estimate = getEstimator(ourPlayerData.getNumbers());
-            int[] rollsPerResource = estimate.getRollsPerResource();
-            int[] resourceOrder = 
-            {
-                SOCResourceConstants.CLAY, SOCResourceConstants.ORE,
-                SOCResourceConstants.SHEEP, SOCResourceConstants.WHEAT,
-                SOCResourceConstants.WOOD
-            };
-
-            for (int j = 4; j >= 0; j--)
-            {
-                for (int i = 0; i < j; i++)
-                {
-                    if (rollsPerResource[resourceOrder[i]] < rollsPerResource[resourceOrder[i + 1]])
-                    {
-                        int tmp = resourceOrder[i];
-                        resourceOrder[i] = resourceOrder[i + 1];
-                        resourceOrder[i + 1] = tmp;
-                    }
-                }
-            }
-
-            /**
-             * pick the discards
-             */
-            int curRsrc = 0;
-
-            while (discards.getTotal() < numDiscards)
-            {
-                /**
-                 * choose from the left overs
-                 */
-                while ((discards.getTotal() < numDiscards) && (curRsrc < 5))
-                {
-                    //D.ebugPrintln("(1) dis.tot="+discards.getTotal()+" curRsrc="+curRsrc);
-                    if (leftOvers.getAmount(resourceOrder[curRsrc]) > 0)
-                    {
-                        discards.add(1, resourceOrder[curRsrc]);
-                        leftOvers.subtract(1, resourceOrder[curRsrc]);
-                    }
-                    else
-                    {
-                        curRsrc++;
-                    }
-                }
-
-                curRsrc = 0;
-
-                /**
-                 * choose from what we need
-                 */
-                while ((discards.getTotal() < numDiscards) && (curRsrc < 5))
-                {
-                    //D.ebugPrintln("(2) dis.tot="+discards.getTotal()+" curRsrc="+curRsrc);
-                    if (neededRsrcs.getAmount(resourceOrder[curRsrc]) > 0)
-                    {
-                        discards.add(1, resourceOrder[curRsrc]);
-                        neededRsrcs.subtract(1, resourceOrder[curRsrc]);
-                    }
-                    else
-                    {
-                        curRsrc++;
-                    }
-                }
-            }
-
-            if (curRsrc == 5)
-            {
-                System.err.println("PROBLEM IN DISCARD - curRsrc == 5");
-            }
-        }
-        else
-        {
-            /**
-             *  choose discards at random
-             */
-            SOCGame.discardPickRandom(ourPlayerData.getResources(), numDiscards, discards, rand);
-        }
-
-        //D.ebugPrintln("!!! DISCARDING !!!");
-        //D.ebugPrintln("discards="+discards);
-        client.discard(game, discards);
-    }
-
-    /**
-     * choose a robber victim
-     *
-     * @param choices a boolean array representing which players are possible victims
-     */
-    protected void chooseRobberVictim(boolean[] choices)
-    {
-        int choice = decisionMaker.choosePlayerToRob();
-
-        if(choice != -1){ //meaning we already made our choice from DM
-        	client.choosePlayer(game, choice);
-        	return;
-        }
-        
-        /**
-         * choose the player with the smallest WGETA
-         */
-        for (int i = 0; i < game.maxPlayers; i++)
-        {
-            if (! game.isSeatVacant (i))
-            {
-                if (choices[i])
-                {
-                    if (choice == -1)
-                    {
-                        choice = i;
-                    }
-                    else
-                    {
-                        SOCPlayerTracker tracker1 = (SOCPlayerTracker) playerTrackers.get(Integer.valueOf(i));
-                        SOCPlayerTracker tracker2 = (SOCPlayerTracker) playerTrackers.get(Integer.valueOf(choice));
-    
-                        if ((tracker1 != null) && (tracker2 != null) && (tracker1.getWinGameETA() < tracker2.getWinGameETA()))
-                        {
-                            //D.ebugPrintln("Picking a robber victim: pnum="+i+" VP="+game.getPlayer(i).getPublicVP());
-                            choice = i;
-                        }
-                    }
-                }
-            }
-        }
-
-        /**
-         * choose victim at random
-         *
-           do {
-           choice = Math.abs(rand.nextInt() % SOCGame.MAXPLAYERS);
-           } while (!choices[choice]);
-         */
-        client.choosePlayer(game, choice);
-    }
-
-    /**
-     * make trades with the bank to get the required resources for executing a plan
-     *
-     * @param buildPlan  our current build plan
-     * @return true if we sent a request to trade
+     * @param buildPlan  Build plan to look for resources to build. {@code getOfferToBank(..)}
+     *     will typically call {@link SOCBuildPlan#getFirstPieceResources()} to determine
+     *     the resources we want. Can be {@code null} or an empty plan (returns false).
+     * @return true if we sent a request to trade, false if
+     *     we already have the resources or if we don't have
+     *     enough to trade in for {@code buildPlan}'s required resources.
      */
     protected boolean tradeWithBank(BP buildPlan)
     {
@@ -3854,15 +5048,15 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
             return true;
         }
-        else
-        {
-            return false;
-        }
+
+        return false;
     }
 
     /**
-     * Make an offer to another player.
-     * Will set {@link #waitingForTradeResponse} or {@link #doneTrading}.
+     * Make an offer to another player, or decide to make no offer.
+     * Calls {@link SOCRobotNegotiator#makeOffer(SOCBuildPlan)}.
+     * Will set {@link #waitingForTradeResponse} or {@link #doneTrading},
+     * and update {@link #ourPlayerData}.{@link SOCPlayer#setCurrentOffer(SOCTradeOffer) setCurrentOffer()},
      *
      * @param buildPlan  our current build plan
      * @return true if we made an offer
@@ -3881,17 +5075,23 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             D.ebugPrintlnINFO("MAKE OFFER - " + offer);
             tradeAccepted = false;
             ///
-            ///  reset the offerRejections flag
+            ///  reset the offerRejections flag and check for human players
             ///
+            boolean anyHumans = false;
             boolean[]to = offer.getTo();
             for (int i = 0; i < game.maxPlayers; i++)
             {
                 if (to[i]) {
                     waitingForTradeResponsePlayer[i] = true;
                 }
+                if (! (game.isSeatVacant(pn) || game.getPlayer(pn).isRobot()))
+                    anyHumans = true;
             }
 
             waitingForTradeResponse = true;
+            tradeResponseTimeoutSec = (anyHumans)
+                ? TRADE_RESPONSE_TIMEOUT_SEC_HUMANS
+                : TRADE_RESPONSE_TIMEOUT_SEC_BOTS_ONLY;
             counter = 0;
             client.offerTrade(game, offer);
             result = true;
@@ -3906,24 +5106,31 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
 
     /**
-     * make a counter offer to another player
+     * Plan a counter offer to another player, and make it from our client.
+     * Calls {@link SOCRobotNegotiator#makeCounterOffer(SOCTradeOffer)},
+     * then {@link #ourPlayerData}{@link SOCPlayer#setCurrentOffer(SOCTradeOffer) .setCurrentOffer(..)}
+     * with the result or {@code null}. Updates {@link #waitingForTradeResponse} flag.
+     * If no counteroffer is made here, sets {@link #doneTrading}.
      *
-     * @param offer their offer
-     * @return true if we made an offer
+     * @param offer  the other player's offer
+     * @return true if we made and sent an offer
      */
     protected boolean makeCounterOffer(SOCTradeOffer offer)
     {
         boolean result = false;
+
         SOCTradeOffer counterOffer = negotiator.makeCounterOffer(offer);
         
         if (counterOffer != null)
         {
+            final int pn = offer.getFrom();
+
             // ensure counter-offers are only sent to the person we're countering, otherwise synchronization issues arise
             boolean[] to = counterOffer.getTo();
             for (int i=0; i<to.length; i++) {
                 to[i] = false;
             }
-            to[offer.getFrom()] = true;            
+            to[pn] = true;            
             
             ourPlayerData.setCurrentOffer(counterOffer);
             negotiator.addToOffersMade(counterOffer);
@@ -3931,8 +5138,11 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             ///  reset the offerRejections flag
             ///
             tradeAccepted = false;
-            waitingForTradeResponsePlayer[offer.getFrom()] = true;
+            waitingForTradeResponsePlayer[pn] = true;
             waitingForTradeResponse = true;
+            tradeResponseTimeoutSec = (game.getPlayer(pn).isRobot())
+                ? TRADE_RESPONSE_TIMEOUT_SEC_BOTS_ONLY
+                : TRADE_RESPONSE_TIMEOUT_SEC_HUMANS;
             counter = 0;
             client.offerTrade(game, counterOffer);
             result = true;
@@ -4018,8 +5228,8 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
            //D.ebugPrintln("expectSTART2A");
            if (expectSTART2B)
            //D.ebugPrintln("expectSTART2B");
-           if (expectPLAY)
-           //D.ebugPrintln("expectPLAY");
+           if (expecROLL_OR_CARD)
+           //D.ebugPrintln("expectROLL_OR_CARD");
            if (expectPLAY1)
            //D.ebugPrintln("expectPLAY1");
            if (expectPLACING_ROAD)
@@ -4095,6 +5305,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             }
         }
     }
+
     /**
 	*Wake up the brain by setting suspended flag to false
 	*/
@@ -4168,6 +5379,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
     /**
      * @return our player data
+     * @see #getOurPlayerNumber()
      */
     public SOCPlayer getOurPlayerData()
     {
@@ -4175,7 +5387,20 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
 
     /**
+     * Get our player number, as set in {@link #setOurPlayerData()}.
+     * @return Our {@link #getOurPlayerData()}'s player number
+     * @since 2.0.00
+     */
+    public final int getOurPlayerNumber()
+    {
+        return ourPlayerNumber;
+    }
+
+    /**
+     * Get the current building plan.
+     *
      * @return the building plan
+     * @see #resetBuildingPlan()
      */
     public BP getBuildingPlan()
     {
@@ -4185,15 +5410,17 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     /**
      * clears the stack describing the current building plan.
      * NOTE should be called every time we planStuff as checking if the BuildingPlan is empty is not good enough if our memory is weak or decaying
+     * @see #resetFieldsAtEndTurn()
      */
-    public void resetBuildingPlan(){
+    public void resetBuildingPlan()
+    {
     	buildingPlan.clear();
     }
     
     /**
-     * @return the player trackers (one per player, including this robot)
+     * @return the player trackers (one per player number, including this robot; vacant seats are null)
      */
-    public HashMap<Integer, SOCPlayerTracker> getPlayerTrackers()
+    public SOCPlayerTracker[] getPlayerTrackers()
     {
         return playerTrackers;
     }
@@ -4220,10 +5447,11 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     /**
      * Handle the tracking of changing resources.  Allows us to determine how accurately this is tracked 
      *   eg full tracking of unknowns vs. cognitive modelling
-     * @param action  SET, GAIN, LOSE
-     * @param player
-     * @param resourceType
-     * @param amount
+     * @param action  {@link SOCPlayerElement#SET}, {@link SOCPlayerElement#GAIN GAIN},
+     *     or {@link SOCPlayerElement#LOSE LOSE}
+     * @param player  Player to update
+     * @param resourceType  Type of resource, like {@link SOCResourceConstants#CLAY}
+     * @param amount  The new value to set, or the delta to gain/lose
      */
     protected abstract void handleResources(int action, SOCPlayer player, int resourceType, int amount);
    	
@@ -4244,6 +5472,16 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * @return the Negotiator depending on the brain type
      */
     protected abstract N createNegotiator();
+
+    /**
+     * Creates and returns a {@link SOCBuildingSpeedEstimate} factory.
+     *
+     * @return a factory for this brain
+     * @see #setStrategyFields()
+     * @see #getEstimatorFactory()
+     * @since 2.4.50
+     */
+    protected abstract SOCBuildingSpeedEstimateFactory createEstimatorFactory();
 	
     /**
      * Contains the logic for handling messages received via the chat interface, such as trades or inform of resources/build plans
@@ -4252,16 +5490,23 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     protected abstract void handleChat(SOCGameTextMsg gtm);
 
     /**
-     * perform specific actions required by some of the brain types during a start of turn. THis is actually executed when the game enters Play1 state,
-     * so it isn't exactly start of turn, rather after rolling the dice
-     * @param player the player number representing the position of the player on the board to do the actions for
+     * Perform any specific actions needed by this brain at start of the main part of any player's turn:
+     * Dice roll actions are done, game state just became {@link SOCGame#PLAY1}.
+     *
+     * @see #endTurnActions()
      */
-    protected abstract void startTurnActions(int player);
+    protected abstract void startTurnMainActions();
     
     /**
      * Some robot types require specific actions just before ending their turn, which may result in continuing their turn for a little while.
      * e.g. TRY_N_BEST agent may decide to try another build plan before ending its turn
+     *<P>
+     * If returns true, caller will call {@link #resetFieldsAtEndTurn()}.
+     *<P>
+     * Is called only after {@link #considerScenarioTurnFinalActions()} returns false.
+     *
      * @return true if can end turn, false otherwise
+     * @see #startTurnMainActions()
      */
     protected abstract boolean endTurnActions();
 
@@ -4288,6 +5533,19 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     public abstract SOCBuildingSpeedEstimate getEstimator();
 
     /**
+     * Get this brain's {@link SOCBuildingSpeedEstimate} factory.
+     * Is typically set from {@link #createEstimatorFactory()} during construction.
+     *
+     * @return This brain's factory
+     * @see #getEstimator(SOCPlayerNumbers)
+     * @since 2.4.50
+     */
+    public SOCBuildingSpeedEstimateFactory getEstimatorFactory()
+    {
+        return bseFactory;
+    }
+
+    /**
      * Inform the brain of the final game result.  Brain implementations may have some bookkeeping to do.
      * @param message
      */
@@ -4308,6 +5566,27 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * Clears all flags waiting for a trade message.
      */
     public abstract void clearTradingFlags(String text);
+
+    /**
+     * Clears all flags waiting for a bank or player trade message.
+     * {@link #waitingForTradeResponse}, {@link #waitingForTradeMsg},
+     * any flags added in a third-party robot brain.
+     *
+     * @param isBankTrade  True if was bank/port trade, not player trade
+     * @param wasAllowed  True if trade was successfully offered or completed,
+     *     false if server sent a message disallowing it
+     * @see #tradeStopWaitingClearOffer()
+     * @see #handleTradeResponse(int, boolean)
+     * @since 2.4.50
+     */
+    public void clearTradingFlags(final boolean isBankTrade, final boolean wasAllowed)
+    {
+        // This method clears both fields regardless of isBankTrade,
+        // but third-party bots might override it and use that parameter
+
+        waitingForTradeMsg = false;
+        waitingForTradeResponse = false;
+    }
     
     ///debug save method/////
     /**
@@ -4541,7 +5820,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 	                			toPort[pn] = 2;
 	                	}else if(bd.settlementAtNode(node) != null){ 
 	                		//check that is not one of our settlements
-	                		if(!p.isOurSetOrCityAtCoord(node))
+	                		if(!p.hasSettlementOrCityAtNode(node))
 	                			toOpp[pn] = 2;
 	                	}
 	                }
@@ -4559,7 +5838,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 	                			toPort[pn] = 2;
 	                	}else if(bd.settlementAtNode(node) != null){ 
 	                		//check that is not one of our settlements
-	                		if(!p.isOurSetOrCityAtCoord(node))
+	                		if(!p.hasSettlementOrCityAtNode(node))
 	                			toOpp[pn] = 2;
 	                	}
 	                }
@@ -4671,7 +5950,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 		while(!stack.empty()){
 			Integer coord = (Integer) stack.pop();
 			visited.add(coord);
-			if(coord.intValue()!=start && p.isOurSetOrCityAtCoord(coord.intValue()))//stop when encountering one of our pieces on a node
+			if(coord.intValue()!=start && p.hasSettlementOrCityAtNode(coord.intValue()))//stop when encountering one of our pieces on a node
 				return true;
 			Vector adjacents = bd.getAdjacentNodesToNode(coord.intValue());
 			//check if adjacents can be accessed (i.e. the edge is empty or has one of our pieces)
@@ -4700,7 +5979,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 						edgeUnoccupied = false; //we found a piece there
 				}
 				//we are (either connected to the next node or the edge is empty) and the next node is either free or has one of our pieces
-				if((p.isOurRoadAtCoord(edge) || edgeUnoccupied) && (nodeUnoccupied || p.isOurSetOrCityAtCoord(((Integer)n).intValue()))){
+				if((p.hasRoadOrShipAtEdge(edge) || edgeUnoccupied) && (nodeUnoccupied || p.hasSettlementOrCityAtNode(((Integer)n).intValue()))){
 					if(!wasVisited)
 						stack.add(n);
 				}
@@ -4739,7 +6018,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 						wasVisited = true;
 				}
 				//if we are connected to the next node add to stack
-				if(p.isOurRoadAtCoord(edge)){
+				if(p.hasRoadOrShipAtEdge(edge)){
 					if(!wasVisited)
 						stack.add(n);
 				}
@@ -4815,7 +6094,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 						unoccupied = false; //we found a piece there
 				}	
 				//we are either connected to the next node or the edge is not occupied
-				if(p.isOurRoadAtCoord(edge) || unoccupied){
+				if(p.hasRoadOrShipAtEdge(edge) || unoccupied){
 					if(!wasVisited)
 						q.put(n);
 				}

@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2010 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2010,2012-2014,2017,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
@@ -24,13 +24,31 @@ import java.util.StringTokenizer;
 
 
 /**
- * This message means that a player wants to play a development card
+ * This message from client means that a player wants to play a development card.
+ *<P>
+ * If client player can play it, server will respond to all players with
+ * {@link SOCDevCardAction}({@link SOCDevCardAction#PLAY PLAY}), {@link SOCSetPlayedDevCard}
+ * or {@link SOCPlayerElement}({@link SOCPlayerElement.PEType#PLAYED_DEV_CARD_FLAG PLAYED_DEV_CARD_FLAG}),
+ * and other messages, followed by {@link SOCGameState} if it changed.
+ *<BR>
+ * If playing a {@code KNIGHT} card leads to Largest Army, server announces that
+ * after {@code SOCPlayerElement} before {@code SOCGameState}:
+ * {@link SOCGameElements}({@link SOCGameElements.GEType#LARGEST_ARMY_PLAYER LARGEST_ARMY_PLAYER}).
+ *<P>
+ * If client player can't play the card, server will reply to human player with {@link SOCGameServerText}
+ * or robot with {@link SOCDevCardAction}({@link SOCDevCardAction#CANNOT_PLAY CANNOT_PLAY}).
+ *<P>
+ * Note that in v2.0.00, the {@link #getDevCard()} value for <tt>SOCDevCardConstants.KNIGHT</tt>
+ * was changed.  This class doesn't handle the translation from old clients
+ * (<tt>SOCDevCardConstants.KNIGHT_FOR_VERS_1_X</tt>), the caller must do so.
  *
  * @author Robert S. Thomas
  */
 public class SOCPlayDevCardRequest extends SOCMessage
     implements SOCMessageForGame
 {
+    private static final long serialVersionUID = 1111L;  // last structural change v1.1.11
+
     /**
      * Name of game
      */
@@ -63,7 +81,10 @@ public class SOCPlayDevCardRequest extends SOCMessage
     }
 
     /**
-     * @return the type of dev card
+     * @return the type of dev card <BR>
+     * Note that in v2.0.00, the value for <tt>SOCDevCardConstants.KNIGHT</tt>
+     * was changed.  This class doesn't handle the translation from old clients
+     * (<tt>SOCDevCardConstants.KNIGHT_FOR_VERS_1_X</tt>), the caller must do so.
      */
     public int getDevCard()
     {
@@ -96,7 +117,7 @@ public class SOCPlayDevCardRequest extends SOCMessage
      * Parse the command String into a PlayDevCardRequest message
      *
      * @param s   the String to parse
-     * @return    a PlayDevCardRequest message, or null of the data is garbled
+     * @return    a PlayDevCardRequest message, or null if the data is garbled
      */
     public static SOCPlayDevCardRequest parseDataStr(String s)
     {

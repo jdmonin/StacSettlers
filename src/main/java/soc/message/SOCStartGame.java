@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2010 Jeremy D Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2010,2013-2014,2017,2019 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,29 +16,40 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
 import java.util.StringTokenizer;
 
-import javax.naming.NoInitialContextException;
+import soc.game.SOCGame;
 
 
 /**
- * This message means that a player wants to start the game
+ * From client, this message means that a player wants to start the game;
+ * from server, it means that a game has just started, leaving state {@code NEW}.
+ * The server sends the game's new {@link SOCGameState} before sending {@code SOCStartGame}.
+ *<P>
+ * In v2.0.00 and newer, from server this message optionally includes a {@link #getGameState()} field
+ * instead of a separate {@link SOCGameState} message, since the state is part of the Start Game transition.
+ *<P>
+ * If a client joins a game in progress, it won't be sent a {@code SOCStartGame} message,
+ * only the game's current {@code SOCGameState} and other parts of the game's and
+ * players' current status: See {@link SOCJoinGameAuth}.
  *
  * @author Robert S. Thomas
  */
 public class SOCStartGame extends SOCMessage
     implements SOCMessageForGame
 {
+    private static final long serialVersionUID = 2000L;  // last structural change v2.0.00
+
     /**
      * Name of game
      */
     private String game;
 
-    /**
+     /**
      * flag for stopping the order of the robots being randomized.
      */
     private boolean noShuffle;
@@ -82,11 +93,18 @@ public class SOCStartGame extends SOCMessage
      * a flag for telling the server if drawing VP cards is an observable action.
      */
     private boolean observableVP;
-    
+
+    /**
+     * The optional {@link SOCGame} State field, or 0.
+     * See {@link #getGameState()} for details.
+     * @since 2.0.00
+     */
+    private final int gameState;
+
     /**
      * Create a StartGame message.
      *
-     * @param ga the name of the game
+     * @param ga  the name of the game
      * @param ns flag for deciding whether to shuffle the robot's position or not
      * @param l flag for deciding whether to load or start a new game
      * @param fn pathname to the folder containing the save files e.g. "saves/robot"
@@ -95,15 +113,18 @@ public class SOCStartGame extends SOCMessage
      * @param lb flag for deciding whether to create a new board or load a saved configuration
      * @param fo flag for deciding if the game is fully observable or has hidden information
      * @param ov flag for deciding if drawing vp cards is an observable action
+     * @param gs  the new turn's optional Game State such as {@link SOCGame#ROLL_OR_CARD}, or 0.
+     *     Ignored from client. Values &lt; 0 are out of range and ignored (treated as 0).
+     *     Must not send {@code gs} to a client older than {@link SOCGameState#VERSION_FOR_GAME_STATE_AS_FIELD}.
      */
-    public SOCStartGame(String ga, boolean ns, boolean l, String fn, int t, int pts, boolean lb, boolean cn, boolean fo, boolean ov)
+    public SOCStartGame(final String ga, boolean ns, boolean l, String fn, int t, int pts, boolean lb, boolean cn, boolean fo, boolean ov, final int gs)
     {
         messageType = STARTGAME;
         game = ga;
         noShuffle = ns;
         load = l;
         String name = fn;
-        if(!(name.contains("@"))){ 
+        if(!(name.contains("@"))){
     		name = "@" + fn;
     	}
         folderName = name; //add a character to avoid nullpointer
@@ -113,6 +134,7 @@ public class SOCStartGame extends SOCMessage
         chatNegotiations = cn;
         fullyObservable = fo;
         observableVP = ov;
+        gameState = (gs > 0) ? gs : 0;
     }
 
     /**
@@ -141,8 +163,8 @@ public class SOCStartGame extends SOCMessage
      */
     public int getStartingPlayer(){
     	return playerToStart;
-    }
-    
+     }
+
     /**
      * @return the name of the game
      */
@@ -151,7 +173,7 @@ public class SOCStartGame extends SOCMessage
         return game;
     }
 
-    /**
+     /**
      * @return the load flag
      */
     public boolean getLoadFlag()
@@ -189,19 +211,32 @@ public class SOCStartGame extends SOCMessage
     public int getTurnNo(){
 		return noTurns;
 	}
-    
+
     /**
-     * STARTGAME sep game
+     * From server, get the the new turn's optional {@link SOCGame} State.
+     * Ignored if sent from client. Must not be sent by server to clients older
+     * than v2.0.00 ({@link SOCGameState#VERSION_FOR_GAME_STATE_AS_FIELD}) because they
+     * won't parse it out and instead will treat state as part of the game name.
+     * @return Game State, such as {@link SOCGame#ROLL_OR_CARD}, or 0
+     * @since 2.0.00
+     */
+    public int getGameState()
+    {
+        return gameState;
+    }
+
+    /**
+     * STARTGAME sep game [sep2 gameState]
      *
      * @return the command string
      */
     public String toCmd()
     {
-        return toCmd(game, noShuffle, load, folderName, noTurns, playerToStart, loadBoard, chatNegotiations, fullyObservable, observableVP);
+        return toCmd(game, noShuffle, load, folderName, noTurns, playerToStart, loadBoard, chatNegotiations, fullyObservable, observableVP, gameState);
     }
 
     /**
-     * STARTGAME sep game
+     * STARTGAME sep game [sep2 gameState]
      *
      * @param ga  the name of the game
      * @param ns flag for deciding whether to shuffle the robot's position or not
@@ -212,40 +247,43 @@ public class SOCStartGame extends SOCMessage
      * @param lb flag for deciding whether to create a new board or load a saved configuration
      * @param fo flag for deciding if the game is fully observable or has hidden information
      * @param ov flag for deciding if drawing a vp card is an observable action
+     * @param gs  the new turn's optional Game State such as {@link SOCGame#ROLL_OR_CARD}, or 0 to omit that field
      * @return the command string
      */
-    public static String toCmd(String ga, boolean ns, boolean l, String fn, int t, int pts, boolean lb, boolean cn, boolean fo, boolean ov)
+    public static String toCmd(final String ga, boolean ns, boolean l, String fn, int t, int pts, boolean lb, boolean cn, boolean fo, boolean ov, final int gs)
     {
         String name = fn;
         if(!(name.contains("@"))){ 
     		name = "@" + fn;
     	}
-        return STARTGAME + sep + ga + sep2 + ns + sep2 + l + sep2 + name + sep2 + t + sep2 + pts + sep2 + lb + sep2 + cn + sep2 + fo + sep2 + ov;
+        return STARTGAME + sep + ga + sep2 + ns + sep2 + l + sep2 + name + sep2 + t + sep2 + pts + sep2 + lb + sep2 + cn + sep2 + fo + sep2 + ov + ((gs > 0) ? sep2 + gs : "");
     }
 
     /**
      * Parse the command String into a StartGame message
      *
      * @param s   the String to parse
-     * @return    a StartGame message, or null of the data is garbled
+     * @return    a StartGame message, or null if the data is garbled
      */
     public static SOCStartGame parseDataStr(String s)
     {
-        String ga;
-        boolean ns;
-        boolean l;
-        String fn;
-        int t;
-        int pts;
-        boolean lb;
-        boolean cn;
-        boolean fo;
-        boolean ov;
-        
-        StringTokenizer st = new StringTokenizer(s, sep2);
-        
         try
         {
+            String ga;   // the game name
+            String ga;
+            boolean ns;
+            boolean l;
+            String fn;
+            int t;
+            int pts;
+            boolean lb;
+            boolean cn;
+            boolean fo;
+            boolean ov;
+            int gs = 0;  // the game state
+
+            StringTokenizer st = new StringTokenizer(s, sep2);
+
             ga = st.nextToken();
             ns = Boolean.parseBoolean(st.nextToken());
             l = Boolean.parseBoolean(st.nextToken());
@@ -256,13 +294,13 @@ public class SOCStartGame extends SOCMessage
             cn = Boolean.parseBoolean(st.nextToken());
             fo = Boolean.parseBoolean(st.nextToken());
             ov = Boolean.parseBoolean(st.nextToken());
-        }
-        catch (Exception e)
-        {
+            if (st.hasMoreTokens())
+                gs = Integer.parseInt(st.nextToken());
+
+            return new SOCStartGame(ga, ns, l, fn, t, pts, lb, cn, fo, ov, gs);
+        } catch (Exception e) {
             return null;
         }
-        
-        return new SOCStartGame(ga, ns, l, fn, t, pts, lb, cn, fo, ov);
     }
 
     /**
@@ -270,6 +308,7 @@ public class SOCStartGame extends SOCMessage
      */
     public String toString()
     {
-        return "SOCStartGame:game=" + game + "|noShuffle=" + noShuffle + "|load=" + load + "|folderName=" + folderName + "|turns=" + noTurns + "|PlayerToStart=" + playerToStart + "|LoadBoard=" + loadBoard + "|ChatNegotiations=" + chatNegotiations + "|FullyObservable=" + fullyObservable + "|ObservableVp=" + observableVP;
+        return "SOCStartGame:game=" + game + "|noShuffle=" + noShuffle + "|load=" + load + "|folderName=" + folderName + "|turns=" + noTurns + "|PlayerToStart=" + playerToStart + "|LoadBoard=" + loadBoard + "|ChatNegotiations=" + chatNegotiations + "|FullyObservable=" + fullyObservable + "|ObservableVp=" + observableVP + ((gameState != 0) ? "|gameState=" + gameState : "");
     }
+
 }

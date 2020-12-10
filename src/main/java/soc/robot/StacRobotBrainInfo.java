@@ -261,7 +261,7 @@ public class StacRobotBrainInfo implements Serializable{
         
         //now try to treat specific cases
         if(ourPn != game.getCurrentPlayerNumber()){
-	        if(game.getGameState()==SOCGame.PLAY || game.getGameState()==SOCGame.PLAY1 || 
+	        if(game.getGameState()==SOCGame.ROLL_OR_CARD || game.getGameState()==SOCGame.PLAY1 || 
 	        		game.getGameState()==SOCGame.WAITING_FOR_DISCOVERY || game.getGameState()==SOCGame.WAITING_FOR_MONOPOLY){
 	        	waitingForOurTurn = true;
 	        	expectDICERESULT = true;//this field is set to true if this is not the current player, even if the dice were rolled
@@ -288,7 +288,7 @@ public class StacRobotBrainInfo implements Serializable{
         }else{
 			waitingForOurTurn = false;//make sure this is false!!!
 			ourTurn = true;//and this must be true!!!
-			if(game.getGameState()==SOCGame.PLAY){
+			if(game.getGameState()==SOCGame.ROLL_OR_CARD){
 				expectDICERESULT = false;
 				expectPLAY = true;
 			}else if(game.getGameState()==SOCGame.PLAY1){

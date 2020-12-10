@@ -1,7 +1,8 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2009 Jeremy D. Monin <jeremy@nand.net>
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2009,2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,19 +17,21 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.util;
 
 import java.io.Serializable;
-import java.util.Hashtable;
 
-import soc.game.SOCGame;
 import soc.game.SOCGameOption;
+import soc.game.SOCGameOptionSet;
 
 
 /**
  * This is a class to store a list of robot parameters.
+ * Different bots may have different parameters, especially {@link #getStrategyType()}.
+ * Sent from server via network message.
+ *<P>
  * I put it in soc.util because the SOCServer and the
  * SOCDBHelper needed to use it, but I didn't think
  * they should have to include the soc.robot package.
@@ -37,6 +40,9 @@ import soc.game.SOCGameOption;
  */
 public class SOCRobotParameters implements Serializable
 {
+    /** no structural changes since v1.0 (1000) or earlier */
+    private static final long serialVersionUID = 1000L;
+
     protected int maxGameLength;
     protected int maxETA;
     protected float etaBonusFactor;
@@ -98,10 +104,10 @@ public class SOCRobotParameters implements Serializable
      * For example, game option "NT" means no trading, so if
      * our {@link #getTradeFlag()} is 1, copy and set it to 0.
      *
-     * @param gameOpts A hashtable of {@link SOCGameOption}, or null
+     * @param gameOpts The game's {@link SOCGameOption}s, or null
      * @return This object, or a copy with updated parameters.
      */
-    public SOCRobotParameters copyIfOptionChanged(Hashtable gameOpts)
+    public SOCRobotParameters copyIfOptionChanged(SOCGameOptionSet gameOpts)
     {
         if (gameOpts == null)
             return this;
@@ -109,7 +115,7 @@ public class SOCRobotParameters implements Serializable
         boolean copied = false;
         SOCRobotParameters params = this;
 
-        if (SOCGame.isGameOptionSet(gameOpts, "NT")
+        if ((gameOpts != null) && gameOpts.isOptionSet("NT")
             && (1 == params.tradeFlag))
         {
             if (! copied)
@@ -182,7 +188,7 @@ public class SOCRobotParameters implements Serializable
     }
 
     /**
-     * @return strategyType: {@link soc.robot.SOCRobotDM#FAST_STRATEGY FAST_STRATEGY}
+     * @return strategyType: {@link soc.robot.SOCRobotDM#FAST_STRATEGY}
      *         or {@link soc.robot.SOCRobotDM#SMART_STRATEGY}
      */
     public int getStrategyType()
@@ -200,12 +206,43 @@ public class SOCRobotParameters implements Serializable
     }
 
     /**
+     * Check for equality to another {@link SOCRobotParameters} or other object.
+     *
+     * @return true if {@code other} is a {@link SOCRobotParameters} having the same values
+     *     for all fields listed in constructor
+     * @see Object#equals(Object)
+     * @since 2.4.50
+     */
+    public boolean equals(Object o)
+    {
+        if (! (o instanceof SOCRobotParameters))
+            return false;
+
+        final SOCRobotParameters params = (SOCRobotParameters) o;
+        return (maxGameLength == params.maxGameLength)
+            && (maxETA == params.maxETA)
+            && (etaBonusFactor == params.etaBonusFactor)
+            && (adversarialFactor == params.adversarialFactor)
+            && (leaderAdversarialFactor == params.leaderAdversarialFactor)
+            && (devCardMultiplier == params.devCardMultiplier)
+            && (threatMultiplier == params.threatMultiplier)
+            && (strategyType == params.strategyType)
+            && (tradeFlag == params.tradeFlag);
+    }
+
+    /**
      * @return a human readable form of the data
      */
+    @Override
     public String toString()
     {
-        String s = "mgl=" + maxGameLength + "|me=" + maxETA + "|ebf=" + etaBonusFactor + "|af=" + adversarialFactor + "|laf=" + leaderAdversarialFactor + "|dcm=" + devCardMultiplier + "|tm=" + threatMultiplier + "|st=" + strategyType + "|tf=" + tradeFlag;
+        String s = "mgl=" + maxGameLength + "|me=" + maxETA +
+                   "|ebf=" + etaBonusFactor + "|af=" + adversarialFactor +
+                   "|laf=" + leaderAdversarialFactor + "|dcm=" + devCardMultiplier +
+                   "|tm=" + threatMultiplier + "|st=" + strategyType +
+                   "|tf=" + tradeFlag;
 
         return s;
     }
+
 }

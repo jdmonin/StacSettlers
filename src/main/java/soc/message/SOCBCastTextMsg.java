@@ -1,6 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * Copyright (C) 2003  Robert S. Thomas
+ * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
+ * Portions of this file Copyright (C) 2014,2017,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,18 +16,23 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * The author of this program can be reached at thomas@infolab.northwestern.edu
+ * The maintainer of this program can be reached at jsettlers@nand.net
  **/
 package soc.message;
 
 
 /**
- * This message contains a text message for everyone connected
+ * This message contains a text message for everyone connected.
+ * Client should show it in all chat channels and games they're a member of.
+ *<P>
+ * Server 2.3.00 and higher prepend sendingUsername + {@code ": "} to the requested text when broadcasting.
  *
  * @author Robert S Thomas
  */
 public class SOCBCastTextMsg extends SOCMessage
 {
+    private static final long serialVersionUID = 100L;  // last structural change v1.0.0 or earlier
+
     /**
      * Text message
      */
@@ -58,25 +64,14 @@ public class SOCBCastTextMsg extends SOCMessage
      */
     public String toCmd()
     {
-        return toCmd(text);
-    }
-
-    /**
-     * BCASTTEXTMSG sep text
-     *
-     * @param tm  the text message
-     * @return    the command string
-     */
-    public static String toCmd(String tm)
-    {
-        return BCASTTEXTMSG + sep + tm;
+        return BCASTTEXTMSG + sep + text;
     }
 
     /**
      * Parse the command String into a BCastTextMsg message
      *
      * @param s   the String to parse
-     * @return    a BCastTextMsg message, or null of the data is garbled
+     * @return    a BCastTextMsg message, or null if the data is garbled
      */
     public static SOCBCastTextMsg parseDataStr(String s)
     {
@@ -92,4 +87,5 @@ public class SOCBCastTextMsg extends SOCMessage
 
         return s;
     }
+
 }

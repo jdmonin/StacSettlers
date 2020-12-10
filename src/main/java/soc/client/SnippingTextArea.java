@@ -2,7 +2,9 @@
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
  * This file appears (by its comments) to be (C) 1999 Brian Davies
- * Portions of this file Copyright (C) 2009 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2004 Chad McHenry
+ * Portions of this file Copyright (C) 2009,2012,2018-2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,16 +26,18 @@ package soc.client;
 import java.awt.TextArea;
 
 /*
- * SnippingTextArea.java 
- * Brian Davies 
- * Written 1/21/99 
+ * SnippingTextArea.java
+ * Brian Davies
+ * Written 1/21/99
  */
 
 /**
- * Limits lines displayed to MaximumLines.  Note that the empty string is also
- * considered a line.
+ * A {@link TextArea} that limits lines displayed to MaximumLines on most platforms.
+ * (Skips MacOSX because of a platform-specific halting bug.)
+ * Note that the empty string is also considered a line.
  */
-public class SnippingTextArea extends TextArea
+@SuppressWarnings("serial")
+/*package*/ class SnippingTextArea extends TextArea
 {
     /**
      * A bug in Java 1.4.2: the first time replaceRange() is called, it
@@ -49,18 +53,17 @@ public class SnippingTextArea extends TextArea
         System.getProperty("java.version").startsWith("1.4.2");
 
     /**
-     * Bug in Mac OS X 10.5 java display: If multiple threads try to update display at once,
+     * Bug in Mac OS X java display: If multiple threads try to update display at once,
      * can hang the GUI (with rainbow "beach ball"). Non-display threads continue execution.
-     * We avoid this by not snipping our text area's length. Also extending to 10.6 in case
-     * it isn't fixed yet by that version.  - JDM 2009-05-21
+     * We avoid this by not snipping our text area's length. - JDM 2009-05-21
+     * Still present in OS X 10.7 and 10.8 per olivierdeckers bug report. - JDM 2012-10-20
      * To identify osx from within java, see technote TN2110:
-     * http://developer.apple.com/technotes/tn2002/tn2110.html
+     * http://developer.apple.com/library/mac/technotes/tn2002/tn2110.html
      * @since 1.1.06
      */
     static final boolean isJavaOnOSX105 =
-        SOCPlayerClient.isJavaOnOSX
-        && (System.getProperty("os.version").startsWith("10.5.")
-            || System.getProperty("os.version").startsWith("10.6."));
+        SOCPlayerClient.IS_PLATFORM_MAC_OSX
+        && System.getProperty("os.version").startsWith("10.");
 
     int maximumLines = 100;
     int lines = 0;
@@ -68,7 +71,7 @@ public class SnippingTextArea extends TextArea
 
     /**
      * Creates a SnippingTextArea which limits hard line breaks to maxLines,
-     * and uses SCROLLBARS_VERTICAL_ONLY.
+     * and uses {@link TextArea#SCROLLBARS_VERTICAL_ONLY}.
      */
     public SnippingTextArea(int rows, int columns, int maxLines)
     {
@@ -77,7 +80,7 @@ public class SnippingTextArea extends TextArea
 
     /**
      * Creates a new SnippingTextArea object with specified text, which limits
-     * hard line breaks to maxLines, and uses SCROOBARS_VERTICAL_ONLY.
+     * hard line breaks to maxLines, and uses {@link TextArea#SCROLLBARS_VERTICAL_ONLY}.
      */
     public SnippingTextArea(String text, int maxLines)
     {
@@ -118,29 +121,33 @@ public class SnippingTextArea extends TextArea
 
     /**
      * @return current number of lines in text
+     * @since 1.1.06
      */
     public int lines() {
         return lines;
     }
 
     // inherit javadoc from TextArea
+    @Override
     public synchronized void setText(String newString)
     {
         super.setText(newString);
         lines = countNewLines(newString);
-        snipText(); 
+        snipText();
     }
 
     // inherit javadoc from TextArea
+    @Override
     public synchronized void replaceRange(String newString, int x, int y)
     {
         lines -= countNewLines(getText().substring(x,y));
         super.replaceRange(newString, x, y);
         lines += countNewLines(newString);
-        snipText (); 
+        snipText ();
     }
 
     // inherit javadoc from TextArea
+    @Override
     public synchronized void insert(String newString, int x)
     {
         super.insert(newString, x);
@@ -149,6 +156,7 @@ public class SnippingTextArea extends TextArea
     }
 
     // inherit javadoc from TextArea
+    @Override
     public synchronized void append(String newString)
     {
         super.append(newString);
@@ -156,16 +164,19 @@ public class SnippingTextArea extends TextArea
         snipText();
     }
 
-    /** Count the lines in a string of text. */
-    protected  int countNewLines(String s)
+    /**
+     * Count the lines in a string of text.
+     * Before v1.1.06 this method was {@code countLines}.
+     */
+    protected static int countNewLines(String s)
     {
-        int lines = 0;
+        int nLines = 0;
         int last = -1;
 
         while ( (last = s.indexOf('\n', last+1)) > -1)
-            lines++;
+            nLines++;
 
-        return lines;
+        return nLines;
     }
 
     /**
@@ -177,23 +188,26 @@ public class SnippingTextArea extends TextArea
         if (isJavaOnOSX105)
             return;
 
-        while (lines > maximumLines)
+        try
         {
-            String s = getText();
-            int nextLine = s.indexOf('\n') + 1;
+            while (lines > maximumLines)
+            {
+                String s = getText();
+                int nextLine = s.indexOf('\n') + 1;
 
-            if (isJava142) // see comment for isJava142
-                super.setText(s.substring(nextLine));
-            else
-                super.replaceRange("", 0, nextLine);
+                if (isJava142) // see comment for isJava142
+                    super.setText(s.substring(nextLine));
+                else
+                    super.replaceRange("", 0, nextLine);
 
-            lines--;
-        }
-        // java 1.2 deprecated getPeer, adding isDisplayable()
+                lines--;
+            }
 
-        if (getPeer() != null)
-        {
-            setCaretPosition(getText().length());
+            if (isDisplayable())
+                setCaretPosition(getText().length());
+        } catch (Throwable th) {
+            System.out.println("snipText ERROR - " + th.getMessage());
+            th.printStackTrace();
         }
     }
 

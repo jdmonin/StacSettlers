@@ -1,6 +1,6 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * This file Copyright (C) 2008 Jeremy D. Monin <jeremy@nand.net>
+ * This file Copyright (C) 2008,2014,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,10 +28,13 @@ import java.util.StringTokenizer;
  * This won't be sent to robots: robots are assumed to vote yes and go along.
  *
  * @see SOCResetBoardRequest
- * @author Jeremy D. Monin <jeremy@nand.net>
+ * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
+ * @since 1.1.00
  */
 public class SOCResetBoardVoteRequest extends SOCMessageTemplate1i
 {
+    private static final long serialVersionUID = 1100L;  // last structural change v1.1.00
+
     /**
      * Create a SOCResetBoardVoteRequest message.
      *
@@ -49,18 +52,6 @@ public class SOCResetBoardVoteRequest extends SOCMessageTemplate1i
     public int getRequestingPlayer()
     {
         return p1;
-    }
-
-    /**
-     * RESETBOARDVOTEREQUEST sep game sep2 playernumber
-     *
-     * @param ga  the name of the game
-     * @param reqpn  player number who requested the reset
-     * @return the command string
-     */
-    public static String toCmd(String ga, int reqpn)
-    {
-        return RESETBOARDVOTEREQUEST + sep + ga + sep2 + reqpn;
     }
 
     /**
@@ -94,9 +85,6 @@ public class SOCResetBoardVoteRequest extends SOCMessageTemplate1i
      * RESETBOARDVOTEREQUEST introduced in 1.1.00 for reset-board feature.
      * @return Version number, 1100 for JSettlers 1.1.00.
      */
-    public int getMinimumVersion()
-    {
-        return 1100;
-    }
+    public int getMinimumVersion() { return 1100; }
 
 }
