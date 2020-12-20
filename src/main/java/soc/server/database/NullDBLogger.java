@@ -27,7 +27,8 @@ public class NullDBLogger extends DBLogger{
 	 * keep track of the stats but do not print anything out
 	 */
     @Override
-    public boolean saveGameScores(SOCGame ga) throws SQLException {
+    public boolean saveGameScores(final SOCGame ga, final int gameLengthSeconds, final boolean winLossOnly)
+        throws SQLException {
         
         String player1 = ga.getPlayer(0).getName();
         String player2 = ga.getPlayer(1).getName();

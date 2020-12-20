@@ -81,7 +81,7 @@ public class TestSavegame
         ga.addPlayer("p0", 0);
         ga.addPlayer("third", 3);
 
-        ga.startGame();  // create board layout
+        ga.startGame(-1, false);  // create board layout
         assertEquals(SOCGame.START1A, ga.getGameState());
         GameSaverJSON.saveGame(ga, testTmpFolder.getRoot(), "wontsave.game.json", srv);
     }
@@ -128,7 +128,7 @@ public class TestSavegame
         gaSave.setSeatLock(0, SeatLockState.LOCKED);
         gaSave.setSeatLock(3, SeatLockState.CLEAR_ON_RESET);
 
-        gaSave.startGame();  // create board layout
+        gaSave.startGame(-1, false);  // create board layout
         assertEquals(SOCGame.START1A, gaSave.getGameState());
         final int firstPN = gaSave.getCurrentPlayerNumber();
         assertEquals(firstPN, gaSave.getFirstPlayer());
@@ -171,7 +171,7 @@ public class TestSavegame
         gaSave.addPlayer("p0", 0);
         gaSave.addPlayer("third", 3);
 
-        gaSave.startGame();  // create board layout
+        gaSave.startGame(-1, false);  // create board layout
         assertEquals(SOCGame.START1A, gaSave.getGameState());
 
         // no pieces placed, but can't save during initial placement
@@ -237,7 +237,7 @@ public class TestSavegame
         SOCGame ga = new SOCGame("test");
         ga.addPlayer("p0", 0);
         ga.addPlayer("third", 3);
-        ga.startGame();  // create board layout
+        ga.startGame(-1, false);  // create board layout
         ga.setGameState(SOCGame.ROLL_OR_CARD);  // no pieces placed, but can't save during initial placement
 
         SOCPlayer pl = ga.getPlayer(0);

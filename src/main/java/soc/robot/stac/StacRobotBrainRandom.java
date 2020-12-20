@@ -6,7 +6,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
-import java.util.Vector;
+import java.util.Set;
 
 import soc.game.SOCGame;
 import soc.game.SOCPlayingPiece;
@@ -91,8 +91,8 @@ public class StacRobotBrainRandom extends StacRobotBrain {
 //    		SOCGame game = this.getGame();
     		for(int i= 0; i < 4; i++){
 //    			results.getEndVPs()[i] = game.getPlayer(i).getTotalVP(); (collected by the DBLogger for now)
-    			playerTrackers.get(i).recalcWinGameETA();
-    			results.getEndETWs()[i] = playerTrackers.get(i).getWinGameETA();
+    			playerTrackers[i].recalcWinGameETA();
+    			results.getEndETWs()[i] = playerTrackers[i].getWinGameETA();
     		}
     	}
     	super.handleGAMESTATS(message);
@@ -133,13 +133,13 @@ public class StacRobotBrainRandom extends StacRobotBrain {
 	}
 	
     @Override
-    protected void handleMOVEROBBER(SOCMoveRobber mes){
-    	super.handleMOVEROBBER(mes);
+    protected void robberMoved(final int newHex){
+    	super.robberMoved(newHex);
     	//update the immediate reward for the action of moving robber (if there is a choice of stealing resources, the result will get overwritten)
     	if(results != null && results.immediateRewardMoveRobber){
     		for(int i= 0; i< 4; i++){
     			SOCBuildingSpeedEstimate estimator = getEstimator();
-    			estimator.recalculateEstimates(getGame().getPlayer(i).getNumbers(), mes.getCoordinates());
+    			estimator.recalculateEstimates(getGame().getPlayer(i).getNumbers(), newHex);
                 int[] speeds = estimator.getEstimatesFromNothingFast(getGame().getPlayer(i).getPortFlags());
                 int totalSpeed = 0;
 
@@ -303,22 +303,22 @@ public class StacRobotBrainRandom extends StacRobotBrain {
             }
         }
 
-        @Override
+        // -- merge TODO: move to an OpeningBuildStrategy
         public void planInitialSettlements() {
         	if(firstSettlementLocation!= -1){
-        		firstSettlement = firstSettlementLocation;
+        		// is really: firstSettlement = firstSettlementLocation;
 //        		System.out.println("Remind the second settlement location at " + firstSettlementLocation + " for player "+ brain.getPlayerNumber());
         	}else if (!((StacRobotBrainRandom)brain).getQueue().empty()) {
         		CappedQueue q = ((StacRobotBrainRandom)brain).getQueue();
         		SOCPutPiece msg = (SOCPutPiece) q.get();
         		firstSettlementLocation = msg.getCoordinates();
 //        		System.out.println("Player " + brain.getPlayerNumber() + " placing second Settlement at " + msg.getCoordinates()); //debug
-        		firstSettlement = msg.getCoordinates();
+        		// is really: firstSettlement = msg.getCoordinates();
         	}else{
 //        		System.out.println("Normal planning initial settlement for player " + brain.getPlayerNumber());
 	        	randomOrNot();
 	        	if (randomInitial) {
-	                firstSettlement = getRandomLegalSettlement();
+	                // is really: firstSettlement = getRandomLegalSettlement();
 	            }
 	            else {
 	                super.planInitialSettlements();
@@ -326,22 +326,22 @@ public class StacRobotBrainRandom extends StacRobotBrain {
         	}
         }
 
-        @Override
+        // -- merge TODO: move to an OpeningBuildStrategy
         public void planSecondSettlement() {
         	if(secondSettlementLocation!= -1){
-        		secondSettlement = secondSettlementLocation;
+        		// is really: secondSettlement = secondSettlementLocation;
 //        		System.out.println("Remind the second settlement location at " + secondSettlementLocation + " for player "+ brain.getPlayerNumber());
         	}else if (!((StacRobotBrainRandom)brain).getQueue().empty()) {
         		CappedQueue q = ((StacRobotBrainRandom)brain).getQueue();
         		SOCPutPiece msg = (SOCPutPiece) q.get();
         		secondSettlementLocation = msg.getCoordinates();
 //        		System.out.println("Player " + brain.getPlayerNumber() + " placing second Settlement at " + msg.getCoordinates()); //debug
-        		secondSettlement = msg.getCoordinates();
+        		// is really: secondSettlement = msg.getCoordinates();
         	}else{
 //	        	System.out.println("Normal planning second settlement for player " + brain.getPlayerNumber());
 	        	randomOrNot();
 	        	if (randomInitial) {
-	                secondSettlement = getRandomLegalSettlement();
+	                // is really: secondSettlement = getRandomLegalSettlement();
 	            }
 	            else {
 	                super.planSecondSettlement();
@@ -351,10 +351,14 @@ public class StacRobotBrainRandom extends StacRobotBrain {
         
         // TODO: Consider adding restrictions (ie don't build unless it's 3 hexes, or 2 hexes + port)
         private int getRandomLegalSettlement() {
-            List<Integer> legalSettlements = player.getLegalSettlements();
-            int i = RAND.nextInt(legalSettlements.size());
-            return legalSettlements.get(i).intValue();
+            Set<Integer> legalSettlements = player.getLegalSettlements();
+            int irand = RAND.nextInt(legalSettlements.size());
+            Iterator<Integer> iter = legalSettlements.iterator();
+            for (int i = 0; i < irand; ++i)
+                iter.next();
+            return iter.next().intValue();
         }
+
         /**
          * Choose whether we should play a random or planned next move. Based on the random percentage selected.
          */
@@ -370,11 +374,11 @@ public class StacRobotBrainRandom extends StacRobotBrain {
         	}
         }
 
-        @Override
+        // -- merge TODO: move to an OpeningBuildStrategy
         public int[] planInitRoad(int settlementNode) {
             randomOrNot();
         	if (randomInitial) {                
-                Vector roads = brain.getGame().getBoard().getAdjacentEdgesToNode(settlementNode);               
+                List<Integer> roads = brain.getGame().getBoard().getAdjacentEdgesToNode(settlementNode);
                 boolean found = false;
                 int road = -1;
                 while (!found) {
@@ -391,7 +395,7 @@ public class StacRobotBrainRandom extends StacRobotBrain {
             }            
         }
         
-        @Override
+        // -- merge TODO: move to a RobberStrategy
         public int selectMoveRobber(int robberHex) {
         	if(robberLocation != -1){
 //        		System.out.println("Remind move robber to " + robberLocation + " for player "+ brain.getPlayerNumber()); //debug
@@ -408,7 +412,7 @@ public class StacRobotBrainRandom extends StacRobotBrain {
             }
         }
         
-        @Override
+        // -- merge TODO: move to a RobberStrategy
         public int choosePlayerToRob(){
         	if(playerToRob != -1){
 //        		System.out.println("Remind choose player to rob: " + playerToRob + " for player "+ brain.getPlayerNumber()); //debug
@@ -421,7 +425,7 @@ public class StacRobotBrainRandom extends StacRobotBrain {
         		return msg.getChoice();
         	}
             else {
-                return super.choosePlayerToRob(); //if playing by the old logic
+                return -1; // is really: return super.choosePlayerToRob(); //if playing by the old logic
             }
         }
         

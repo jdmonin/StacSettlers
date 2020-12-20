@@ -34,6 +34,7 @@ import soc.util.IntPair;
 import soc.util.SOCFeatureSet;
 import soc.util.SOCGameBoardReset;
 
+import java.io.File;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
@@ -796,7 +797,7 @@ public class SOCGame implements Serializable, Cloneable
      * @see #hasScenarioWinCondition
      * @since 1.1.14
      */
-    public final int vp_winner;
+    public int vp_winner;
 
     /**
      * Does this game's scenario have a special win condition besides {@link #vp_winner}?
@@ -2400,7 +2401,7 @@ public class SOCGame implements Serializable, Cloneable
     }
 
     /**
-     * Setting the VP needed to win this game
+     * Setting the VP needed to win this game, for use while loading a STAC saved game.
      * @param newVpWinner the VPs the winner of the game needs to get
      */
     public void setVpWinner(int newVpWinner) {
@@ -4613,6 +4614,8 @@ public class SOCGame implements Serializable, Cloneable
      * <LI> If appropriate, {@link soc.server.SOCBoardAtServer#startGame_scenarioSetup(SOCGame)}
      *</UL>
      * @param firstPlayer the player number who will start or -1 if random
+     * @param loadBoard  true only if will be loading a STAC game's fixed board from {@code "saves/board/_soc.game.SOCBoard.dat"}
+     *    instead of the usual calls to {@link SOCBoard#makeNewBoard(SOCGameOptionSet)} etc
      */
     public void startGame(int firstPlayer, boolean loadBoard)
     {
@@ -8790,7 +8793,7 @@ public class SOCGame implements Serializable, Cloneable
         //it has to be the participant (i.e owner, the player who started the game) who has the win VPs
         if (isTrainingGame) {
             int ownerVP = getPlayer(getOwner()).getTotalVP();
-            if (ownerVP == vpWinner)
+            if (ownerVP == vp_winner)
                 gameState = OVER;
             else
                 return;
@@ -9599,7 +9602,7 @@ public class SOCGame implements Serializable, Cloneable
         ogsr.setGameState(getGameState());
         
         //get how many pieces are on board and initialise the pieces on board array in ogsr;
-        Integer[][] pob = new Integer[board.getPieces().size()][3];
+        Integer[][] pob = new Integer[board.getCities().size() + board.getSettlements().size() + board.getRoadsAndShips().size()][3];
         int piecesIndex = 0;
         //initialise players array
         ogsr.setPlayers(new Integer[4][35]);
@@ -9609,42 +9612,35 @@ public class SOCGame implements Serializable, Cloneable
         for (SOCPlayer p : getPlayers()) {
             String pName = p.getName();
             int pn = p.getPlayerNumber();
-            if(pName!=null){
+            if(pName!=null)
             	ogsr.setPlayerID(pn, 0);
-            }else
+            else
             	ogsr.setPlayerID(pn, -1);
 
-            Iterator i;
             // Cities
-            i = p.getCities().iterator();
-            while (i.hasNext()) {
-                SOCCity c = (SOCCity) i.next();
+            for (SOCCity c : p.getCities()) {
                 pob[piecesIndex][0] = SOCPlayingPiece.CITY;
                 pob[piecesIndex][1] = c.getCoordinates();
                 pob[piecesIndex][2] = pn;
                 piecesIndex++;
             }	            
             // Settlements
-            i = p.getSettlements().iterator();
-            while (i.hasNext()) {
-                SOCSettlement s = (SOCSettlement) i.next();
+            for (SOCSettlement s : p.getSettlements()) {
                 pob[piecesIndex][0] = SOCPlayingPiece.SETTLEMENT;
                 pob[piecesIndex][1] = s.getCoordinates();
                 pob[piecesIndex][2] = pn;
                 piecesIndex++;
             }
             // Roads
-            i = p.getRoads().iterator();
-            while (i.hasNext()) {
-                SOCRoad r = (SOCRoad) i.next();
-                pob[piecesIndex][0] = SOCPlayingPiece.ROAD;
+            for (SOCRoutePiece r : p.getRoadsAndShips()) {
+                pob[piecesIndex][0] = r.getType();
                 pob[piecesIndex][1] = r.getCoordinates();
                 pob[piecesIndex][2] = pn;
                 piecesIndex++;
             }
             
             // Dev cards total
-            SOCDevCardSet set = p.getDevCards();
+            SOCInventory set = p.getInventory();
             ogsr.setDevTotalCards(pn, set.getTotal());
         
             //Unplayed Dev cards types and numbers (an array of integers: knights, roads, disc, mono, unknown)
@@ -9664,7 +9660,7 @@ public class SOCGame implements Serializable, Cloneable
             ogsr.setNewDevCards(pn, ndc);
         
             //VP Dev cards
-            ogsr.setVictoryDevCards(pn, set.getNumVPCards());
+            ogsr.setVictoryDevCards(pn, set.getNumVPItems());
             
             // Num-knights, discovery, monopoly and road building dev cards played by this player
             ogsr.setPlayedKnights(pn, p.getNumKnights());

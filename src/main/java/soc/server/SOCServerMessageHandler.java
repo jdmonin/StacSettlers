@@ -44,6 +44,7 @@ import java.util.Vector;
 import java.util.regex.Pattern;
 
 import soc.debug.D;
+import soc.dialogue.StacTradeMessage;
 import soc.game.SOCGame;
 import soc.game.SOCGameOption;
 import soc.game.SOCGameOptionSet;
@@ -51,6 +52,7 @@ import soc.game.SOCGameOptionVersionException;
 import soc.game.SOCPlayer;
 import soc.game.SOCScenario;
 import soc.game.SOCVersionedItem;
+import soc.game.StacGameParameters;
 import soc.message.*;
 import soc.server.database.SOCDBHelper;
 import soc.server.genericServer.Connection;
@@ -248,7 +250,7 @@ public class SOCServerMessageHandler
             break;
 
         /**
-         * someone is starting a game
+         * someone is starting a general game
          */
         case SOCMessage.STARTGAME:
 
@@ -259,6 +261,13 @@ public class SOCServerMessageHandler
             //ga = (SOCGame)gamesData.get(((SOCStartGame)mes).getGame());
             //currentGameEventRecord.setSnapshot(ga);
             //saveCurrentGameEventRecord(((SOCStartGame)mes).getGame());
+            break;
+
+        /**
+         * someone is starting a stac game
+         */
+        case SOCMessage.STACSTARTGAME:
+            handleSTACSTARTGAME(c, (StacStartGame) mes, 0);
             break;
 
         case SOCMessage.CHANGEFACE:
@@ -1220,8 +1229,9 @@ public class SOCServerMessageHandler
             }
             else if (cmdTxtUC.startsWith("*FORCE END TURN*") || cmdTxtUC.startsWith("FORCE END TURN")) {
                 SOCPlayer currentPlayer = ga.getPlayer(ga.getCurrentPlayerNumber());
-                Thread t = new ForceEndTurnThread(this, ga, currentPlayer);
-                startThread(t, this);
+                Thread t = new SOCForceEndTurnThread
+                    (srv, srv.getGameList().getGameTypeHandler(ga.getName()), ga, currentPlayer);
+                srv.startThread(t, srv);
             }
             else if (userIsDebug || srv.isUserDBUserAdmin(plName))
             {
@@ -1409,14 +1419,14 @@ public class SOCServerMessageHandler
     {
         final String gaName = ga.getName();
 
-        if (! srv.db.isInitialized())
+        if (! (srv.db.isInitialized() && (srv.db instanceof SOCDBHelper)))
         {
             srv.messageToPlayer(c, gaName, SOCServer.PN_NON_EVENT, "Not using a database.");
             return;
         }
 
         srv.messageToPlayer(c, gaName, SOCServer.PN_NON_EVENT, "Database settings:");
-        Iterator<String> it = srv.db.getSettingsFormatted(srv).iterator();
+        Iterator<String> it = ((SOCDBHelper) (srv.db)).getSettingsFormatted(srv).iterator();
         while (it.hasNext())
             srv.messageToPlayer(c, gaName, SOCServer.PN_NON_EVENT, "> " + it.next() + ": " + it.next());
     }
@@ -2683,13 +2693,54 @@ public class SOCServerMessageHandler
     {
         final String gn = mes.getGame();
         //store the properties passed once with the msg required for loading
-        gamesParams.put(gn, new StacGameParameters(mes.getLoadFlag(), mes.getFolder(), mes.getTurnNo(), mes.getStartingPlayer(), mes.getLoadBoardFlag(), mes.getChatNegotiationsFlag(), mes.getFullyObservableFlag(), mes.getObservableVPFlag()));
+        srv.gamesParams.put(gn, new StacGameParameters(false, "", 0, -1, false, false, false, false));
 
+        handleSTARTGAME(c, gn, false, botsOnly_maxBots);
+    }
+
+    /**
+     * handle "start game" message.  Game state must be NEW, or this message is ignored.
+     * Calls {@link SOCServer#readyGameAskRobotsJoin(SOCGame, boolean[], Connection[], int)}
+     * to ask some robots to fill empty seats,
+     * or {@link GameHandler#startGame(SOCGame) begin the game} if no robots needed.
+     *<P>
+     * Called when clients have sat at a new game and a client asks to start it,
+     * not called during game board reset.
+     *<P>
+     * For robot debugging, a client can start and observe a robots-only game if the
+     * {@link SOCServer#PROP_JSETTLERS_BOTS_BOTGAMES_TOTAL} property != 0 (including &lt; 0).
+     *<P>
+     * Visibility is package-level, not private, so {@link SOCServer} can start robot-only games.
+     *
+     * @param c  the connection that sent the message
+     * @param mes  the message
+     * @param botsOnly_maxBots  For bot debugging, maximum number of bots to add to the game,
+     *     or 0 to fill all empty seats. This parameter is used only when requesting a new
+     *     robots-only game using the *STARTBOTGAME* debug command; ignored otherwise.
+     */
+    void handleSTACSTARTGAME
+        (Connection c, final StacStartGame mes, final int botsOnly_maxBots)
+    {
+        final String gn = mes.getGame();
+        //store the properties passed once with the msg required for loading
+        srv.gamesParams.put(gn, new StacGameParameters(mes.getLoadFlag(), mes.getFolder(), mes.getTurnNo(), mes.getStartingPlayer(), mes.getLoadBoardFlag(), mes.getChatNegotiationsFlag(), mes.getFullyObservableFlag(), mes.getObservableVPFlag()));
+
+        handleSTARTGAME(c, gn, mes.getShuffleFlag(), botsOnly_maxBots);
+    }
+
+    /**
+     * Handle {@link SOCStartGame} or {@link StacStartGame} "Start game" message.
+     * See {@link #handleSTACSTARTGAME(Connection, SOCStartGame, int)} for details.
+     * @since 2.4.50
+     */
+    private void handleSTARTGAME
+        (Connection c, final String gn, final boolean noShuffle, final int botsOnly_maxBots)
+    {
         SOCGame ga = gameList.getGameData(gn);
 
         //initialise the object storing the trade responses for this game
-        tradeResponses.put(gn, new StacTradeMessage[ga.maxPlayers]);
-        D.ebugPrintlnINFO("--- Server: clearing trade response for all players (3)" + tradeResponsesString(ga.getName()));
+        srv.tradeResponses.put(gn, new StacTradeMessage[ga.maxPlayers]);
+        D.ebugPrintlnINFO("--- Server: clearing trade response for all players (3)" + srv.tradeResponsesString(ga.getName()));
 
         if (ga == null)
             return;
@@ -2811,7 +2862,7 @@ public class SOCServerMessageHandler
                             IllegalStateException e = null;
                             try
                             {
-                                invitedBots = srv.readyGameAskRobotsJoin(ga, null, null, numEmpty, mes.getShuffleFlag());
+                                invitedBots = srv.readyGameAskRobotsJoin(ga, null, null, numEmpty, noShuffle);
                             } catch (IllegalStateException ex) {
                                 e = ex;
                             }
@@ -2819,7 +2870,7 @@ public class SOCServerMessageHandler
                             if (! invitedBots)
                             {
                                 System.err.println
-                                    (formattedDate() + ":" + "Robot-join problem in game " + gn + ": "
+                                    (SOCServer.formattedDate() + ":" + "Robot-join problem in game " + gn + ": "
                                      + ((e != null) ? e : " no matching bots available"));
 
                                 // recover, so that human players can still start a game

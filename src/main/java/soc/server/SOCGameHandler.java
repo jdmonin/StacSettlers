@@ -38,7 +38,9 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.Vector;
 
+import soc.baseclient.ServerConnectInfo;
 import soc.debug.D;
+import soc.dialogue.StacTradeMessage;
 import soc.game.*;
 import soc.message.SOCAcceptOffer;  // for javadocs only
 import soc.message.SOCBankTrade;
@@ -48,8 +50,10 @@ import soc.message.SOCBotJoinGameRequest;
 import soc.message.SOCCancelBuildRequest;
 import soc.message.SOCChangeFace;
 import soc.message.SOCChoosePlayerRequest;
+import soc.message.SOCClearGameHistory;
 import soc.message.SOCClearOffer;
 import soc.message.SOCClearTradeMsg;
+import soc.message.SOCCollectData;
 import soc.message.SOCDebugFreePlace;
 import soc.message.SOCDevCardAction;
 import soc.message.SOCDevCardCount;
@@ -72,6 +76,7 @@ import soc.message.SOCLocalizedStrings;
 import soc.message.SOCLargestArmy;
 import soc.message.SOCLastSettlement;
 import soc.message.SOCLeaveGame;
+import soc.message.SOCLoadGame;
 import soc.message.SOCLongestRoad;
 import soc.message.SOCMakeOffer;
 import soc.message.SOCMessage;
@@ -101,10 +106,19 @@ import soc.message.SOCSitDown;
 import soc.message.SOCStartGame;
 import soc.message.SOCStatusMessage;
 import soc.message.SOCTurn;
+import soc.robot.SOCRobotClient;
+import soc.robot.SOCRobotDMImpl;
+import soc.robot.stac.StacRobotBrain;
+import soc.robot.stac.StacRobotDialogueManager;
+import soc.robot.stac.StacRobotDummyBrain;
 import soc.server.genericServer.Connection;
+import soc.server.database.stac.StacDBHelper;
+import soc.util.CappedQueue;
+import soc.util.DeepCopy;
 import soc.util.IntPair;
 import soc.util.SOCFeatureSet;
 import soc.util.SOCGameList;
+import soc.util.SOCRobotParameters;
 import soc.util.SOCStringManager;
 import soc.util.Version;
 
@@ -320,318 +334,6 @@ public class SOCGameHandler extends GameHandler
         {
             processDebugCommand_scenario(debugCli, ga, dcmd.substring(DEBUG_CMD_PFX_SCENARIO.length()).trim());
             return true;
-            }else if(StacRobotBrain.isChatNegotiation() && cmdText.startsWith(StacTradeMessage.FAKE_CLARIFICATION)){
-            	//do nothing, the message was already printed
-            }else if (StacRobotBrain.isChatNegotiation() && (cmdText.startsWith(StacTradeMessage.TRADE) || cmdText.startsWith(StacRobotDialogueManager.JMT_TRADE))) {
-				
-            	//if there is a human player in the game process trades slower
-            	SOCPlayer[] players = ga.getPlayers();
-            	boolean humanPresent = false;
-            	for(int i = 0; i < ga.maxPlayers; i++){
-                    if(!players[i].isRobot())
-                        humanPresent = true;
-            	}
-            	if(humanPresent){
-                    try {
-                        long latency = 300 + rand.nextInt(500);
-//                        long latency = 800 + rand.nextInt(500);
-                        Thread.sleep(latency);
-                    } catch (InterruptedException e1) {
-                        e1.printStackTrace();
-                    }
-            	}
-//                System.err.println("Server - Handling trade message from host " + c.host() + " :" + cmdText);
-                // chop off the prefix and try to parse the message as a trade offer- if that works, log it
-//                {
-//                    SOCPlayer player = ga.getPlayer((String) c.getData());
-//                    System.err.println(ga.getTurnCount() + " * " + player.getName() + "(" + player.getPlayerNumber() + ") - Trade event message: " + cmdText);
-//                }                    
-
-            	// Note who the recipient of the message is - in the case of rej/acc/nr, this will indicate what trade they are responding to
-                StacTradeMessage tr = StacTradeMessage.parse(StacRobotDialogueManager.fromMessage(cmdText));
-
-                // HERE !!!!
-                writeTradeMessageToDB(ga, tr);
-                
-                //evaluate the message if it is an offer
-                if (tr.getOffer() != null) {
-                	//if we are in here it can only be a new offer or a counter-offer
-                    StacTradeOffer offer = tr.getOffer();
-                    SOCPlayer player = ga.getPlayer((String) c.getData());
-                    //add this offer to the current offer so we will know not to end the current player's turn too quickly
-                    player.setCurrentOffer(offer);
-                    SOCMakeOffer mes = new SOCMakeOffer(ga.getName(), offer);
-                    if(!usingPersuasion){
-                    	db.logChatTradeOffer(player, tr, ga.getCurrentPlayerNumber(), false);
-                    }
-                    else{
-                    	db.logChatTradeOffer(player, tr, ga.getCurrentPlayerNumber(), false, tr.getPersuasiveMove(), player.getGame().getRoundCount());
-                    }
-                    lastTradeOfferWasForceAccept = tr.isForced();
-                    lastTradeOfferPersuasion = tr.getPersuasiveMove();
-
-                    //add it to the corresponding position in the tradeResponse array for tracking purposes
-                    String sender = Integer.toString(offer.getFrom());
-                    String receivers = StacTradeMessage.getToAsString(offer.getTo());
-                    if(player.getPlayerNumber() == ga.getCurrentPlayerNumber()){
-//newProt                    	//treat counter-offers from the current player as new offers so we can clear the responses from the previous offer
-//                        System.err.println("--- Server: clearing trade response for all players (1)");
-//                    	tradeResponses.put(ga.getName(),new StacTradeMessage[ga.maxPlayers]);
-                    	StacTradeMessage[] responses = tradeResponses.get(ga.getName());
-                    	responses[player.getPlayerNumber()] = new StacTradeMessage(sender, receivers, offer, tr.isForced(), lastTradeOfferPersuasion, tr.getNLChatString());
-                        D.ebugPrintlnINFO("--- Server: Updated trade response (1); Player " + player.getName() + tradeResponsesString(gaName));
-                    }else if(offer.getTo()[ga.getCurrentPlayerNumber()]){
-                    	StacTradeMessage[] responses = tradeResponses.get(ga.getName());
-                    	responses[player.getPlayerNumber()] = new StacTradeMessage(sender, receivers, offer, tr.isForced(), lastTradeOfferPersuasion, tr.getNLChatString());
-                        D.ebugPrintlnINFO("--- Server: Updated trade response (2); Player " + player.getName() + tradeResponsesString(gaName));
-                    }else{
-                    	D.ebugERROR("Offer not from or to the current player");
-                    }
-                }
-                else if (tr.isBlock()) {
-                    String playerName = (String) c.getData();
-                    db.logBlockingAction(playerName, DBHelper.BLOCK);
-                }
-                else if (tr.isBlockComply()) {
-                    String playerName = (String) c.getData();
-                    db.logBlockingAction(playerName, DBHelper.BLOCK_COMPLY);
-                }
-                else{
-                    //accept/rejects/no-responses
-                    int to;
-                    try {
-                        to = Integer.parseInt(tr.getReceivers().substring(0, 1));
-                    } catch (NumberFormatException e) {
-                        e.printStackTrace();
-                        //send the message to game anyway and break out of here
-                        messageToGame(gaName, new SOCGameTextMsg(gaName, (String) c.getData(), cmdText));
-                        return;
-                    }
-
-                    SOCPlayer player = ga.getPlayer((String) c.getData());//the player that sent this message;
-                    StacTradeMessage[] responses = tradeResponses.get(ga.getName());
-
-                    //first check that this isn't a reply to a null trade offer
-                    if(responses[to]==null){
-                        if(tr.isAccept()){ //accepts shouldn't be missed so print out if this happens;
-                            D.ebugERROR("Cannot accept a null trade message \n msg: " + tr.toString() + " from " + player.getPlayerNumber());
-                            messageToGameWithMon(gaName, new SOCGameTextMsg(gaName, SERVERNAME, "*** " + player.getName() + " sent an invalid ACC message."));
-                            return; //don't forward an invalid accept to the other players, this will mess up the internal representation of the robots
-                        }
-                        //rejects and no-responses are fine here, but send them to the participants to avoid robots getting stuck waiting for answers
-                        messageToGame(gaName, new SOCGameTextMsg(gaName, (String) c.getData(), cmdText));
-                        return;
-                    }
-
-                    //link the response to the original offer(NOTE: the offer and the response are in the same StacTradeMessage object, despite not coming from the same player)                	
-                    if(to != ga.getCurrentPlayerNumber() && player.getPlayerNumber() != ga.getCurrentPlayerNumber()){
-                        messageToGame(gaName, new SOCGameTextMsg(gaName, (String) c.getData(), cmdText));
-                        return;
-                        //ignore responses to other players but the current player as these are the rules of the game. send the message to the game as one of the players may be waiting for it;
-                    }else if(player.getPlayerNumber() == ga.getCurrentPlayerNumber() && tr.isReject()){
-                        //ignore rejects from the current player as this will interfere with the logic below, but again send them to the game
-                        messageToGame(gaName, new SOCGameTextMsg(gaName, (String) c.getData(), cmdText));
-                        return;
-                    }else{
-                        //it can be a reject/acc or no-response to current player then check who is receiving this answer and combine with the offer in a new trade message
-//newProt                        //be more restrictive: check whether the offer is made to the player
-//ONLY DO THIS FOR ACCETPS - DO UPDATING OF REJ AS BEFORE
-//                        if (recips.matches(Integer.toString(player.getPlayerNumber()))) {
-//                        only do this for ACC
-                        if (tr.isAccept()) {
-                            StacTradeMessage res = new StacTradeMessage(tr.getSender(), tr.getReceivers(), tr.isAccept(), tr.isReject(), tr.isNoResponse(), responses[to].getOffer(), responses[to].isForced(), tr.getNLChatString());
-                            responses[player.getPlayerNumber()] = res;
-                            D.ebugPrintlnINFO("--- Server: Updated trade response (3); Player " + player.getName()
-                                    + "\n  - old message: " + tr.toString()
-                                    + "\n  - new message: " + res.toString()
-                                    + tradeResponsesString(gaName));
-                        } else {
-                            D.ebugPrintlnINFO("--- Server: NOT updating trade response (3); Player " + player.getName()
-                                    + "\n  - old message: " + tr.toString()
-                                    + tradeResponsesString(gaName));
-                        }
-                    }
-
-                    //check if this is a confirmation of an offer i.e. an accept to an accept;
-                    if(tr.isAccept()){
-                        if(responses[to].isAccept()){
-                            //check if the player is the originator of the offer
-                            if(responses[to].getOffer().getFrom() == player.getPlayerNumber()){
-//newProt                                    tradeResponses.put(ga.getName(),new StacTradeMessage[ga.maxPlayers]);//clear the trade responses after a trade was accepted
-//                                System.err.println("--- Server: clearing trade response for player " + to + tradeResponsesString(gaName));
-//                                responses[to] = null;
-                                D.ebugPrintlnINFO("--- Server: NOT clearing trade response for player " + to
-                                        + " immediately before executing the trade"
-                                        + tradeResponsesString(gaName));
-
-                                //all preconditions for executing a trade are met
-                                //but we need a final confirmation from the human players involved in this trade that they wants to make it
-                                final int offeringNumber = player.getPlayerNumber();
-                                final int acceptingNumber = to;
-                                if (!ga.getPlayer(offeringNumber).isRobot() || !ga.getPlayer(acceptingNumber).isRobot()) {
-                                    ArrayList<String> traders = new ArrayList();
-                                    if (!ga.getPlayer(offeringNumber).isRobot())
-                                        traders.add(players[offeringNumber].getName());
-                                    if (!ga.getPlayer(acceptingNumber).isRobot())
-                                        traders.add(players[acceptingNumber].getName());
-                                    HashMap map = new HashMap();
-                                    map.put("players", traders);
-                                    map.put("offeringPlayer", offeringNumber);
-                                    map.put("acceptingPlayer", acceptingNumber);
-                                    pendingTrades.put(gaName, map);
-                                    SOCTradeOffer off = ga.getPlayer(offeringNumber).getCurrentOffer(); //this offer will be exeuted in the end in SOCGame.makeTrade(...)
-                                    String p1 = offeringNumber + ":" + off.getGiveSet().toString();
-                                    String p2 = acceptingNumber + ":" + off.getGetSet().toString();
-                                    p1 = p1.replace(SOCMessage.sep, "~");
-                                    p2 = p2.replace(SOCMessage.sep, "~");
-                                    StacConfirmTradeRequest confirmationRequest = new StacConfirmTradeRequest(gaName, p1, p2);
-                                    messageToGame(gaName, confirmationRequest);
-                                    return;
-                                }
-                                
-                                //messageToGame(gaName, new SOCGameTextMsg(gaName, (String) c.getData(), cmdText)); //we don't need to tell everyone that another accept was sent as they can see from the trade execution		
-                                //The second accepter is actually the offerer, because it is the initiator of the original offer
-                                SOCAcceptOffer accMsg = new SOCAcceptOffer(ga.getName(), to, player.getPlayerNumber());
-                                executeTrade(ga, accMsg, c);
-
-                                if(COLLECT_FULL_GAMEPLAY)
-                                    writeToDB(ga, GameActionRow.TRADE);
-                                if(COLLECT_VALUE_FUNCTION_APPROX)
-                                    messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
-                                return;
-                            }else{
-                                //this shouldn't happen in the only robots case and for a human player this is restricted on the client side
-                                D.ebugWARNING(" Cannot accept an accept in someone else's place");
-                            }
-                        }
-                            //else do nothing as this is probably a normal accept
-                    }
-
-                	//then check if everyone has responded(by making sure there are no null responses unless its a human player)
-                	boolean everyoneResponded = true;
-                	for(int i = 0; i < ga.maxPlayers; i++){
-                		if(responses[i] == null){//player didn't reply
-                			//need to handle the human special case of not responding to messages that are not intended for him
-                			SOCPlayer pl = ga.getPlayer(i);
-                			if(!pl.isRobot()){
-                				//we have to loop over all the offers and check if this player is a recipient of any offers
-                				for(StacTradeMessage trd : responses){
-                					if(trd != null){
-                						if(trd.getOffer().getTo()[i] && !trd.isAccept() && !trd.isReject() && !trd.isNoResponse()){
-                							everyoneResponded = false;//the human player is a recipient of an offer so there should have been a response from him
-                						}
-                					}
-                				}
-                			}
-                			else
-                				everyoneResponded = false;//a robot has not replied yet
-                		}
-                	}
-                	
-                	if(everyoneResponded){
-                		int nAcc = 0;
-                		int nOff = 0;
-                		for(int i = 0; i < ga.maxPlayers; i++){
-                			if(responses[i]==null){
-                				//ignore the no responses from human players, just handle them to avoid a nullpointer
-                			}else{
-	                			if(responses[i].isAccept()){
-	                				nAcc++;
-	                			}else if(!responses[i].isReject() && !responses[i].isNoResponse()){
-	                				nOff++;
-	                			}else if(responses[i].isReject() || responses[i].isNoResponse()){
-	                				//we don't need to track the rejects/no responses
-	                			}else
-	                				D.ebugERROR(" received a trade message which is not an offer/acc/rej/block/block comply");
-                			}
-                		}
-                		
-                		//make sure no unusual scenarios are encountered and also handle the nobody accepted case.
-                		if(nAcc == 1 && nOff == 1){
-                			//waiting for the confirmation accept;
-                		}else if(nAcc == 0 && nOff == 1){
-                			StacTradeMessage cpResp = responses[ga.getCurrentPlayerNumber()];
-                			if(!cpResp.isNoResponse() && !cpResp.isReject()){
-                    			//the current player made the offer and nobody accepted or counter-offered
-                			}else if(cpResp.isReject()){
-                                //the current player rejected the offer //this doesn't happen anymore because we clean responses every time the current player sends a new offer
-                			}else{
-                                //smth went wrong report an error
-                                D.ebugERROR(" the current player was not involved in the trade; clear responses");
-                			}
-                                D.ebugPrintlnINFO("--- Server: clearing trade response for all players (2)" + tradeResponsesString(gaName));
-                			tradeResponses.put(ga.getName(),new StacTradeMessage[ga.maxPlayers]);//as this is a reject clear the responses
-                		}else if(nOff > 1 && nAcc == 0){
-                			//waiting for the players to decide on a trade
-                		}
-                		else if((nAcc == 1 || nAcc > 1) && (nOff > 1 || nOff == 1)){ //the 1:1 case is covered in the first if clause
-                			//waiting for players to decide on a trade
-                		}else if(nAcc > 1 && nOff == 0){
-                			D.ebugERROR("The offer should have been executed, we shouldn't be here");//this can't really happen but report it just in case
-                		}else
-                			D.ebugERROR(" unknown trading state");//I hope I will never see this one
-                			
-                	}//else do nothing and wait for all the responses
-                	
-                }
-//                System.err.println("SERVER: message to game: " + cmdText);
-                                                
-                //then send the trade message to all participants
-                messageToGame(gaName, new SOCGameTextMsg(gaName, (String) c.getData(), cmdText));
-            }
-            else if (cmdText.startsWith(StacRobotDialogueManager.BP_COMP)) {
-                // Log it, do NOT send the message to the table
-                String p[] = cmdText.split(":");
-                p = p[1].split(",");
-                boolean b[] = new boolean[3];
-                for (int i=0; i<3; i++) {
-                    b[i] = Boolean.parseBoolean(p[i]);
-                }
-                SOCPlayer player = ga.getPlayer((String) c.getData());
-                db.logBPPrediction(player, b[0], b[1], b[2]);
-            }
-            else if (cmdText.startsWith(StacRobotDialogueManager.HR_COMP)) {
-                // Log it, do NOT send the message to the table
-                String p[] = cmdText.split(":");
-                p = p[1].split(",");
-                boolean b[] = new boolean[3];
-                for (int i=0; i<3; i++) {
-                    b[i] = Boolean.parseBoolean(p[i]);
-                }
-                SOCPlayer player = ga.getPlayer((String) c.getData());
-                db.logHasResourcesPrediction(player, b[0], b[1], b[2], ga.hasRolledSeven);
-            }
-            // Logging messages sent from the client directly (not via the dialogue manager)
-            else if (cmdText.startsWith("LOGGING:")) {
-                String player = (String) c.getData();
-                String p[] = cmdText.split(":");
-                if (p[1].equals("BUILD_PLAN")) {
-                    String t[] = p[2].split("=");
-                    int type = Integer.parseInt(t[1]);
-                    db.logBuildPlan(player, type);
-                }
-            }
-            else if (cmdText.startsWith(StacRobotDialogueManager.EMBARGO)) {
-                //message format: EMBARGO:1:INIT:3
-                String p[] = cmdText.split(":");
-                if (p[2].equals(StacRobotDialogueManager.EMBARGO_PROPOSE)) {
-//                    System.err.println(ga.getTurnCount() + " - observing pr opose embargo: " + cmdText);
-                    String playerName = (String) c.getData();
-                    db.logEmbargoAction(playerName, DBHelper.EMBARGO_PROPOSE);
-                }
-                else if (p[2].equals(StacRobotDialogueManager.EMBARGO_COMPLY)) {
-//                    System.err.println(ga.getTurnCount() + " - observing comply with embargo: " + cmdText);
-                    String playerName = (String) c.getData();
-                    db.logEmbargoAction(playerName, DBHelper.EMBARGO_COMPLY);
-                }
-                else if (p[2].equals(StacRobotDialogueManager.EMBARGO_LIFT)) {
-//                    System.err.println(ga.getTurnCount() + " - observing lift embargo: " + cmdText);
-//                    String playerName = (String) c.getData();
-//                    db.logEmbargoAction(playerName, DBHelper.EMBARGO_LIFT);
-                }
-
-                // pass on the message
-                messageToGame(gaName, new SOCGameTextMsg(gaName, (String) c.getData(), cmdText));
         } else {
             return false;
         }
@@ -1009,7 +711,7 @@ public class SOCGameHandler extends GameHandler
         //---MG
         //clear the game interaction history
         if (ga.getGameState() >= SOCGame.ROLL_OR_CARD && pl != null) {
-            messageToGame(ga.getName(), new SOCClearGameHistory(ga.getName(), pl.getPlayerNumber()));
+            srv.messageToGame(gname, new SOCClearGameHistory(gname, pl.getPlayerNumber()));
         }
 
         /**
@@ -1059,8 +761,8 @@ public class SOCGameHandler extends GameHandler
         }
 
         //before beginning a new turn clear responses (this covers the scenario when a robot had its turn ended forcibly)
-        D.ebugPrintlnINFO("--- Server: clearing trade response for all players (4)" + tradeResponsesString(gname));
-        tradeResponses.put(ga.getName(),new StacTradeMessage[ga.maxPlayers]);
+        D.ebugPrintlnINFO("--- Server: clearing trade response for all players (4)" + srv.tradeResponsesString(gname));
+        srv.tradeResponses.put(ga.getName(),new StacTradeMessage[ga.maxPlayers]);
 
         /**
          * send new state number; if game is now OVER,
@@ -1068,7 +770,7 @@ public class SOCGameHandler extends GameHandler
          * Send whose turn it is.
          */
         sendTurn(ga, false);
-        db.newTurn(ga.getName(), ga.getPlayer(ga.getCurrentPlayerNumber()).getName());
+        srv.db.newTurn(ga.getName(), ga.getPlayer(ga.getCurrentPlayerNumber()).getName());
         if (ga.getGameState() == SOCGame.SPECIAL_BUILDING)
             srv.messageToGameKeyed
                 (ga, true, true, "action.sbp.turn.to.place", ga.getPlayer(ga.getCurrentPlayerNumber()).getName());
@@ -1370,13 +1072,6 @@ public class SOCGameHandler extends GameHandler
             }
             srv.messageToPlayer(c, gameName, SOCServer.PN_OBSERVER,
                 new SOCJoinGameAuth(gameName, bh, bw, boardVS));
-
-        	//---MG
-        	String user = (String) c.getData();
-//        	System.err.println("SERVER: joining client app data: " + c.getAppData().toString());
-//        	System.err.println("SERVER: joining client data: " + c.getData().toString());
-            c.put(SOCJoinGameAuth.toCmd(gameName, showDialogForTradeReminderToUser(user)));
-//            c.put(SOCJoinGameAuth.toCmd(gameName)); //original message format
 
             final SOCClientData scd = (SOCClientData) c.getAppData();
             if ((! scd.sentPostAuthWelcome) || (c.getVersion() < SOCStringManager.VERSION_FOR_I18N))
@@ -3235,15 +2930,15 @@ public class SOCGameHandler extends GameHandler
         //         System.err.println(cg)
         srv.storeGameScores(ga);
 
-        if (getUserMustDoTrainingGame(ga.getOwner())) {
-            msg = ">>> This concludes your training game. Please start your regular game now. (Just quit this game and start another one in the same way you started this one.)";
-            messageToGameUrgent(gname, msg);
+        if (srv.getUserMustDoTrainingGame(ga.getOwner())) {
+            String msg = ">>> This concludes your training game. Please start your regular game now. (Just quit this game and start another one in the same way you started this one.)";
+            srv.messageToGameUrgent(gname, true, msg);
             msg = ">>> If you have any questions, please contact the experimenter before you continue.";
-            messageToGameUrgent(gname, msg);
-            updateUserMustDoTrainingGame(ga.getOwner(), false);
-        } else if (useRobotSelectionForExperiment) {
-            msg = ">>> This concludes a full game for participating in the experiment. If you enjoyed this game, please consider helping us in our research by playing more. Just start a new game.";
-            messageToGameUrgent(gname, msg);
+            srv.messageToGameUrgent(gname, true, msg);
+            srv.updateUserMustDoTrainingGame(ga.getOwner(), false);
+        } else if (srv.useRobotSelectionForExperiment) {
+            String msg = ">>> This concludes a full game for participating in the experiment. If you enjoyed this game, please consider helping us in our research by playing more. Just start a new game.";
+            srv.messageToGameUrgent(gname, false, msg);
 
         }
 
@@ -3519,7 +3214,7 @@ public class SOCGameHandler extends GameHandler
         }
         if(humanPresent){
             try {
-                long latency = 300 + rand.nextInt(500);
+                long latency = 300 + srv.rand.nextInt(500);
                 Thread.sleep(latency);
             } catch (InterruptedException e1) {
                 e1.printStackTrace();
@@ -3830,23 +3525,24 @@ public class SOCGameHandler extends GameHandler
         if (ga == null)
             return;
 
-        if(COLLECT_FULL_GAMEPLAY) {
-            dummy = new StacRobotDummyBrain(new SOCRobotClient(null, "replay", "replayAgent", "", null),
-                            new SOCRobotParameters(300, 500, 0f, 0f, 0f, 0f, 0f, SOCRobotDMImpl.FAST_STRATEGY, 0),
-                            (SOCGame)DeepCopy.copy(ga),new CappedQueue(),0);
+        if(srv.COLLECT_FULL_GAMEPLAY) {
+            srv.dummy = new StacRobotDummyBrain
+                (new SOCRobotClient(null, new ServerConnectInfo("replay", srv.robotCookie), "replayAgent", "", null),
+                 new SOCRobotParameters(300, 500, 0f, 0f, 0f, 0f, 0f, SOCRobotDMImpl.FAST_STRATEGY, 0),
+                 (SOCGame)DeepCopy.copy(ga),new CappedQueue(),0);
 	    	
-            idCounter = 0;//reset t
+            srv.idCounter = 0; //reset t
             int gameID;
             gameID = StacDBHelper.SIMGAMESSTARTID + Integer.parseInt(ga.getName().split("_")[1]);
             //create tables also
-            if(!dbh.tableExists(StacDBHelper.OBSFEATURESTABLE + gameID))
-                dbh.createObsGameStateTable(gameID);
-            if(!dbh.tableExists(StacDBHelper.ACTIONSTABLE + gameID))
-                dbh.createActionTable(gameID);
-            if(!dbh.tableExists(StacDBHelper.EXTFEATURESTABLE + gameID))
-                dbh.createExtractedStateTable(gameID);
-            if(!dbh.tableExists(StacDBHelper.CHATSTABLE + gameID))
-                dbh.createChatTable(gameID);
+            if(! srv.dbh.tableExists(StacDBHelper.OBSFEATURESTABLE + gameID))
+                srv.dbh.createObsGameStateTable(gameID);
+            if(! srv.dbh.tableExists(StacDBHelper.ACTIONSTABLE + gameID))
+                srv.dbh.createActionTable(gameID);
+            if(! srv.dbh.tableExists(StacDBHelper.EXTFEATURESTABLE + gameID))
+                srv.dbh.createExtractedStateTable(gameID);
+            if(! srv.dbh.tableExists(StacDBHelper.CHATSTABLE + gameID))
+                srv.dbh.createChatTable(gameID);
         }
 
         final String gaName = ga.getName();
@@ -3861,13 +3557,13 @@ public class SOCGameHandler extends GameHandler
 
         ga.setGameEventListener(this);  // for playerEvent, gameEvent callbacks (since 2.0.00)
 
-        StacGameParameters gp = gamesParams.get(gaName);
+        StacGameParameters gp = srv.gamesParams.get(gaName);
         //need to set the end of game moment if this exists
         ga.setFinishTurn(gp.simulationDepth);
         
         //See if the next game this use must play is the special case of a training game.
         //Training games are X turns.
-        if (getUserMustDoTrainingGame(ga.getOwner())) {
+        if (srv.getUserMustDoTrainingGame(ga.getOwner())) {
             ga.setIsTrainingGame(true);
             int vpToWin = 3;
             ga.setVpWinner(vpToWin);
@@ -3875,11 +3571,11 @@ public class SOCGameHandler extends GameHandler
         }
         
         if(gp.load){
-        	loadGame(new SOCLoadGame(gaName, gp.folderName)); //load the game here
+        	gameMessageHandler.loadGame(gaName, gp.folderName); //load the game here
         }
         else{//normal start of game
 
-        ga.startGame();
+        ga.startGame(-1, false);
 
         final int[][] legalSeaEdges;  // used on sea board; if null, all are legal
         if (ga.hasSeaBoard)
@@ -4027,7 +3723,7 @@ public class SOCGameHandler extends GameHandler
             sendTurn(ga, false);
         } else {
             final int cpn = ga.getCurrentPlayerNumber();
-            final boolean sendRoll = false;
+            boolean sendRoll = false;
             if(!gp.load)
                 sendRoll = sendGameState(ga, false, false);
             srv.messageToGame(gaName, true, new SOCStartGame(gaName, 0));
@@ -4483,38 +4179,8 @@ public class SOCGameHandler extends GameHandler
         new SOCForceEndTurnThread(srv, this, ga, pl).start();
     }
 
-    /**
-     * A bot is unresponsive, or a human player has left the game.
-     * End this player's turn cleanly, or force-end if needed.
-     *<P>
-     * Can be called for a player still in the game, or for a player
-     * who has left ({@link SOCGame#removePlayer(String, boolean)} has been called).
-     * Can be called for a player who isn't current player; in that case
-     * it takes action if the game was waiting for the player (picking random
-     * resources for discard or gold-hex picks) but won't end the current turn.
-     *<P>
-     * If they were placing an initial road, also cancels that road's
-     * initial settlement.
-     *<P>
-     * <b>Locks:</b> Must not have ga.takeMonitor() when calling this method.
-     * May or may not have <tt>gameList.takeMonitorForGame(ga)</tt>;
-     * use <tt>hasMonitorFromGameList</tt> to indicate.
-     *<P>
-     * Not public, but package visibility, for use by {@link SOCForceEndTurnThread} for {@link SOCGameTimeoutChecker}.
-     *
-     * @param ga   The game to end turn if called for current player, or to otherwise stop waiting for a player
-     * @param plNumber  player.getNumber; may or may not be current player
-     * @param plName    player.getName
-     * @param plConn    player's client connection
-     * @param hasMonitorFromGameList  if false, have not yet called
-     *          {@link SOCGameList#takeMonitorForGame(String) gameList.takeMonitorForGame(ga)};
-     *          if false, this method will take this monitor at its start,
-     *          and release it before returning.
-     * @return true if the turn was ended and game is still active;
-     *          false if we find that all players have left and
-     *          the gamestate has been changed here to {@link SOCGame#OVER OVER}.
-     */
-    boolean endGameTurnOrForce
+    // javadoc inherited from GameHandler
+    public boolean endGameTurnOrForce
         (SOCGame ga, final int plNumber, final String plName, Connection plConn,
          final boolean hasMonitorFromGameList)
     {

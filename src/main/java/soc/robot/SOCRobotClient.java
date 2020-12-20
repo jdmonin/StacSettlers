@@ -27,10 +27,14 @@ import soc.baseclient.SOCDisplaylessPlayerClient;
 
 import soc.disableDebug.D;
 
+import soc.game.SOCCity;
 import soc.game.SOCGame;
 import soc.game.SOCGameOption;
 import soc.game.SOCGameOptionSet;
 import soc.game.SOCPlayer;
+import soc.game.SOCPlayingPiece;
+import soc.game.SOCRoutePiece;
+import soc.game.SOCSettlement;
 
 import soc.message.*;
 
@@ -44,6 +48,8 @@ import soc.robot.stac.StacRobotType;
 import soc.robot.stac.flatmcts.FlatMctsRewards;
 import soc.robot.stac.negotiationlearning.LearningNegotiator;
 
+import soc.server.SOCServer;
+import soc.server.genericServer.Server;
 import soc.server.genericServer.StringServerSocket;
 
 import soc.util.CappedQueue;
@@ -57,11 +63,14 @@ import soc.util.Version;
 import supervised.main.BayesianSupervisedLearner;
 import simpleDS.learning.SimpleAgent;
 
+import java.io.BufferedWriter;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 
 import java.net.Socket;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Locale;
@@ -344,6 +353,12 @@ public class SOCRobotClient extends SOCDisplaylessPlayerClient
     public SOCRobotClient(SOCRobotFactory factory, final ServerConnectInfo sci, final String nn, final String pw)
         throws IllegalArgumentException
     {
+        this(factory, sci, nn, pw, null);
+    }
+
+    public SOCRobotClient(SOCRobotFactory factory, final ServerConnectInfo sci, final String nn, final String pw, SimpleAgent deeptrader)
+        throws IllegalArgumentException
+    {
         super(sci, false);
 
     	this.factory = factory;
@@ -408,8 +423,7 @@ public class SOCRobotClient extends SOCDisplaylessPlayerClient
      */
     public SOCRobotClient(SOCRobotFactory factory, final String h, final int p, final String nn, final String pw, final String co)
     {
-        this(new ServerConnectInfo(h, p, co), nn, pw);
-        this.factory = factory;
+        this(factory, new ServerConnectInfo(h, p, co), nn, pw);
     }
 
     /**
@@ -587,7 +601,7 @@ public class SOCRobotClient extends SOCDisplaylessPlayerClient
         if (factory != null)
             return factory.getRobot(this, params, ga, mq);
         else
-            return new SOCRobotBrain(this, params, ga, mq);
+            return new SOCRobotBrainImpl(this, params, ga, mq);
     }
 
     /**
@@ -759,11 +773,18 @@ public class SOCRobotClient extends SOCDisplaylessPlayerClient
                 break;
 
             /**
-             * message that the game is starting
+             * message that a general game is starting
              */
             case SOCMessage.STARTGAME:
                 handleSTARTGAME((SOCStartGame) mes);
 
+                break;
+
+            /**
+             * message that a stac game is starting
+             */
+            case SOCMessage.STACSTARTGAME:
+                handleSTACSTARTGAME((StacStartGame) mes);
                 break;
 
             /**
@@ -879,7 +900,6 @@ public class SOCRobotClient extends SOCDisplaylessPlayerClient
             case SOCMessage.COLLECTDATA:
             	handleCollectData((SOCCollectData) mes);
             	break;
-            }
 
             // These message types are handled entirely by SOCRobotBrain:
 
@@ -916,7 +936,6 @@ public class SOCRobotClient extends SOCDisplaylessPlayerClient
             case SOCMessage.GAMES:
             case SOCMessage.GAMESERVERTEXT:  // SOCGameServerText contents are ignored by bots
                                              // (but not SOCGameTextMsg, which is used solely for debug commands)
-            case SOCMessage.GAMESTATS:
             case SOCMessage.JOINCHANNEL:
             case SOCMessage.JOINCHANNELAUTH:
             case SOCMessage.LEAVECHANNEL:
@@ -1064,24 +1083,19 @@ public class SOCRobotClient extends SOCDisplaylessPlayerClient
     	}
     	//if at least one robot was playing in the original game use their trackers
     	if (trackersList != null){
-	    	Object[] pt =  trackersList.toArray(); 
+	    	Object[] pt = trackersList.toArray();
 			//update all playerTrackers in the brain (also extra logic for our playerData and tracker)
 			for(int i = 0; i < n; i++){
-				SOCPlayerTracker pti = (SOCPlayerTracker)pt[i];
-				//update the reference to the correct brain in PossibleCities and PossibleSettlements objects
-				Iterator posCitiesIter = pti.getPossibleCities().values().iterator();
-				while (posCitiesIter.hasNext())
-		        {
-		            SOCPossibleCity posCity = (SOCPossibleCity) posCitiesIter.next();
-		            posCity.brain = rb;
-		        }
-				Iterator posSettlIter = pti.getPossibleSettlements().values().iterator();
-				while (posSettlIter.hasNext())
-		        {
-		            SOCPossibleSettlement posSettl = (SOCPossibleSettlement) posSettlIter.next();
-		            posSettl.brain = rb;
-		        }
-				SOCPlayerTracker tracker = (SOCPlayerTracker) rb.getPlayerTrackers().get(i);
+				SOCPlayerTracker pti = (SOCPlayerTracker) pt[i];
+				SOCPlayer pl = gameClone.getPlayer(i);
+				// merge TODO: update the reference to the correct estimate factory in PossibleCities and PossibleSettlements objects
+				//for (SOCPossibleCity posCity: pti.getPossibleCities().values())
+				//	posCity.setTransientsAtLoad(pl, pti);
+
+				//for (SOCPossibleSettlement posSettl : pti.getPossibleSettlements().values())
+				//	posSettl.setTransientsAtLoad(pl, pti);
+
+				SOCPlayerTracker tracker = (SOCPlayerTracker) rb.getPlayerTrackers()[i];
 				tracker.partialUpdateFromTracker(pti); //update the playerTracker from the cloned one
 				tracker.setPlayer(gameClone.getPlayer(i)); //restore the references to the correct player objects
 				
@@ -1096,7 +1110,7 @@ public class SOCRobotClient extends SOCDisplaylessPlayerClient
     	}else{//only human players were participating in the original game, need to recreate the trackers
     		//first reestablish the links
     		for(int i = 0; i < gameClone.maxPlayers ; i++){
-    			SOCPlayerTracker pt = (SOCPlayerTracker) rb.getPlayerTrackers().get(i);
+    			SOCPlayerTracker pt = (SOCPlayerTracker) rb.getPlayerTrackers()[i];
     			SOCPlayer player = gameClone.getPlayer(i);
     			pt.setPlayer(player);
     			if (i == pn){
@@ -1110,25 +1124,19 @@ public class SOCRobotClient extends SOCDisplaylessPlayerClient
     		
     		//try to recreate the treeMaps of possible pieces from the game object, by re-tracking everything;
     		//start with settlements;
-    		Vector v = gameClone.getBoard().getSettlements();
-    		for(Object o : v){
-    			rb.trackNewSettlement((SOCSettlement)o, false);
-    		}
+    		for(SOCSettlement o : gameClone.getBoard().getSettlements())
+    			rb.trackNewSettlement(o, false);
     		//continue with roads;
-    		v = gameClone.getBoard().getRoads();
-    		for(Object o : v){
-    			rb.trackNewRoadOrShip((SOCRoad)o, false);
-    		}
+    		for(SOCRoutePiece o : gameClone.getBoard().getRoadsAndShips())
+    			rb.trackNewRoadOrShip(o, false);
     		//finish with cities
-    		v = gameClone.getBoard().getCities();
-    		for(Object o : v){
-    			rb.trackNewCity((SOCCity)o, false);
-    		}
+    		for(SOCCity o : gameClone.getBoard().getCities())
+    			rb.trackNewCity(o, false);
     		//finally recalculate all ETA's
     		for(int i = 0; i < gameClone.maxPlayers ; i++){
-    			((SOCPlayerTracker) rb.getPlayerTrackers().get(i)).recalculateAllEtas();
+    			rb.getPlayerTrackers()[i].recalculateAllETAs();
     			if (i == pn){
-    				rb.getOurPlayerTracker().recalculateAllEtas();
+    				rb.getOurPlayerTracker().recalculateAllETAs();
     			}
     		}
     	}
@@ -1188,8 +1196,8 @@ public class SOCRobotClient extends SOCDisplaylessPlayerClient
                 stats.getInitialETBs()[i] = totalSpeed;
     			
 //    			rb.getEstimator().recalculateEstimates(gameClone.getPlayer(i).getNumbers(), gameClone.getBoard().getRobberHex());
-    			((SOCPlayerTracker) rb.getPlayerTrackers().get(i)).recalcWinGameETA();
-    			stats.getInitialETWs()[i] = ((SOCPlayerTracker) rb.getPlayerTrackers().get(i)).getWinGameETA(); //etw when loading
+    			((SOCPlayerTracker) rb.getPlayerTrackers()[i]).recalcWinGameETA();
+    			stats.getInitialETWs()[i] = ((SOCPlayerTracker) rb.getPlayerTrackers()[i]).getWinGameETA(); //etw when loading
     			stats.setMaxTotalRssBlocked(gameClone.getTotalPossibleBlockedRss()); //how many rss can be blocked per turn
     		}
     	}
@@ -1265,7 +1273,7 @@ public class SOCRobotClient extends SOCDisplaylessPlayerClient
 		//clone an array that contains the PlayerTracker for each player in the game from this player's perspective
 		ArrayList list = new ArrayList();
 		for(int i = 0; i < n; i++){
-			SOCPlayerTracker pt = (SOCPlayerTracker) rb.getPlayerTrackers().get(i);
+			SOCPlayerTracker pt = (SOCPlayerTracker) rb.getPlayerTrackers()[i];
 			pt.recalcLargestArmyETA();pt.recalcLongestRoadETA();pt.recalcWinGameETA(); //for storing the ETAs for the special loading case
 			list.add(pt);
 		}
@@ -1879,10 +1887,33 @@ public class SOCRobotClient extends SOCDisplaylessPlayerClient
     }
 
     /**
-     * handle the "start game" message
+     * handle the general "start game" message
      * @param mes  the message
+     * @see #handleStacSTARTGAME(StacStartGame)
      */
     protected void handleSTARTGAME(SOCStartGame mes) {
+    	StacRobotBrain.setChatNegotiation(false);//this is set here as the game may be played over the network and not locally
+    	SOCRobotBrain brain = (SOCRobotBrain) robotBrains.get(mes.getGame());
+        brain.startGameChat();
+
+    	if(brain.getClass().getName().equals(MCTSRobotBrain.class.getName())){
+    		((MCTSRobotBrain)brain).generateBoard();
+    	}
+
+    	if(brain.getClass().getName().equals(OriginalSSRobotBrain.class.getName())){
+    		((OriginalSSRobotBrain)brain).sendGameToSmartSettlers();
+    	}
+
+        handlePutBrainQ((SOCMessageForGame) mes);  // added for v2.x when gameState became a field of this message
+    }
+
+    /**
+     * handle the STAC "start game" message
+     * @param mes  the message
+     * @see #handleSTARTGAME(SOCStartGame)
+     * @since 2.4.50
+     */
+    protected void handleSTACSTARTGAME(StacStartGame mes) {
     	StacRobotBrain.setChatNegotiation(mes.getChatNegotiationsFlag());//this is set here as the game may be played over the network and not locally
     	SOCRobotBrain brain = (SOCRobotBrain) robotBrains.get(mes.getGame());
     	if(mes.getLoadFlag())
@@ -1898,7 +1929,7 @@ public class SOCRobotClient extends SOCDisplaylessPlayerClient
     		((OriginalSSRobotBrain)brain).sendGameToSmartSettlers();
     	}
 
-        handlePutBrainQ((SOCMessageForGame) mes);  // added for v2.x when gameState became a field of this message
+        handlePutBrainQ((SOCMessageForGame) mes);  // gameState may be a field of this message
     }
 
     /**
@@ -1990,7 +2021,7 @@ public class SOCRobotClient extends SOCDisplaylessPlayerClient
         //SOCGame ga = games.get(mes.getGame());
         //CappedQueue<SOCMessage> brainQ = brainQs.get(mes.getGame());
         String gaName = mes.getGame();
-        leaveGame(gaName, "Dismissed", false, false);
+        leaveGame(gaName, "Dismissed", false);
     }
 
     protected void handleGenericMessage(SOCMessageForGame mes)
@@ -2140,6 +2171,7 @@ public class SOCRobotClient extends SOCDisplaylessPlayerClient
     
     protected void leaveGame(String gaName, String leaveReason, boolean showDebugTrace)
     {
+        final boolean showReason = true;
         SOCRobotBrain brain = robotBrains.get(gaName);
 
         //store the information we want to pass on to the next robot brain for the next game

@@ -25,7 +25,7 @@ import soc.game.SOCResourceConstants;
 import soc.game.SOCResourceSet;
 import soc.game.SOCTradeOffer;
 import soc.message.SOCMessage;
-import soc.robot.SOCRobotBrain;
+import soc.robot.SOCRobotBrainImpl;
 import soc.robot.SOCRobotClient;
 import soc.robot.SOCRobotNegotiator;
 import soc.util.CappedQueue;
@@ -35,7 +35,7 @@ import soc.util.SOCRobotParameters;
  * Sample of a trivially simple "third-party" subclass of {@link SOCRobotBrain}
  * Instantiated by {@link Sample3PClient}.
  *<P>
- * Trivial behavioral changes from standard {@code SOCRobotBrain}:
+ * Trivial behavioral changes from standard {@code SOCRobotBrainImpl}:
  *<UL>
  * <LI> When sitting down, greet the game members: {@link #setOurPlayerData()}
  * <LI> Uses third-party {@link SampleDiscardStrategy}: {@link #setStrategyFields()}
@@ -45,7 +45,7 @@ import soc.util.SOCRobotParameters;
  * @author Jeremy D Monin
  * @since 2.0.00
  */
-public class Sample3PBrain extends SOCRobotBrain
+public class Sample3PBrain extends SOCRobotBrainImpl
 {
     /**
      * Standard brain constructor; for javadocs see

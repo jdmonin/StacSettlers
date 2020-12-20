@@ -2,17 +2,17 @@ package soc.robot.stac;
 
 import java.awt.Toolkit;
 import java.util.Enumeration;
-import soc.client.SOCPlayerClient.GameOptionServerSet;
+import soc.client.ServerGametypeInfo;
 import soc.disableDebug.D;
 import soc.message.SOCNewGameWithOptionsRequest;
-import soc.message.SOCStartGame;
+import soc.message.StacStartGame;
 import soc.robot.SOCDefaultRobotFactory;
 import soc.robot.SOCRobotBrain;
 import soc.server.SOCServer;
 import soc.server.database.DBHelper;
 import soc.server.database.DBLogger;
-import soc.server.genericServer.LocalStringConnection;
-import soc.server.genericServer.LocalStringServerSocket;
+import soc.server.genericServer.StringConnection;
+import soc.server.genericServer.StringServerSocket;
 import soc.server.logger.SOCConditionalLogger;
 import soc.server.logger.SOCFileLogger;
 import soc.server.logger.SOCLogger;
@@ -38,10 +38,10 @@ public class RobotTest {
             SOCLogger fileLogger = new SOCFileLogger(SOCServer.LOG_DIR);
             SOCLogger nullLogger = new SOCNullLogger();
             SOCLogger condLogger = new SOCConditionalLogger(SOCServer.LOG_DIR, "You didn't buy");
-            SOCServer practiceServer = new SOCServer(SOCServer.PRACTICE_STRINGPORT, 30, db, null, null, condLogger, false);
+            SOCServer practiceServer = new SOCServer(SOCServer.PRACTICE_STRINGPORT, db, null, condLogger, false);
             practiceServer.setPriority(5);  
             practiceServer.start();
-            GameOptionServerSet gOpts =  new GameOptionServerSet();   
+            ServerGametypeInfo gOpts =  new ServerGametypeInfo();
 
             // Create 3 "fast" default AI agents.  This seems to be a more promising approach than "smart" for now.  
             //practiceServer.setupLocalRobots(new SOCDefaultRobotFactory(), "droid ", 2);
@@ -66,7 +66,7 @@ public class RobotTest {
             //SOCRobotBrain.disableTrades();               
 
             // Create a connection to communicate with the server
-            LocalStringConnection prCli = LocalStringServerSocket.connectTo(SOCServer.PRACTICE_STRINGPORT);
+            StringConnection prCli = StringServerSocket.connectTo(SOCServer.PRACTICE_STRINGPORT);
 
             int i=0;
             // Try to run 10k games.
@@ -88,8 +88,8 @@ public class RobotTest {
 
                      // Create a new game with robots only and start it
                      String gameName = "Practice " + i;
-                     prCli.put(SOCNewGameWithOptionsRequest.toCmd("K", "", "localhost", gameName, gOpts.optionSet));
-                     prCli.put(SOCStartGame.toCmd(gameName,false,false,"",0,-1, false, false, false, false)); //normal start of game
+                     prCli.put(SOCNewGameWithOptionsRequest.toCmd("K", "", "localhost", gameName, gOpts.knownOpts.getAll()));
+                     prCli.put(StacStartGame.toCmd(gameName,false,false,"",0,-1, false, false, false, false, 0)); //normal start of game
                      i++;
         	 }
         	
@@ -110,17 +110,14 @@ public class RobotTest {
             Toolkit.getDefaultToolkit().beep();
             
             //stop the server if no more games are active
-            if (!practiceServer.getGameNames().hasMoreElements()) {
+            if (practiceServer.getGameNames().isEmpty()) {
                 System.out.println("Stopping the server.");
                 practiceServer.stopServer();
             } else {
                 System.out.println("Still games active on the server; keeping it running.");
                 System.out.println("Active games: " );
-                Enumeration gameNames = practiceServer.getGameNames();
-                while (gameNames.hasMoreElements()) {
-                    String gm = (String) gameNames.nextElement();
+                for (String gm : practiceServer.getGameNames())
                     System.out.println(gm);
-                }
             }
         }
 

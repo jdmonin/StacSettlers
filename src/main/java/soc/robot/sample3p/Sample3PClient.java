@@ -92,7 +92,7 @@ public class Sample3PClient extends SOCRobotClient
     public Sample3PClient(final ServerConnectInfo sci, final String nn, final String pw)
         throws IllegalArgumentException
     {
-        super(sci, nn, pw);
+        super(null, sci, nn, pw);
 
         rbclass = RBCLASSNAME_SAMPLE;
     }

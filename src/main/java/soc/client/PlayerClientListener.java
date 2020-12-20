@@ -67,6 +67,13 @@ import soc.message.SOCPlayerElement.PEType;
 public interface PlayerClientListener
 {
     /**
+     * Get the game shown in this UI. This reference changes if board is reset.
+     * @return game; not null
+     * @since 2.4.50
+     */
+    SOCGame getGame();
+
+    /**
      * Get the client's player number if playing in a game.
      * @return Client player's {@link SOCPlayer#getPlayerNumber()} if playing, or -1 if observing or not yet seated
      */
@@ -330,6 +337,23 @@ public interface PlayerClientListener
      */
     void requestedTradeReset(SOCPlayer playerToReset);
 
+    /**
+     * Clear a player's current offer.
+     * If player is client, clear the numbers in the resource "offer" squares,
+     * and disable the "offer" and "clear" buttons (since no resources are selected).
+     * Otherwise just hide the last-displayed offer.
+     *<P>
+     * If client is current player, clearing their offer or all offers re-enables the Stac Save button.
+     *
+     * @param player  Player to clear, or {@code null} for all players
+     * @param updateSendCheckboxes If true, and player is client, update the
+     *    selection checkboxes for which opponents are sent the offer.
+     *    If it's currently that client player's turn, check all boxes where the seat isn't empty.
+     *    Otherwise, check only the box for the opponent whose turn it is.
+     * @since 2.4.50
+     */
+    void clearTradeOffer(SOCPlayer player, boolean updateSendCheckboxes);
+
     void requestedSpecialBuild(SOCPlayer player);
 
     /**
@@ -464,6 +488,12 @@ public interface PlayerClientListener
     void messageBroadcast(String message);
 
     /**
+     * Print a line of text in the game text area, like {@link SOCPlayerInterface#print(String)}.
+     * @since 2.4.50
+     */
+    void printText(String txt);
+
+    /**
      * A game text message was received from server, or a chat message from another player.
      * @param nickname  Player's nickname, {@code null} for messages from the server itself,
      *     or {@code ":"} for server messages which should appear in the chat area (recap, etc).
@@ -577,6 +607,87 @@ public interface PlayerClientListener
     void scen_SC_PIRI_pirateFortressAttackResult(boolean wasRejected, int defStrength, int resultShipsLost);
 
     void debugFreePlaceModeToggled(boolean isEnabled);
+
+    // Methods for STAC
+
+    /**
+     * Is the client player active in this game, and the current player?
+     */
+    boolean isClientCurrentPlayer();
+
+    /**
+     * Print a line of text in the game chat area, like {@link SOCPlayerInterface#chatPrint(String)}.
+     * @since 2.4.50
+     */
+    public void chatPrintText(String txt);
+
+    /**
+     * Clear the interaction history text and chat panels in the window.
+     */
+    void clearTextAndChatDisplays();
+
+    /**
+     * Clear contents of the chat input text ("please wait" during setup, etc).
+     * @since 2.4.50
+     */
+    public void clearChatTextInput();
+
+    /**
+     * Set or clear the interface's "chat needs attention" flag, and print a message if setting it.
+     * If clearing, also clears status text display.
+     * @param flag  New value of "chat needs attention" flag
+     * @param statusMessage  Message to {@link #printText(String)} if {@code flag} is true, or ""
+     */
+    void setChatNeedsAttention(boolean flag, String statusMessage);
+
+    /**
+     * Disable the Save button, or enable it if client is current player.
+     */
+    void setSaveButtonEnabledIfCurrent(boolean enable);
+
+    /**
+     * Show the interface's Trade Confirmation panel and prompt in the status text display to confirm trade.
+     * @param weGive  Resources our player gives in trade; not null
+     * @param weGet   Resources our player receives in trade; not null
+     * @param tradePartner  This trade's other player; not null
+     */
+    void tradeConfirmationShow(SOCResourceSet weGive, SOCResourceSet weGet, SOCPlayer tradePartner);
+
+    /**
+     * Hide the interface's Trade Confirmation panel.
+     */
+    void tradeConfirmationHide();
+
+    /**
+     * Update the {@link SOCGame#getTurnCount()} display shown in {@link SOCReplayClient}.
+     * @param forcedCount  -1, or a number to display instead of game.getTurnCount()
+     */
+    void turnCountUpdated(final int forcedCount);
+
+    /**
+     * Force a specific number into the DevCards count square. (Used by {@link SOCReplayClient}.)
+     * Doesn't change any player data, only displays this int.
+     * Next call to {@code playerElementUpdated(.., UpdateType.DevCards, ..)} or {@code playerDevCardsUpdated(..)}
+     * will use player data to update that square.
+     * @param pn  Player number
+     * @param newCount  Count to show in player {@code pn}'s hand panel
+     */
+    void playerDevCardCountDisplayUpdate(int pn, int newCount);
+
+    /**
+     * method for forcing a specific number into the VP square. (Used by {@link StacDBReplayClient}.)
+     * Doesn't change any player data, only displays this int.
+     * Next call to {@code playerElementUpdated(.., UpdateType.VictoryPoints, ..)} will use player data to update that square.
+     * @param pn  Player number
+     * @param newVP  Amount to show in player {@code pn}'s hand panel
+     */
+    void playerVPDisplayUpdate(int pn, int newVP);
+
+    /**
+     * While loading a STAC game, update all references from the old game and player objects to the new one.
+     * If {@link #getClientPlayerNumber()} != -1, will also set board and building panel's Player from new game.
+     */
+    void setGame(SOCGame newGame);
 
     /**
      * Player data update types for {@link PlayerClientListener#playerElementUpdated(SOCPlayer, UpdateType)}.

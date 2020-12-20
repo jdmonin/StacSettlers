@@ -12,7 +12,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.Vector;
 
-import soc.client.SOCPlayerClient.GameOptionServerSet;
+import soc.baseclient.ServerConnectInfo;
+import soc.client.ServerGametypeInfo;
 import soc.disableDebug.D;
 import soc.game.SOCBoard;
 import soc.game.SOCGame;
@@ -23,7 +24,7 @@ import soc.message.SOCChoosePlayer;
 import soc.message.SOCMoveRobber;
 import soc.message.SOCNewGameWithOptionsRequest;
 import soc.message.SOCPutPiece;
-import soc.message.SOCStartGame;
+import soc.message.StacStartGame;
 import soc.robot.SOCBuildingSpeedEstimate;
 import soc.robot.SOCBuildingSpeedFast;
 import soc.robot.SOCPlayerTracker;
@@ -44,15 +45,16 @@ import soc.robot.stac.StacRobotType;
 import soc.robot.stac.simulation.Simulation;
 import soc.server.SOCServer;
 import soc.server.database.NullDBLogger;
-import soc.server.genericServer.LocalStringConnection;
-import soc.server.genericServer.LocalStringServerSocket;
 import soc.server.genericServer.Server;
+import soc.server.genericServer.StringConnection;
+import soc.server.genericServer.StringServerSocket;
 import soc.server.logger.SOCFileLogger;
 import soc.server.logger.SOCLogger;
 import soc.server.logger.SOCNullLogger;
 import soc.util.CappedQueue;
 import soc.util.CutoffExceededException;
 import soc.util.DeepCopy;
+import soc.util.SOCGameList;
 import soc.util.SOCRobotParameters;
 import soc.util.Timer;
 
@@ -121,11 +123,11 @@ public class FlatMCTS {
     /**
      * The connection to the server;
      */
-    private LocalStringConnection prCli;
+    private StringConnection prCli;
     /**
      * Smth which should be useful, but I don't know what for.
      */
-    private GameOptionServerSet gOpts;
+    private ServerGametypeInfo gOpts;
     /**
      * The player number for the robot using this implementation of MCTS.
      */
@@ -229,15 +231,14 @@ public class FlatMCTS {
         //read game object and array of trackers from file
         SOCGame game = (SOCGame) DeepCopy.copy(ga); //readFromFile(DeepCopy.SAVES_DIR + "robot/server_soc.game.SOCGame");
         
-        HashMap<Integer, SOCPlayerTracker> playerTrackers = new HashMap<>();
-     	ArrayList trackersList = (ArrayList) DeepCopy.readFromFile(DeepCopy.SAVES_DIR + "robot/" + 1 + "_" + ArrayList.class.getName()); //when manual testing we will always be player 0 so 1 is just fine (assume a 4 player game always)
-	    Object[] pt =  trackersList.toArray();
-	    for(int i = 0; i< 4; i++){
-	      	 playerTrackers.put(i, (SOCPlayerTracker) pt[i]);
-	    }
+     	ArrayList<SOCPlayerTracker> trackersList = (ArrayList) DeepCopy.readFromFile(DeepCopy.SAVES_DIR + "robot/" + 1 + "_" + ArrayList.class.getName()); //when manual testing we will always be player 0 so 1 is just fine (assume a 4 player game always)
+        SOCPlayerTracker[] playerTrackers = trackersList.toArray(new SOCPlayerTracker[game.maxPlayers]);
 
         //Steps: create a brain to act as a container for trackers/estimator/game object and because trackers and SOCPieces need a brain 
-        brain = new StacRobotDummyBrain(new SOCRobotClient(null, testName, agentName, "", null), new SOCRobotParameters(300, 500, 0f, 0f, 0f, 0f, 0f, SOCRobotDMImpl.FAST_STRATEGY, 0), game, new CappedQueue(),pn);
+        brain = new StacRobotDummyBrain
+            (new SOCRobotClient(null, new ServerConnectInfo(testName, ""), agentName, "", null),
+             new SOCRobotParameters(300, 500, 0f, 0f, 0f, 0f, 0f, SOCRobotDMImpl.FAST_STRATEGY, 0),
+             game, new CappedQueue(), pn);
         //recreate the links exactly as in client, but do not update, just replace the nonexistent trackers
         int n = game.maxPlayers;
     	for(int i = 0; i < n; i++){
@@ -248,28 +249,29 @@ public class FlatMCTS {
 			p.setGame(game); //restore reference to this game in the player objects
 		}
         for(int i = 0; i < n; i++){
-			SOCPlayerTracker pti = playerTrackers.get(i);
+			SOCPlayer p = game.getPlayer(i);
+			SOCPlayerTracker pti = playerTrackers[i];
 			pti.setBrain(brain);
+			pti.setPlayer(p);
 			//update the reference to the correct brain in PossibleCities and PossibleSettlements objects
 			Iterator posCitiesIter = pti.getPossibleCities().values().iterator();
 			while (posCitiesIter.hasNext())
 	        {
 	            SOCPossibleCity posCity = (SOCPossibleCity) posCitiesIter.next();
-	            posCity.setBrain(brain);
+	            // -- merge TODO: call posCity.setTransientsAtLoad(p, pti);
 	        }
 			Iterator posSettlIter = pti.getPossibleSettlements().values().iterator();
 			while (posSettlIter.hasNext())
 	        {
 	            SOCPossibleSettlement posSettl = (SOCPossibleSettlement) posSettlIter.next();
-	            posSettl.setBrain(brain);
+	            // -- merge TODO: call posSettl.setTransientsAtLoad(p, pti);
 	        }
-			pti.setPlayer(game.getPlayer(i));
 		}
         ((StacRobotDummyBrain)brain).setPlayerTrackers(playerTrackers);
         
         //should also add our player tracker and our player data
         ((StacRobotDummyBrain)brain).setOurPlayerData(game.getPlayer(pn));
-        ((StacRobotDummyBrain)brain).setOurPlayerTracker(playerTrackers.get(pn));
+        ((StacRobotDummyBrain)brain).setOurPlayerTracker(playerTrackers[pn]);
         
         String seedMethod = (String) type.getTypeParam(FlatMctsType.SEED_METHOD);
         if(seedMethod.equals("CORPUS")){
@@ -291,19 +293,19 @@ public class FlatMCTS {
 	 * Starts server and logger, connects to server and also sets up the 4 robots that will play the game.
 	 */
 	public void initialize(){
-            SOCServer.GAME_NAME_MAX_LENGTH = 100;
+            SOCGameList.GAME_NAME_MAX_LENGTH = 100;
             SOCServer.CLIENT_MAX_CREATE_GAMES = -1; //disable a check for max number of created games by the client to avoid stopping after 5 simulations
             logger.startRun(testName);
             //start a server and get new default options
             //don't use the Toulouse parser
-            server = new SOCServer(SOCServer.SIMULATION_STRINGPORT, 30, logger, null, null, gameLogger, false);
+            server = new SOCServer(SOCServer.SIMULATION_STRINGPORT, logger, null, gameLogger, false);
 //        server.setPriority(5); //we don't need this priority do we?  
         server.start();
         Server.trackThread(server, null);
-        gOpts =  new GameOptionServerSet();
+        gOpts =  new ServerGametypeInfo();
         
         try {
-			prCli = LocalStringServerSocket.connectTo(SOCServer.SIMULATION_STRINGPORT);
+			prCli = StringServerSocket.connectTo(SOCServer.SIMULATION_STRINGPORT);
 		} catch (ConnectException e) {
 			D.ebugFATAL(e, "Cannot connect to the simulation stringport");
 //			e.printStackTrace();
@@ -374,9 +376,9 @@ public class FlatMCTS {
 	 */
 	private double rollOut(TreeNode tn) throws Exception {
 		logger.resetGamesDone();//just to make sure we start from 0 ;)
-		prCli.put(SOCNewGameWithOptionsRequest.toCmd("simulation-master", "", "localhost", testName, gOpts.optionSet));
+		prCli.put(SOCNewGameWithOptionsRequest.toCmd("simulation-master", "", "localhost", testName, gOpts.knownOpts.getAll()));
 		//we want the robots' order not to get shuffled and load from the saved state when starting; pass the simdepth to stop the game earlier; don't care about loading a saved board
-        prCli.put(SOCStartGame.toCmd(testName,true,true, "saves/robot", simulationDepth, -1, false, StacRobotBrain.isChatNegotiation(), false, false)); 
+        prCli.put(StacStartGame.toCmd(testName,true,true, "saves/robot", simulationDepth, -1, false, StacRobotBrain.isChatNegotiation(), false, false, 0));
         //hack for waiting for the game to stop
         int counter = 0; //1 min = 60000 ms, so maxCounter = 60000/20 = 3000
         while(logger.getNumGamesDone() == 0 && counter <= 3000){//sometimes games get stuck and never finish so only allow a min max per game (this may be too much)
@@ -603,7 +605,7 @@ public class FlatMCTS {
     private void expandForRobberAction(TreeNode n) {
 //    	SOCGame game = (SOCGame) DeepCopy.copy(brain.getGame()); 
     	SOCGame game = (SOCGame) DeepCopy.readFromFile(DeepCopy.SAVES_DIR + "robot/server_soc.game.SOCGame"); // it doesn't affect its decision and we always need this to avoid a nullpointer when we follow the planned decision in the real game
-    	int[] hexes = game.getBoard().getHexLandCoords();
+    	int[] hexes = game.getBoard().getLandHexCoords();
     	int robberHex = game.getBoard().getRobberHex();
     	
     	ArrayList list = new ArrayList();//an array list of objects for dynamically deciding the number of children 
@@ -626,7 +628,7 @@ public class FlatMCTS {
         	SOCGame temp = (SOCGame) DeepCopy.copy(game);
         	//play the action described to get in the child node
         	temp.moveRobber(ourPlayerNumber, ((SOCMoveRobber) c.message).getCoordinates());
-	        Vector pl = temp.getPossibleVictims();//get victims from the temp game
+	        List<SOCPlayer> pl = temp.getPossibleVictims();//get victims from the temp game
 	    	//create ChoosePlayer message with the number
 	        //only if its bigger then one, as the game logic will quickly handle the situation when <=1 
 	        if(pl.size() > 1){

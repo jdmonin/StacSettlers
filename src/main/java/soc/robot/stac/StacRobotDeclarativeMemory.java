@@ -15,11 +15,15 @@ import java.util.Set;
 //import soc.disableDebug.D;
 import soc.debug.D;
 import soc.game.SOCBoard;
-import soc.game.SOCDevCardSet;
+import soc.game.SOCCity;
 import soc.game.SOCGame;
+import soc.game.SOCInventory;
 import soc.game.SOCPlayer;
+import soc.game.SOCPlayingPiece;
 import soc.game.SOCResourceConstants;
 import soc.game.SOCResourceSet;
+import soc.game.SOCRoutePiece;
+import soc.game.SOCSettlement;
 import soc.game.SOCTradeOffer;
 import soc.game.StacTradeOffer;
 import soc.robot.SOCBuildPlanStack;
@@ -288,7 +292,7 @@ public class StacRobotDeclarativeMemory implements Serializable{
      * @return states if the locks for the players' seats
      */
     protected boolean isSeatLocked(int pn) {
-        return brain.getGame().isSeatLocked(pn);
+        return (brain.getGame().getSeatLock(pn) == SOCGame.SeatLockState.LOCKED);
     }
 
     /**
@@ -414,9 +418,10 @@ public class StacRobotDeclarativeMemory implements Serializable{
     
     /**
      * 
-     * @return the player trackers (one per player, including this robot)
+     * @return the player trackers (one per player number, including this robot):
+     *     same format as {@link SOCRobotBrain#getPlayerTrackers()}
      */
-    public HashMap<Integer, SOCPlayerTracker> getPlayerTrackers()
+    public SOCPlayerTracker[] getPlayerTrackers()
     {
         return brain.getPlayerTrackers();
     }
@@ -432,28 +437,28 @@ public class StacRobotDeclarativeMemory implements Serializable{
     /**
      * @return Vector of the player's pieces in play
      */
-    protected ArrayList getPiecesInPlay() {
+    protected ArrayList<SOCPlayingPiece> getPiecesInPlay() {
         return toArrayList(getPlayerData().getPieces());
     }
 
     /**
      * @return list of this player's roads in play
      */
-    protected ArrayList getRoadsInPlay() {
-        return toArrayList(getPlayerData().getRoads());
+    protected ArrayList<SOCRoutePiece> getRoadsInPlay() {
+        return toArrayList(getPlayerData().getRoadsAndShips());
     }
 
     /**
      * @return list of this player's settlements in play
      */
-    protected ArrayList getSettlements() {
+    protected ArrayList<SOCSettlement> getSettlements() {
         return toArrayList(getPlayerData().getSettlements());
     }
 
     /**
      * @return list of this player's cities in play
      */
-    protected ArrayList getCities() {
+    protected ArrayList<SOCCity> getCities() {
         return toArrayList(getPlayerData().getCities());
     }
 
@@ -493,10 +498,12 @@ public class StacRobotDeclarativeMemory implements Serializable{
     }
 
     /**
+     * Get our player's current inventory of development cards.
+     * Before v2, this method was {@code getDevCards()}.
      * @return our current development cards
      */
-    protected SOCDevCardSet getDevCards() {
-        return getPlayerData().getDevCards();
+    protected SOCInventory getInventory() {
+        return getPlayerData().getInventory();
     }
 
     /**
@@ -541,7 +548,7 @@ public class StacRobotDeclarativeMemory implements Serializable{
      * @see SOCPlayer#potentialSettlements
      * @see SOCBoard#nodesOnBoard
      */
-    protected List<Integer> getLegalSettlements() {
+    protected Set<Integer> getLegalSettlements() {
         return getPlayerData().getLegalSettlements();
     }
 

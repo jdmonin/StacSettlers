@@ -4,6 +4,7 @@ import java.util.Enumeration;
 import java.util.Hashtable;
 
 import soc.disableDebug.D;
+import soc.game.ResourceSet;
 import soc.game.SOCBoard;
 import soc.game.SOCPlayerNumbers;
 import soc.game.SOCResourceConstants;
@@ -33,13 +34,13 @@ public class SOCBuildingSpeedProbabilistic extends SOCBuildingSpeedEstimate {
     }
 
     @Override
-    public SOCResSetBuildTimePair calculateRollsFast(SOCResourceSet startingResources, SOCResourceSet targetResources, int cutoff, boolean[] ports) throws CutoffExceededException
+    public SOCResSetBuildTimePair calculateRollsAndRsrcFast(ResourceSet startingResources, SOCResourceSet targetResources, int cutoff, boolean[] ports) throws CutoffExceededException
     {
         D.ebugPrintlnINFO("calculateRollsAccurate");
         D.ebugPrintlnINFO("  start: " + startingResources);
         D.ebugPrintlnINFO("  target: " + targetResources);
 
-        SOCResourceSet ourResources = startingResources.copy();
+        SOCResourceSet ourResources = new SOCResourceSet(startingResources);
         int rolls = 0;
         Hashtable[] resourcesOnRoll = new Hashtable[2];
         resourcesOnRoll[0] = new Hashtable();

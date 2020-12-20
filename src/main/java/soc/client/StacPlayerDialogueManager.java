@@ -76,8 +76,8 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
 
     @Override
     public int getPlayerNumber() {
-        SOCPlayerInterface pi = (SOCPlayerInterface) client.playerInterfaces.get(game.getName());
-        int pn = pi.getClientPlayerNumber(); //this player's number (position on board)
+        PlayerClientListener pcl = client.getClientListener(game.getName());
+        int pn = pcl.getClientPlayerNumber(); //this player's number (position on board)
         return pn;
     }
     
@@ -493,7 +493,7 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
         
         SOCResourceSet combinedResSet = SOCResourceSet.resourceSetFromResourceSetWithUnknown(resSetWithNumberOfResources, resSetWithTypeOfResource);
         if (combinedResSet == null) {
-            SOCPlayerInterface pi = (SOCPlayerInterface) client.playerInterfaces.get(game.getName());
+            PlayerClientListener pcl = client.getClientListener(game.getName());
 //            pi.print("*** Can't identify the type of resource in the trade offer");
             String sender = "";
             for (int p = 0; p < game.maxPlayers; p++) {
@@ -502,8 +502,8 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
                 }
             }
             String text = sender + ": Sorry, I don't understand what type of resource you are offering!";
-            pi.print(text);
-            client.put(SOCGameTextMsg.toCmd(game.getName(), game.getPlayerNames()[getPlayerNumber()], StacTradeMessage.FAKE_CLARIFICATION + text), game.isPractice);
+            pcl.printText(text);
+            client.getGameMessageSender().put(new SOCGameTextMsg(game.getName(), game.getPlayerNames()[getPlayerNumber()], StacTradeMessage.FAKE_CLARIFICATION + text), game.isPractice);
             return null;
         }
         
@@ -616,7 +616,7 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
      * @return      the String that is to be sent to the chat
      */
     protected String interpretNLChatInput(String me) {
-        SOCPlayerInterface pi = (SOCPlayerInterface) client.playerInterfaces.get(game.getName());
+        PlayerClientListener pcl = client.getClientListener(game.getName());
         int pn = getPlayerNumber();
         
         //the actual parsing of the NL string
@@ -624,7 +624,7 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
         Map.Entry<StacTradeMessage,Integer> entry = StacChatTradeMsgParser.parseNLTradeMsg(me, game.getName(), game.getPlayerNames(), pn, output);
         
         if(!output.toString().equals(""))//NOTE: printing the empty string clears the waiting for message label prematurely
-        	pi.print(output.toString());//in case we cannot parse the message, let the player know what the problem is
+        	pcl.printText(output.toString());//in case we cannot parse the message, let the player know what the problem is
         
         //did we get a parse result?
         if (entry == null)
@@ -638,7 +638,7 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
             D.ebugPrintlnINFO("This is an NL reject");
 
             //find out whose offer we're rejecting
-            int playerNumber = pi.getClientPlayerNumber();
+            int playerNumber = pcl.getClientPlayerNumber();
             if (game.getCurrentPlayerNumber() != playerNumber) {
                 //we're rejecting the offer from the current player (we can't trade with other players anyway)
                 receiver = game.getCurrentPlayerNumber();
@@ -683,7 +683,7 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
 
             //whose offer are we accepting?
             int currentPlayer = game.getCurrentPlayerNumber();
-            int playerNumber = pi.getClientPlayerNumber();
+            int playerNumber = pcl.getClientPlayerNumber();
             if (currentPlayer != playerNumber) {
                 //we're accepting the offer from the current player (we can't trade with other players anyway)
                 receiver = game.getCurrentPlayerNumber();
@@ -875,7 +875,7 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
             //it's a full offer or an offer explicity addressed to everybody (i.e., new partial offer)
             } else {
                 int currentPlayerNumber = game.getCurrentPlayerNumber();
-                int ourPlayerNumber = pi.getClientPlayerNumber();
+                int ourPlayerNumber = pcl.getClientPlayerNumber();
 
                 //if it's not our turn, then limit to the current player only (even if explicitlyAddressedToAll is true)
                 //TODO: This does not work nicely when another player than the current player is addressed explicitly!
@@ -896,7 +896,7 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
         }
         
         if (receiver != null) {
-            pi.getPlayerHandPanel(receiver).offer.setVisible(false);
+            pcl.clearTradeOffer(game.getPlayer(receiver), false);
         }
 
         //a last check that we are making a valid move
@@ -935,7 +935,7 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
         handleTradeMessage(trdMsg);
 
         //reset the status prompt
-        pi.print("");            
+        pcl.printText("");
 
         //if we pass the above checks we can send the message
         String trdString = trdMsg.toMessage();
@@ -950,7 +950,7 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
     protected void handleTradeGameTextMessage(SOCGameTextMsg mes) {
         String tradeString = StacDialogueManager.fromMessage(mes.getText());
         StacTradeMessage tm = StacTradeMessage.parse(tradeString);
-        SOCPlayerInterface pi = (SOCPlayerInterface) client.playerInterfaces.get(game.getName());
+        PlayerClientListener pcl = client.getClientListener(game.getName());
 
         //we've already treated our own message when we sent it
         if (tm.getSenderInt() != getPlayerNumber()) {
@@ -963,14 +963,14 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
         if (offer != null) {
             
             if (offer.getTo()[getPlayerNumber()]) {
-                pi.setChatNeedsAttention(true, "Please respond to " + game.getPlayerNames()[offer.getFrom()] + "'s offer!"); //" made you an offer.");
+                pcl.setChatNeedsAttention(true, "Please respond to " + game.getPlayerNames()[offer.getFrom()] + "'s offer!"); //" made you an offer.");
             }
 
             //check if we sent the trade message; in that case it has already been written to the chat
             if (offer.getFrom() != getPlayerNumber()) {
                 String offMsgText = tm.getNLChatString();
                 String fromNick = game.getPlayerNames()[offer.getFrom()];
-                pi.chatPrint(fromNick + ": " + offMsgText);
+                pcl.messageReceived(fromNick, offMsgText);
             }
 
             //display the offer in using the old trade interface but disable the buttons
@@ -985,7 +985,7 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
                 //clear the old trade bubbles when initiating negotiations for a new offer
                 for (int i = 0; i < game.maxPlayers; i++)
                     if (i != game.getCurrentPlayerNumber())
-                        pi.getPlayerHandPanel(i).offer.setVisible(false);
+                        pcl.clearTradeOffer(game.getPlayer(i), false);
 
                 //store this offer in the trade responses
                 D.ebugPrintlnINFO("Player dialogue manager: Clearing all trade messages - (location 1)");
@@ -999,8 +999,8 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
             setTradeResponse(offer.getFrom(), new StacTradeMessage(tm.getSender(), tm.getReceivers(), offer, tm.isForced(), persuasiveMove, tm.getNLChatString()));
             
             //when an offer is made disable the saving button
-            if (pi.clientIsCurrentPlayer())
-                pi.clientHand.save.setEnabled(false);
+            if (pcl.isClientCurrentPlayer())
+                pcl.setSaveButtonEnabledIfCurrent(false);
 
         } else {
             //ignore blocks/block comply and track noResponses/accepts and rejects;
@@ -1011,7 +1011,7 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
                 } catch (NumberFormatException e) {
                     //this shouldn't happen anyway as there are so many checks for the correct player number in place
                     e.printStackTrace();
-                    pi.chatPrint(mes.getNickname() + ": " + tm.getNLChatString());
+                    pcl.messageReceived(mes.getNickname(), tm.getNLChatString());
                     return;
                 }
 
@@ -1019,7 +1019,7 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
 
                 if (tradeResponses[to] == null) {
                     if (Integer.parseInt(tm.getSender()) != getPlayerNumber())
-                        pi.chatPrint(mes.getNickname() + ": " + tm.getNLChatString());
+                        pcl.messageReceived(mes.getNickname(), tm.getNLChatString());
                     return; //this isn't an issue as no responses and rejects may be sent after a trade was executed, but we need to exit to avoid breaking the logic below
                 }
 
@@ -1083,10 +1083,9 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
                         D.ebugPrintlnINFO("Player dialogue manager: Clearing all trade messages - (location 2)");
                         clearTradeResponses();
                         //clear the interface of the bubble as the offer was rejected
-                        for(int i = 0; i < game.maxPlayers; i++)
-                            pi.getPlayerHandPanel(i).offer.setVisible(false);
-                        if (pi.clientIsCurrentPlayer())//if a trade was finished enable saving
-                            pi.clientHand.save.setEnabled(true);
+                        pcl.clearTradeOffer(null, false);
+                        //if a trade was finished enable saving
+                        pcl.setSaveButtonEnabledIfCurrent(true);
 //                                    } else if (nAcc == 1 && nOff == 1 && acceptingPlayer != getPlayerNumber() && offeringPlayer == getPlayerNumber()) {
                     } else if (nAcc == 1 && acceptingPlayer != myPlayerNumber && acceptedOfferPlayer == myPlayerNumber && offeringPlayers[myPlayerNumber]) {
                         //we got exactly one accept for our own trade offer, so we automatically send the accept of the accept to execute the trade
@@ -1098,11 +1097,10 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
                                 myLastTradeMessage = lastTradeMessageFromMe();
                             if (myLastTradeMessage != null && !myLastTradeMessage.isAccept() && !myLastTradeMessage.getNLChatString().equals(SOCPlayerClient.AUTOMATIC_ACCEPT_NL_STRING)) {
                                 String acceptString = StacRobotDialogueManager.makeAcceptMessage(getPlayerNumber(), acceptingPlayer, SOCPlayerClient.AUTOMATIC_ACCEPT_NL_STRING);
-                                client.sendText(game, acceptString);
-                                for(int i = 0; i < game.maxPlayers; i++)
-                                    pi.getPlayerHandPanel(i).offer.setVisible(false);
-                                if (pi.clientIsCurrentPlayer())//if a trade was finished enable saving
-                                    pi.clientHand.save.setEnabled(true);
+                                client.getGameMessageSender().sendText(game, acceptString);
+                                pcl.clearTradeOffer(null, false);
+                                //if a trade was finished enable saving
+                                pcl.setSaveButtonEnabledIfCurrent(true);
                             } else {
                                 D.ebugPrintlnINFO("Just sent an automatic accept of an accept - not sending another one");
                             }
@@ -1111,13 +1109,13 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
                     	if(myPlayerNumber == 0)
                     		System.out.println("I am the offering player");
                     	if(!game.getPlayer(myPlayerNumber).isRobot()){ 
-                    		pi.setChatNeedsAttention(true, "Waiting for response.");
+                    		pcl.setChatNeedsAttention(true, "Waiting for response.");
                         	if(myPlayerNumber == 0)
                         		System.out.println("I am not a robot");
                     		
                     		//check if all counter-offer(s) to this player have been rejected
                     		if(nOff > 1 && sender.getPlayerNumber() == myPlayerNumber && tm.isReject()){
-                    			pi.setChatNeedsAttention(true, "Waiting for response.");//default
+                    			pcl.setChatNeedsAttention(true, "Waiting for response.");//default
                             	if(myPlayerNumber == 0)
                             		System.out.println("Multiple c-offers, and I have just rejected one");
                     			
@@ -1138,14 +1136,14 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
                             		System.out.println("Have I responded to all: " + respondedToCounter);
                         		
                         		if(respondedToCounter){
-                        			pi.print("");
-                        			pi.setChatNeedsAttention(false);
+                        			pcl.printText("");
+                        			pcl.setChatNeedsAttention(false, "");
                         		}
                         		
                     		}
 
                     		if(nAcc > 1 && sender.getPlayerNumber() == myPlayerNumber && tm.isReject()){
-                    			pi.setChatNeedsAttention(true, "Waiting for response.");//default
+                    			pcl.setChatNeedsAttention(true, "Waiting for response.");//default
                             	if(myPlayerNumber == 0)
                                 	System.out.println("Multiple accepts, and I have just rejected one");
                     			
@@ -1169,8 +1167,8 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
                             		System.out.println("Have I responded to all: " + respondedToCounter);
                         		
                         		if(respondedToCounter){
-                        			pi.print("");
-                        			pi.setChatNeedsAttention(false);
+                        			pcl.printText("");
+                        			pcl.setChatNeedsAttention(false, "");
                         		}
                         		
                     		} 
@@ -1183,21 +1181,18 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
                 //I.E. FOR THE MOMENT: if it is sent to us by somebody else, i.e. an agent)
 //                                boolean addresseeIsRobot = game.getPlayer(to).isRobot();
                 if (getPlayerNumber() == to && !tm.isNoResponse()) {
-                    String chatMsg = (String)mes.getNickname() + ": " + tm.getNLChatString();
-                    pi.chatPrint(chatMsg);
+                    pcl.messageReceived(mes.getNickname(), tm.getNLChatString());
                 }else if(!tm.isNoResponse() && getPlayerNumber() != sender.getPlayerNumber()){
                     //do not print no response messages or accepts/rejects from us to avoid duplication
-                    String chatMsg = (String)mes.getNickname() + ": " + tm.getNLChatString();
-                    pi.chatPrint(chatMsg);
+                    pcl.messageReceived(mes.getNickname(), tm.getNLChatString());
                 }
                 //if in development mode, also print the no response messages
                 if(client.devMode && tm.isNoResponse()){
-                    String chatMsg = (String)mes.getNickname() + ": " + tm.getNLChatString();
-                    pi.chatPrint(chatMsg);
+                    pcl.messageReceived(mes.getNickname(), tm.getNLChatString());
                 }
             }
             else
-                pi.chatPrint(mes.getNickname() + ": " + mes.getText());
+                pcl.messageReceived(mes.getNickname(), mes.getText());
         }
     }
 }

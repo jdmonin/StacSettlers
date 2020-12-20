@@ -224,7 +224,8 @@ import java.util.Vector;
             error = e;
             ourServer.removeConnection(this, false);
         }
-        sv.removeConnection(this);//if interrupted remove now otherwise this will do nothing
+
+        ourServer.removeConnection(this, false); //if interrupted remove now otherwise this will do nothing
     }
 
     /**

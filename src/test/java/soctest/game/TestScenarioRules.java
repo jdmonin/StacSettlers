@@ -80,7 +80,7 @@ public class TestScenarioRules
             ga.addPlayer("player" + pn, pn);
             ga.getPlayer(pn).getResources().add(5, SOCResourceConstants.CLAY);  // something to steal
         }
-        ga.startGame();  // SOCBoard/SOCBoardAtServer.makeNewBoard is called here
+        ga.startGame(-1, false);  // SOCBoard/SOCBoardAtServer.makeNewBoard is called here
         SOCBoardAtServer.startGame_scenarioSetup(ga);
 
         final SOCBoardAtServer board = (SOCBoardAtServer) ga.getBoard();

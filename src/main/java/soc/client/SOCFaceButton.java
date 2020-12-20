@@ -126,7 +126,7 @@ import java.net.URL;
     private final int pNumber;
 
     /** game for player {@link #pNumber}, or null if -1 */
-    private final SOCGame game;
+    private SOCGame game;
 
     /**
      * Our PI, for callbacks and stack-trace print.

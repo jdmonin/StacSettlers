@@ -746,8 +746,9 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
 				}
 			}
 			
+			final SOCPlayerTracker[] trackers = brain.getMemory().getPlayerTrackers();
 			for(Integer pn : mapPnToResAfterTrade.keySet()){
-				SOCPlayerTracker currentPlayer = brain.getMemory().getPlayerTrackers().get(pn);
+				SOCPlayerTracker currentPlayer = trackers[pn];
 				checkIfAnyResourceCannotBeRecievedCurrently(canMakePersuasionOnRB, currentPlayer.getPlayer(), true);
 			}
 			
@@ -791,6 +792,7 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
      * @return
      */
     private ArrayList<Persuasion> setConstraintsAndParamsIBP(HashMap<Integer,SOCResourceSet> mapPnToResBeforeTrade, HashMap<Integer,SOCResourceSet> mapPnToResAfterTrade, Persuasion originalPersuasion){
+	final SOCPlayerTracker[] trackers = brain.getMemory().getPlayerTrackers();
     	ArrayList<Persuasion> listOfPossiblePersuasions = new ArrayList<Persuasion>();
     	HashMap<String,String> constraints = originalPersuasion.getConstraints();
     	HashMap<String,String> parameters = originalPersuasion.getParameters();
@@ -799,7 +801,7 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
 	    	for(Integer pn : mapPnToResBeforeTrade.keySet()){
 	    		//If it the constraint is still possibly set to true
 	    		if(constraints.get(cons).equals("true")){
-	    			SOCPlayerTracker playerTracker = brain.getMemory().getPlayerTrackers().get(pn);
+	    			SOCPlayerTracker playerTracker = trackers[pn];
 	    			if(!constraintApplies(cons, playerTracker, parameters)){
 	    				constraints.put(cons, "false");
 	    			}
@@ -812,7 +814,7 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
     			(constraints.get(Persuasion.longestRoadConstraint).equals("true") && constraints.get(Persuasion.newSettlementConstraint).equals("true"))){
     		boolean canPerformBothStatementsTogether = true;
     		for(Integer pn : mapPnToResBeforeTrade.keySet()){
-    			SOCPlayerTracker playerTracker = brain.getMemory().getPlayerTrackers().get(pn);
+    			SOCPlayerTracker playerTracker = trackers[pn];
     			int N = 0;
             	for(int node : playerTracker.getPlayer().getLegalSettlements()){
             		if(playerTracker.getPlayer().isPotentialSettlement(node)){
@@ -835,10 +837,10 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
 
         		for(int co : potentialRoads){
         			boolean doesAllowBothArgs = false;
-        			SOCPlayer dummy = new SOCPlayer(playerTracker.getPlayer());
+        			SOCPlayer dummy = new SOCPlayer(playerTracker.getPlayer(), null);
         	        SOCPossibleRoad spb = new SOCPossibleRoad(dummy, co, new Vector());
         	        SOCRoad tempRoad = new SOCRoad(dummy, spb.getCoordinates(), game.getBoard());
-        	        dummy.putPiece(tempRoad);
+        	        dummy.putPiece(tempRoad, true);
         	    	int M = 0;
         	    	for(int node : dummy.getLegalSettlements()){
         	    		if(dummy.isPotentialSettlement(node)){
@@ -864,7 +866,7 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
         	    			}
         	    		}
         	    	}
-          	        dummy.removePiece(tempRoad);
+          	        dummy.removePiece(tempRoad, null);
     		        dummy.destroyPlayer();
             		if(doesAllowBothArgs){
             			canPerformBothStatementsTogether = true;
@@ -904,7 +906,7 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
 			
 			//Check if each recipient shares a resource type which the argument is applicable for
 			for(int pn : mapPnToResBeforeTrade.keySet()){
-				SOCPlayerTracker currentPlayer = brain.getMemory().getPlayerTrackers().get(pn);
+				SOCPlayerTracker currentPlayer = trackers[pn];
 				checkIfAnyResourceCannotBeRecievedCurrently(makeArgumentOnResType, currentPlayer.getPlayer(), false);
 			}
 			boolean addedAtLeastOne = false;
@@ -1011,12 +1013,12 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
             //Cycle through the list of possible settlements until you find a settlement which enables this extension. 
     		for(int co : potentialSettlements){
     			//Create a new dummy player that is the replica of the current players
-    	        SOCPlayer dummy = new SOCPlayer(currentPlayer.getPlayer());
+    	        SOCPlayer dummy = new SOCPlayer(currentPlayer.getPlayer(), null);
     	        
     	        //Generate and place this potentialSettlement
     	        SOCPossibleSettlement sps = new SOCPossibleSettlement(dummy, co, new Vector());
     	        SOCSettlement tempSettlement = new SOCSettlement(dummy, sps.getCoordinates(), game.getBoard());
-    	        dummy.putPiece(tempSettlement);
+    	        dummy.putPiece(tempSettlement, true);
     	        
     	        //Check which resources the player now has access to and if there is a new one, then accessNewRes is a valid constraint.
     	    	HashMap<Integer,Boolean> makeArgumentOnResTypeAFTER = new HashMap<Integer,Boolean>();
@@ -1025,7 +1027,7 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
     			}
     			checkIfAnyResourceCannotBeRecievedCurrently(makeArgumentOnResTypeAFTER, dummy, false);
     			
-    	        dummy.removePiece(tempSettlement);
+    	        dummy.removePiece(tempSettlement, null);
 		        dummy.destroyPlayer();
     			
 		        for(int res : makeArgumentOnResTypeAFTER.keySet()){
@@ -1116,10 +1118,10 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
             	}
             }  
     		for(int co : potentialRoads){
-    			SOCPlayer dummy = new SOCPlayer(currentPlayer.getPlayer());
+    			SOCPlayer dummy = new SOCPlayer(currentPlayer.getPlayer(), null);
     	        SOCPossibleRoad spb = new SOCPossibleRoad(dummy, co, new Vector());
     	        SOCRoad tempRoad = new SOCRoad(dummy, spb.getCoordinates(), game.getBoard());
-    	        dummy.putPiece(tempRoad);
+    	        dummy.putPiece(tempRoad, true);
     	    	int M = 0;
     	    	for(int node : dummy.getLegalSettlements()){
     	    		if(dummy.isPotentialSettlement(node)){
@@ -1128,7 +1130,7 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
     	    	}	        if(M>N){
     	        	return true;
     	        }
-    	        dummy.removePiece(tempRoad);
+    	        dummy.removePiece(tempRoad, null);
 		        dummy.destroyPlayer();
     		}
     	    return false;
@@ -1220,7 +1222,7 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
 
         //Consider whether the persuader has a VP higher than threshold - if so, ignore the persuasion and consider the trade independently
         if(brain.isRobotType(StacRobotType.Persuasion_RESP_IGNORE_IF_PERSUADER_HAS_X_VPS)){
-        	if((Integer)brain.getTypeParam(StacRobotType.Persuasion_RESP_IGNORE_IF_PERSUADER_HAS_X_VPS)<=brain.getPlayerTrackers().get(offer.getFrom()).getPlayer().getPublicVP()){
+        	if((Integer)brain.getTypeParam(StacRobotType.Persuasion_RESP_IGNORE_IF_PERSUADER_HAS_X_VPS)<=brain.getPlayerTrackers()[offer.getFrom()].getPlayer().getPublicVP()){
             	return considerOfferToMePERSUASION(offer, persuasiveArgument);
         	}
         } 
@@ -1462,10 +1464,10 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
 		    	}
 		    }
 			for(int co : potentialRoads){
-				SOCPlayer dummy = new SOCPlayer(brain.getPlayerData());
+				SOCPlayer dummy = new SOCPlayer(brain.getPlayerData(), null);
 		        SOCPossibleRoad spb = new SOCPossibleRoad(dummy, co, new Vector());
 		        SOCRoad tempRoad = new SOCRoad(dummy, spb.getCoordinates(), game.getBoard());
-		        dummy.putPiece(tempRoad);
+		        dummy.putPiece(tempRoad, true);
 		    	int M = 0;
 		    	for(int node : dummy.getLegalSettlements()){
 		    		if(dummy.isPotentialSettlement(node)){
@@ -1480,7 +1482,7 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
 						return true;
 					}
 		        }
-		        dummy.removePiece(tempRoad);
+		        dummy.removePiece(tempRoad, null);
 		        dummy.destroyPlayer();
 			}
 		    return false;
@@ -1523,14 +1525,14 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
 	            }  
 	            //Cycle through the list of possible settlements until you find a settlement which enables this extension. 
 	    		for(int co : potentialSettlements){
-	    	        SOCPlayer dummy = new SOCPlayer(brain.getPlayerData());
+	    	        SOCPlayer dummy = new SOCPlayer(brain.getPlayerData(), null);
 	    	        SOCPossibleSettlement spb = new SOCPossibleSettlement(dummy, co, new Vector());
 	    	        SOCSettlement tempSettlement = new SOCSettlement(dummy, spb.getCoordinates(), game.getBoard());
-	    	        dummy.putPiece(tempSettlement);
+	    	        dummy.putPiece(tempSettlement, true);
 	    	    	HashMap<Integer,Boolean> makeArgumentOnResTypeAFTER = new HashMap<Integer,Boolean>();
 	    			makeArgumentOnResType.put(res,true);
 	    			checkIfAnyResourceCannotBeRecievedCurrently(makeArgumentOnResTypeAFTER, dummy, false);
-	    	        dummy.removePiece(tempSettlement);
+	    	        dummy.removePiece(tempSettlement, null);
 			        dummy.destroyPlayer();
 	    			if(!makeArgumentOnResType.get(res)){
 	    				//Now has access to res
@@ -1594,10 +1596,10 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
 		    	}
 		    }
 			for(int co : potentialRoads){
-				SOCPlayer dummy = new SOCPlayer(brain.getPlayerData());
+				SOCPlayer dummy = new SOCPlayer(brain.getPlayerData(), null);
 		        SOCPossibleRoad spb = new SOCPossibleRoad(dummy, co, new Vector());
 		        SOCRoad tempRoad = new SOCRoad(dummy, spb.getCoordinates(), game.getBoard());
-		        dummy.putPiece(tempRoad);
+		        dummy.putPiece(tempRoad, true);
 		    	int M = 0;
 		    	for(int node : dummy.getLegalSettlements()){
 		    		if(dummy.isPotentialSettlement(node)){
@@ -1607,7 +1609,7 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
 		    	if(M>N){
 		        	return true;
 		        }
-		        dummy.removePiece(tempRoad);
+		        dummy.removePiece(tempRoad, null);
 		        dummy.destroyPlayer();
 			}
 		    return false;
@@ -1730,8 +1732,8 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
 
         D.ebugPrintlnINFO("targetPieces[" + receiverNum + "] = " + receiverTargetPiece);
 
-        SOCPlayerTracker receiverPlayerTracker = (SOCPlayerTracker) playerTrackers.get(Integer.valueOf(receiverNum));
-        SOCPlayerTracker senderPlayerTracker = (SOCPlayerTracker) playerTrackers.get(Integer.valueOf(senderNum));
+        SOCPlayerTracker receiverPlayerTracker = playerTrackers[receiverNum];
+        SOCPlayerTracker senderPlayerTracker = playerTrackers[senderNum];
 
         if (receiverPlayerTracker == null){
             D.ebugPrintlnINFO("Reject offer; receiverPlayerTracker == null");
@@ -1795,12 +1797,8 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
 
             if ((receiverTargetPiece.getType() == SOCPossiblePiece.SETTLEMENT) || (receiverTargetPiece.getType() == SOCPossiblePiece.ROAD))
             {
-                Enumeration threatsEnum = receiverTargetPiece.getThreats().elements();
-
-                while (threatsEnum.hasMoreElements())
+                for (SOCPossiblePiece threat : receiverTargetPiece.getThreats())
                 {
-                    SOCPossiblePiece threat = (SOCPossiblePiece) threatsEnum.nextElement();
-
                     if ((threat.getType() == senderTargetPiece.getType()) && (threat.getCoordinates() == senderTargetPiece.getCoordinates()))
                     {
                         inARace = true;
@@ -1815,12 +1813,8 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
                 }
                 else if (receiverTargetPiece.getType() == SOCPossiblePiece.SETTLEMENT)
                 {
-                    Enumeration conflictsEnum = ((SOCPossibleSettlement) receiverTargetPiece).getConflicts().elements();
-
-                    while (conflictsEnum.hasMoreElements())
+                    for (SOCPossibleSettlement conflict : ((SOCPossibleSettlement) receiverTargetPiece).getConflicts())
                     {
-                        SOCPossibleSettlement conflict = (SOCPossibleSettlement) conflictsEnum.nextElement();
-
                         if ((senderTargetPiece.getType() == SOCPossiblePiece.SETTLEMENT) && (conflict.getCoordinates() == senderTargetPiece.getCoordinates()))
                         {
                             inARace = true;
@@ -1986,15 +1980,15 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
         }  
         int maximum=0;
 		for(int co : potentialRoads){
-	        SOCPlayer dummy = new SOCPlayer(player);
+	        SOCPlayer dummy = new SOCPlayer(player, null);
 	        SOCPossibleRoad spb = new SOCPossibleRoad(dummy, co, new Vector());
 	        SOCRoad tempRoad = new SOCRoad(dummy, spb.getCoordinates(), game.getBoard());
-	        dummy.putPiece(tempRoad);
+	        dummy.putPiece(tempRoad, true);
 	        int temp = dummy.calcLongestRoad2();
 	        if(temp>maximum){
 	        	maximum=temp;
 	        }
-	        dummy.removePiece(tempRoad);
+	        dummy.removePiece(tempRoad, null);
 	        dummy.destroyPlayer();
 		}
 		return maximum;
@@ -2033,7 +2027,7 @@ public class PersuasionStacRobotNegotiator extends StacRobotNegotiator {
      * @return
      */
     private boolean checkIfPlayerCanBuild(String argument, int pn){
-		SOCPlayerTracker playerTracker = brain.getMemory().getPlayerTrackers().get(pn);
+		SOCPlayerTracker playerTracker = brain.getMemory().getPlayerTrackers()[pn];
     	if(argument.equals(StacRobotType.PERSUADER_ImmediateBuildPlan_Road)){
     		if(playerTracker.getPlayer().hasPotentialRoad()){
     			return true;

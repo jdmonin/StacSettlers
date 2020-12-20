@@ -27,6 +27,7 @@ import soc.message.SOCMakeOffer;
 import soc.message.SOCRejectOffer;
 import soc.robot.stac.Persuasion;
 import soc.robot.stac.simulation.Simulation;
+import soc.server.database.DBHelper.AuthPasswordRunnable;
 import soc.util.SOCRobotParameters;
 
 public class DBLogger implements DBHelper {
@@ -120,6 +121,14 @@ public class DBLogger implements DBHelper {
     public void initialize(String user, String pswd, Properties props) throws SQLException {
     }
 
+    public boolean isInitialized() {
+    	return true;
+    }
+
+    public int getSchemaVersion() {
+    	return SOCDBHelper.SCHEMA_VERSION_LATEST;
+    }
+
     public void startRun(String gameName, List<String> config) {
         runStartDate = new Date();
         String ds = "_" + runStartDate.toString().replace(':','_').replace(' ','_');
@@ -154,10 +163,40 @@ public class DBLogger implements DBHelper {
         }
     }
 
-    @Override
-    public String getUserPassword(String sUserName) throws SQLException {
+    public String getUser(String userName) {
         return null;
     }
+
+    /**
+     * {@inheritDoc}
+     *<P>
+     * This implementation always returns {@code sUserName} indicating success, as if the user doesn't exist in the DB.
+     */
+    public String authenticateUserPassword
+        (final String sUserName, String sPassword, final AuthPasswordRunnable authCallback)
+        throws SQLException {
+
+        final String ret = sUserName;
+        if (authCallback != null)
+            authCallback.authResult(ret, false);  // <--- Callback ---
+
+        return ret;
+    }
+
+    /**
+     * {@inheritDoc}
+     *<P>
+     * This implementation always throws {@link SQLException} because there is no actual DB.
+     */
+    public boolean updateUserPassword(String userName, final String newPassword)
+        throws IllegalArgumentException, SQLException {
+        throw new SQLException("DBLogger: no actual DB");
+    }
+
+    public final int getMaxPasswordLength() {
+        return 255;
+    }
+
 
     @Override
     public boolean getTradeReminderSeen(String sUserName) throws SQLException {
@@ -244,7 +283,8 @@ public class DBLogger implements DBHelper {
      * @throws SQLException
      */
     @Override
-    public boolean saveGameScores(SOCGame ga) throws SQLException {
+    public boolean saveGameScores(final SOCGame ga, final int gameLengthSeconds, final boolean winLossOnly)
+        throws SQLException {
 
         try {
         	int roundCount = ga.getRoundCount();
@@ -567,8 +607,14 @@ public class DBLogger implements DBHelper {
         return null;
     }
 
+    /** DB logger has no users; returns 1 user to avoid special behavior for installation when DB is empty. */
+    public int countUsers() {
+        return 1;
+    }
+
+
     @Override
-    public void cleanup() throws SQLException {	}
+    public void cleanup(boolean isForShutdown) {}
 
     public void endRun() {
         try {

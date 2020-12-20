@@ -27,12 +27,14 @@ import java.util.Hashtable;
 import soc.baseclient.ServerConnectInfo;
 import soc.game.SOCGameOptionSet;
 import soc.robot.SOCRobotClient;
+import soc.robot.SOCRobotFactory;
+import simpleDS.learning.SimpleAgent;
 
 /**
  * Each local robot in the {@link SOCServer} gets its own client thread.
  * Equivalent to main thread used in {@link SOCRobotClient} when connected
  * over the TCP network. Create by calling convenience method
- * {@link #createAndStartRobotClientThread(String, ServerConnectInfo, SOCGameOptionSet, Constructor)}.
+ * {@link #createAndStartRobotClientThread(SOCRobotFactory, String, ServerConnectInfo, SOCGameOptionSet, Constructor)}.
  *<P>
  * This class was originally SOCPlayerClient.SOCPlayerLocalRobotRunner,
  * then moved in 1.1.09 to SOCServer.SOCPlayerLocalRobotRunner.
@@ -84,6 +86,7 @@ import soc.robot.SOCRobotClient;
      * and then sleep 75 milliseconds, to give the robot time to start itself up.
      * The {@link SOCLocalRobotClient}'s {@code run()} will add the {@link SOCRobotClient} to {@link #robotClients}.
      *
+     * @param factory  STAC bot factory, used only if {@code cliConstruc3p} is {@code null}
      * @param rname  Name of robot
      * @param sci  Server connect info (TCP or local) with {@code robotCookie}; not {@code null}
      * @param Set of Known Options to deep-copy for robot client, or {@code null} to use defaults

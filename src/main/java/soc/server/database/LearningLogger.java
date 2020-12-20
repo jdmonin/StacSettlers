@@ -67,9 +67,9 @@ public class LearningLogger extends DBLogger {
 	}
 
 	@Override
-	public boolean saveGameScores(SOCGame ga) throws SQLException {
+	public boolean saveGameScores(SOCGame ga, int gameLengthSeconds, boolean winLossOnly) throws SQLException {
 		
-            boolean ret = super.saveGameScores(ga);
+            boolean ret = super.saveGameScores(ga, gameLengthSeconds, winLossOnly);
             
             String player1 = ga.getPlayer(0).getName();
             String player2 = ga.getPlayer(1).getName();

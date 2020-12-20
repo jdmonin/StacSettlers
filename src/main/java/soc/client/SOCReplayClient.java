@@ -5,8 +5,8 @@ import java.awt.Button;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.FileDialog;
-import java.awt.Frame;
 import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -18,24 +18,30 @@ import java.util.Stack;
 import java.util.Vector;
 import java.util.List;
 
+import javax.swing.JFrame;
+import javax.swing.WindowConstants;
+
+import soc.baseclient.ServerConnectInfo;
 import soc.game.SOCBoard;
 import soc.game.SOCCity;
 import soc.game.SOCDevCardConstants;
-import soc.game.SOCDevCardSet;
 import soc.game.SOCGame;
+import soc.game.SOCGameOptionSet;
+import soc.game.SOCInventory;
 import soc.game.SOCPlayer;
 import soc.game.SOCPlayerNumbers;
 import soc.game.SOCPlayingPiece;
 import soc.game.SOCResourceConstants;
 import soc.game.SOCResourceSet;
 import soc.game.SOCRoad;
+import soc.game.SOCRoutePiece;
 import soc.game.SOCSettlement;
 import soc.game.StacGameParameters;
 import soc.message.SOCAcceptOffer;
 import soc.message.SOCBoardLayout;
 import soc.message.SOCChoosePlayer;
 import soc.message.SOCClearGameHistory;
-import soc.message.SOCDevCard;
+import soc.message.SOCDevCardAction;
 import soc.message.SOCDiceResult;
 import soc.message.SOCGameCopy;
 import soc.message.SOCGameState;
@@ -48,6 +54,7 @@ import soc.message.SOCMessageForGame;
 import soc.message.SOCMoveRobber;
 import soc.message.SOCNewGameWithOptions;
 import soc.message.SOCPlayerElement;
+import soc.message.SOCPlayerElement.PEType;
 import soc.message.SOCPutPiece;
 import soc.message.SOCSitDown;
 import soc.message.SOCStartGame;
@@ -66,6 +73,7 @@ import soc.server.database.stac.ExtGameStateRow;
 import soc.server.database.stac.GameActionRow;
 import soc.server.database.stac.ObsGameStateRow;
 import soc.server.database.stac.StacDBHelper;
+import soc.server.genericServer.Connection;
 import soc.server.genericServer.StringConnection;
 import soc.util.CappedQueue;
 import soc.util.DeepCopy;
@@ -93,7 +101,7 @@ import soc.util.Version;
  * @author kho30
  *
  */
-public class SOCReplayClient extends SOCPlayerClient {
+public class SOCReplayClient extends SOCPlayerClient implements ActionListener {
     
     /**
      * Should we write an augmented log file or not?
@@ -125,8 +133,8 @@ public class SOCReplayClient extends SOCPlayerClient {
 
 	public SOCReplayClient() {}
 
-	public SOCReplayClient(boolean cp) {
-		super(cp);
+	public SOCReplayClient(boolean withConnectOrPractice) {
+		super();  // withConnectOrPractice unused in v2.x
 	}
     
 	// don't bother with server connection - we're faking it.
@@ -136,7 +144,7 @@ public class SOCReplayClient extends SOCPlayerClient {
 	
 	private static final String LOAD = "LOAD";
 	
-	private Frame parentFrame;
+	private JFrame parentFrame;
 
 	/**
 	 * If {@link #gamesParams} doesn't know about this game already, add it with parameters which
@@ -154,16 +162,13 @@ public class SOCReplayClient extends SOCPlayerClient {
 	/**
 	 * @param practiceGameName Soclog name to pass into {@link LogParser#getParser(String, boolean)}
 	 */
-	public void startPracticeGame(String practiceGameName, Hashtable gameOpts, boolean mainPanelIsActive)
+	@Override
+	public boolean startPracticeGame(String practiceGameName, SOCGameOptionSet gameOpts, boolean mainPanelIsActive)
     {
 		String logName = practiceGameName;       
          
-        prCli = new DumbStringConn();                   
-       
-        // local server will support per-game options
-        if (so != null)
-        	so.setEnabled(true);
-        
+        getNet().setPracticeConnection(new DumbStringConn());
+
         LogParser lp = LogParser.getParser(logName, AUG_LOG);
         
         if (lp != null) {
@@ -176,24 +181,28 @@ public class SOCReplayClient extends SOCPlayerClient {
             
         	// May take a while to start server & game.
             // The new-game window will clear this cursor.
-            setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+            ((SwingMainDisplay) getMainDisplay()).setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 
             // Avoid possible NPEs
             if (nickname == null)
                 setNickname(OBSERVER_DEFAULT_NAME);
 
 	        // Do some basic messages to start the window, which aren't in the log file
-	        SOCNewGameWithOptions newGame = new SOCNewGameWithOptions(practiceGameName, (String) null, -1);
+	        SOCNewGameWithOptions newGame = new SOCNewGameWithOptions(practiceGameName, null, -1, -2);
 	        treat(newGame, true);
-	        SOCJoinGameAuth auth = new SOCJoinGameAuth(practiceGameName, true);
+	        SOCJoinGameAuth auth = new SOCJoinGameAuth(practiceGameName);
 	        treat(auth, true);
 	        
 	        // Now start the simulator        
 	        new Thread(ftq).start();       
+
+	        return true;
         }
         else {
         	// Error message?
-        	status.setText("Unable to find log: " + logName);
+        	getMainDisplay().showStatus("Unable to find log: " + logName, false, false);
+
+	        return false;
         }
     }
 	
@@ -220,12 +229,20 @@ public class SOCReplayClient extends SOCPlayerClient {
 	}
 
 	/**
+	 * Treat/process an inbound message: Calls {@link soc.client.MessageHandler#handle(SOCMessage, boolean)}.
+	 * @since 2.4.50
+	 */
+	public void treat(SOCMessage mes, final boolean isPractice) {
+		getMessageHandler().handle(mes, isPractice);
+	}
+
+	/**
 	 * Update a game's turn counter label, if we have a {@link SOCReplayInterface} for it.
 	 */
 	public void setReplayTurnLabel(final String gameName, final int idCounter) {
-		final SOCPlayerInterface pi = (SOCPlayerInterface) playerInterfaces.get(gameName);
-		if (pi instanceof SOCReplayInterface)
-			((SOCReplayInterface) pi).replayPanel.setTurnLabel(idCounter);
+		final PlayerClientListener pcl = getClientListener(gameName);
+		if (pcl instanceof SOCReplayInterface.ReplayClientBridge)
+			pcl.turnCountUpdated(idCounter);
 	}
 
 	protected SOCPlayerInterface getPlayerInterface(String gaName, SOCGame ga) {
@@ -240,33 +257,36 @@ public class SOCReplayClient extends SOCPlayerClient {
 	
 	// Handle dev card - use special handling to ensure the card is removed from the list,
 	//  since every player is actively shown
-	protected void handleDEVCARD(SOCDevCard mes)
+	// -- merge TODO: move to a MessageHandler
+	protected void handleDEVCARDACTION(SOCDevCardAction mes)
     {
 		//make sure the second draw message contains Unknown dev card type so we can handle the fully observable game just as a normal one
 		if(repeatedDevCardMessage){
 			repeatedDevCardMessage = false;
 			mes.setCardType(SOCDevCardConstants.UNKNOWN);
-		}else if(mes.getAction() == SOCDevCard.DRAW) {
+		}else if(mes.getAction() == SOCDevCardAction.DRAW) {
 			repeatedDevCardMessage = true; 
 		}
 		
-		super.handleDEVCARD(mes);
+		// -- merge TODO: call MessageHandler parent
+		////super.handleDEVCARDACTION(mes);
 
-		SOCPlayerInterface pi = (SOCPlayerInterface) playerInterfaces.get(mes.getGame());
-		SOCHandPanel hp = pi.getPlayerHandPanel(mes.getPlayerNumber());
-        hp.updateDevCards();
-        hp.updateValue(SOCHandPanel.VICTORYPOINTS);
+		final int pn = mes.getPlayerNumber();
+		PlayerClientListener pcl = getClientListener(mes.getGame());
+		final SOCPlayer pl = pcl.getGame().getPlayer(pn);
+        pcl.playerDevCardsUpdated(pl, (mes.getAction() == SOCDevCardAction.ADD_OLD));
+        pcl.playerElementUpdated(pl, PlayerClientListener.UpdateType.VictoryPoints, false, false);
 
         //We're only updating our own dev cards, so they are fully known and we must subtract the UNKNOWN cards.
         //However, the server sends two SOCDevCard messages, one for the affected player, on to the other players (where the card type is UNKNOWN).
-        //It seems the replay client updates the SOCDevCardSet objects for known as well as unkonwn values, causing a doubling of the cards in the player's hand.
+        //It seems the replay client updates the SOCInventory objects for known as well as unkonwn values, causing a doubling of the cards in the player's hand.
         //The solution is to subtract the unknown value from the total.
-        hp.updateValue(SOCHandPanel.NUMDEVCARDS);
-        int totalDCs = hp.getPlayer().getDevCards().getTotal();
-        int unknownDCs = hp.getPlayer().getDevCards().getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.UNKNOWN);
-        unknownDCs += hp.getPlayer().getDevCards().getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.UNKNOWN);
+        final SOCInventory inv = pl.getInventory();
+        int totalDCs = inv.getTotal();
+        int unknownDCs = inv.getAmount(SOCInventory.OLD, SOCDevCardConstants.UNKNOWN);
+        unknownDCs += inv.getAmount(SOCInventory.NEW, SOCDevCardConstants.UNKNOWN);
         totalDCs -= unknownDCs;
-        hp.developmentSq.setIntValue(totalDCs);
+        pcl.playerDevCardCountDisplayUpdate(pn, totalDCs);
     }
 	
 	protected void handleGAMECOPY(SOCGameCopy mes){
@@ -278,7 +298,7 @@ public class SOCReplayClient extends SOCPlayerClient {
 		String prefix = mes.getFolder() + "/";
 		String fileName = prefix + "server_" + SOCGame.class.getName();
 		SOCGame ga = (SOCGame)DeepCopy.readFromFile(fileName);
-		ftq.dummy = new StacRobotDummyBrain(new SOCRobotClient(null, "replay", "replayAgent", "", null),
+		ftq.dummy = new StacRobotDummyBrain(new SOCRobotClient(null, new ServerConnectInfo("replay", ""), "replayAgent", "", null),
 				new SOCRobotParameters(300, 500, 0f, 0f, 0f, 0f, 0f, SOCRobotDMImpl.FAST_STRATEGY, 0),
 				ga,new CappedQueue(),0);//need to update the playerNumber based on who is on the board
 		ftq.boardInitialized = true;
@@ -286,7 +306,8 @@ public class SOCReplayClient extends SOCPlayerClient {
 		for(SOCPlayer p : ga.getPlayers())
 			treat(new SOCSitDown(ga.getName(), p.getName(), p.getPlayerNumber(), false), true);
 		//then do the normal update
-		super.handleLOADGAME(mes);
+		// -- merge TODO: call MessageHandler parent
+		////super.handleLOADGAME(mes);
 	}
 	
 	/**
@@ -314,6 +335,8 @@ public class SOCReplayClient extends SOCPlayerClient {
 	    	}
     	}
         SOCReplayClient client;
+        final SwingMainDisplay mainDisplay;
+
         boolean withConnectOrPractice;
 
         withConnectOrPractice = true;
@@ -323,18 +346,26 @@ public class SOCReplayClient extends SOCPlayerClient {
                 ", build " + Version.buildnum() + ", " + Version.copyright());
 
         // Invisible frame for the player client, necessary to track games list, etc
-        Frame frame = new Frame("JSettlers client " + Version.version());       
-        client.initVisualElements(); // after the background is set        
-        frame.add(client, BorderLayout.CENTER);
+        JFrame frame = new JFrame("JSettlers client " + Version.version());
+
+        final int displayScale = SwingMainDisplay.checkDisplayScaleFactor(frame);
+        SwingMainDisplay.scaleUIManagerFonts(displayScale);
+
+        mainDisplay = new SwingMainDisplay(true, client, displayScale);
+        client.setMainDisplay(mainDisplay);
+
+        mainDisplay.initVisualElements(); // after the background is set
+        frame.add(mainDisplay, BorderLayout.CENTER);
         frame.setVisible(false);
         
         // Actual frame for the replay
-        client.parentFrame = new Frame("JSettlers Replay client");
+        client.parentFrame = new JFrame("JSettlers Replay client");
         frame = client.parentFrame;
         frame.setBackground(new Color(Integer.parseInt("61AF71",16)));
         frame.setForeground(Color.black);
         // Add a listener for the close event
-        frame.addWindowListener(client.createWindowAdapter());        
+        frame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+        frame.addWindowListener(mainDisplay.createWindowAdapter());
         frame.setSize(200, 100);        
         
         Button b = new Button("Load Replay");        
@@ -517,35 +548,36 @@ public class SOCReplayClient extends SOCPlayerClient {
 		
 		@Override
 		public void run() {
+			final PlayerClientListener pcl = cl.getClientListener(getGameName());
+			final SOCGame ga = pcl.getGame();
+			if ((pcl == null) || (ga == null)) {
+				// TODO some error popup maybe?
+				return;
+			}
+
 			try {				
 				// Indicate setup is done, ready to start replaying
-				{
-					SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(getGameName());
-					if (pi != null)
-					{
-						pi.clearChatTextInput();
+				pcl.clearChatTextInput();
 
-						if (gameName == null) {
-							pi.print("Parse error: Couldn't find game name in log messages");
-						} else if (collect) {
-							pi.print("Mode: -c Collect logs into DB");
-							if (gameID == -1) {
-								pi.print("** Can't collect: " +
-									((dbhDisconnectedAfterNotFound)
-									 ? "Couldn't find game in DB named " + gameName
-									 : "Not connected to DB"));
-							} else if (canExtract) {
-								pi.print((extractOnly)
-									? "(-eo: extracting features from observable details)"
-									: "(observable details, not extracted features)");
-							} else if (extractOnly)
-								pi.print("(overall stats only)");
-						} else {
-							pi.print("Mode: Replay only");
-						}
-						pi.print("Ready to replay.");
-					}
+				if (gameName == null) {
+					pcl.printText("Parse error: Couldn't find game name in log messages");
+				} else if (collect) {
+					pcl.printText("Mode: -c Collect logs into DB");
+					if (gameID == -1) {
+						pcl.printText("** Can't collect: " +
+							((dbhDisconnectedAfterNotFound)
+							 ? "Couldn't find game in DB named " + gameName
+							 : "Not connected to DB"));
+					} else if (canExtract) {
+						pcl.printText((extractOnly)
+							? "(-eo: extracting features from observable details)"
+							: "(observable details, not extracted features)");
+					} else if (extractOnly)
+						pcl.printText("(overall stats only)");
+				} else {
+					pcl.printText("Mode: Replay only");
 				}
+				pcl.printText("Ready to replay.");
 
 				// Put piece messages are problematic, since they affect the score.  Only handle putPiece immediately 
 				//  after a server text message indicating that something has been built.
@@ -585,14 +617,13 @@ public class SOCReplayClient extends SOCPlayerClient {
 								else if (gtm.getText().contains("traded")) {
 									// Echo trade messages in the chat interface as well as the game interface.  Much easier to follow.
 									SOCGameTextMsg chatMsg = new SOCGameTextMsg(gameName, "Trade", gtm.getText());
-									cl.treat(chatMsg, true);
+									cl.getMessageHandler().handle(chatMsg, true);
 									isPlayerText = true;
 									
 									if (gtm.getText().contains("traded")) {
 	                                    lp.writeAugLog("Game State after Trade Action: ");
 	                                    //we need to know who has the player traded with and update the counters here
-	                        			SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(gameName);
-	                                    SOCGame ga = pi.getGame();
+
 	                                  //keep a reference to the old trade numbers
 	                                    for(int i = 0; i < 4; i++)
 	                                    	System.arraycopy(tradesCounter[i], 0, tempTradesCounter[i], 0, tradesCounter[i].length); 
@@ -655,7 +686,7 @@ public class SOCReplayClient extends SOCPlayerClient {
 								}else if (sm.getState() == SOCGame.PLACING_FREE_ROAD1){
 									lp.writeAugLog("Game State only after Play Road Building Card Action: ");
 									writeGameState(gameName, new double[]{GameActionRow.PLAYROAD}); //capture the play road building card result
-								}else if (sm.getState() == SOCGame.WAITING_FOR_CHOICE){
+								}else if (sm.getState() == SOCGame.WAITING_FOR_ROB_CHOOSE_PLAYER){
 									lp.writeAugLog("Game State only after Moving The Robber Action: ");
 									writeGameState(gameName, new double[]{GameActionRow.MOVEROBBER}); //capture the move robber result
 								}
@@ -663,9 +694,8 @@ public class SOCReplayClient extends SOCPlayerClient {
 							if (m != null) {
 								if (m instanceof SOCBoardLayout) {
 									//also initialise the dummy brain in here as we will need it later
-                        			SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(((SOCBoardLayout) m).getGame());
-                                    SOCGame ga = pi.getGame();
-									dummy = new StacRobotDummyBrain(new SOCRobotClient(null, "replay", "replayAgent", "", null),
+
+									dummy = new StacRobotDummyBrain(new SOCRobotClient(null, new ServerConnectInfo("replay", ""), "replayAgent", "", null),
 											new SOCRobotParameters(300, 500, 0f, 0f, 0f, 0f, 0f, SOCRobotDMImpl.FAST_STRATEGY, 0),
 											(SOCGame)DeepCopy.copy(ga),new CappedQueue(),0);//need to update the playerNumber based on who is on the board
 									boardInitialized = true;
@@ -675,7 +705,7 @@ public class SOCReplayClient extends SOCPlayerClient {
 									// Only handle every second PutPiece or second move robber, as they're duplicated in the logs,
 									//  which results in doubling of score or doubling an action
 									if (repeatedMsg) {
-										cl.treat(m, true);
+										cl.getMessageHandler().handle(m, true);
 										lp.writeAugLog("Game State after Put Piece Action: ");
 										//decide what type of piece we built
 										double at;
@@ -686,27 +716,23 @@ public class SOCReplayClient extends SOCPlayerClient {
 										else
 											at = GameActionRow.BUILDCITY;
 										//in here update the game object in the brain and update trackers and this should be it
-	                        			SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(gameName);
-	                                    SOCGame ga = pi.getGame();
 										dummy.setGame((SOCGame)DeepCopy.copy(ga));
 										dummy.handlePUTPIECE_updateTrackers((SOCPutPiece)m);
 										writeGameState(gameName, new double[]{at}); //capture the result of buying and building actions
 									}
 								}else if (m instanceof SOCTurn){
-									cl.treat(m, true);
+									cl.getMessageHandler().handle(m, true);
 									lp.writeAugLog("Game State after End Turn Action: ");
 									writeGameState(gameName, new double[]{GameActionRow.ENDTURN}); //need to capture the result of the end turn action
                                                                         if (state == TO_TURN) {
                                                                             state = PAUSE;
                                                                         }
-                                                                        SOCReplayInterface pi = (SOCReplayInterface) cl.playerInterfaces.get(gameName);
-                                                                        SOCGame ga = pi.getGame();
-                                                                        pi.replayPanel.turnLab.setText("Turn: " + ga.getTurnCount());
+                                                                        pcl.turnCountUpdated(-1);
 								}else if (m instanceof SOCPlayerElement) {
 									SOCPlayerElement pe = (SOCPlayerElement) m;
 									// Ignore the "unknown" discard - it will be accompanied by known discard messages,
 									//  which we will handle
-									if (pe.getElementType() != SOCPlayerElement.UNKNOWN) {										
+									if (pe.getElementType() != PEType.UNKNOWN_RESOURCE.getValue()) {										
 										int action = pe.getAction();
 										if (action == SOCPlayerElement.GAIN 
 											|| action == SOCPlayerElement.LOSE) {
@@ -715,17 +741,15 @@ public class SOCReplayClient extends SOCPlayerClient {
 												ignoreNextN--;
 											}
 											else {
-												cl.treat(m, true);
+												cl.getMessageHandler().handle(m, true);
 											}
 										}
 										else {
 											// always handle 100s (Set resource- no worries about duplicates here)
-											cl.treat(m, true);
+											cl.getMessageHandler().handle(m, true);
 										}
 									}
-                                                                        SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(gameName);
-                                                                        SOCHandPanel hp = pi.getPlayerHandPanel(pe.getPlayerNumber());
-                                                                        hp.updateValue(SOCHandPanel.NUMRESOURCES);
+                                                                        pcl.playerResourcesUpdated(ga.getPlayer(pe.getPlayerNumber()));
 								}
 								else if (m instanceof SOCClearGameHistory 
 										|| m instanceof SOCLeaveGame) {								
@@ -734,7 +758,7 @@ public class SOCReplayClient extends SOCPlayerClient {
 								}
 								else {		
 									// Default - treat the message if it's not a special case
-									cl.treat(m, true);
+									cl.getMessageHandler().handle(m, true);
 								}	
 								
 								repeatedMsg = false;
@@ -771,8 +795,8 @@ public class SOCReplayClient extends SOCPlayerClient {
 		
 		/** Output the game-state to the augmented log file and maybe database */
 		private void writeGameState(String gameName, double[] actionTypes) {        
-			SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(gameName);
-            SOCGame ga = pi.getGame();
+			PlayerClientListener pcl = cl.getClientListener(gameName);
+            SOCGame ga = pcl.getGame();
             
             // Game layout
             SOCBoard board = ga.getBoard();
@@ -926,35 +950,35 @@ public class SOCReplayClient extends SOCPlayerClient {
 	            
 	            // Roads
 	            logMsg = pName + "|Roads|";
-	            i = p.getRoads().iterator();
+	            i = p.getRoadsAndShips().iterator();
 	            while (i.hasNext()) {
-	                SOCRoad r = (SOCRoad) i.next();
+	                SOCRoutePiece r = (SOCRoutePiece) i.next();
 	                logMsg += Integer.toHexString(r.getCoordinates()) + ",";
 	            }
 	            lp.writeAugLog(logMsg);
 	            
 	            // Dev cards total
-	            SOCDevCardSet set = p.getDevCards();
+	            SOCInventory set = p.getInventory();
 	            lp.writeAugLog(pName + "|TotalDevCards|" + set.getTotal());
 	            
 	            //Unplayed Dev cards types and numbers (an array of integers: knights, roads, disc, mono, unknown)
-	            int[] udc = new int[]{set.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.KNIGHT),
-	            		set.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.ROADS),
-	            		set.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.DISC),
-	            		set.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.MONO),
-	            		set.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.UNKNOWN)};
+	            int[] udc = new int[]{set.getAmount(SOCInventory.OLD, SOCDevCardConstants.KNIGHT),
+	            		set.getAmount(SOCInventory.OLD, SOCDevCardConstants.ROADS),
+	            		set.getAmount(SOCInventory.OLD, SOCDevCardConstants.DISC),
+	            		set.getAmount(SOCInventory.OLD, SOCDevCardConstants.MONO),
+	            		set.getAmount(SOCInventory.OLD, SOCDevCardConstants.UNKNOWN)};
 	            lp.writeAugLog(pName + "|UnplayedDevCards|" + udc[0] + "," + udc[1] + "," + udc[2] + "," + udc[3] + "," + udc[4]);
 	            
 	            //Newly bought Dev cards
-	            int[] ndc = new int[]{set.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.KNIGHT),
-	            		set.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.ROADS),
-	            		set.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.DISC),
-	            		set.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.MONO),
-	            		set.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.UNKNOWN)};
+	            int[] ndc = new int[]{set.getAmount(SOCInventory.NEW, SOCDevCardConstants.KNIGHT),
+	            		set.getAmount(SOCInventory.NEW, SOCDevCardConstants.ROADS),
+	            		set.getAmount(SOCInventory.NEW, SOCDevCardConstants.DISC),
+	            		set.getAmount(SOCInventory.NEW, SOCDevCardConstants.MONO),
+	            		set.getAmount(SOCInventory.NEW, SOCDevCardConstants.UNKNOWN)};
 	            lp.writeAugLog(pName + "|NewDevCards|" + ndc[0] + "," + ndc[1] + "," + ndc[2] + "," + ndc[3] + "," + ndc[4]);
 	            
 	            //VP Dev cards
-	            lp.writeAugLog(pName + "|VPDevCards|" + set.getNumVPCards());
+	            lp.writeAugLog(pName + "|VPDevCards|" + set.getNumVPItems());
 	            
 	            // Num-knights
 	            int nk = p.getNumKnights();	            
@@ -1063,7 +1087,7 @@ public class SOCReplayClient extends SOCPlayerClient {
 	 * @author kho30
 	 *
 	 */
-	protected static class DumbStringConn implements StringConnection {
+	protected static class DumbStringConn extends StringConnection {
 		
 		@Override
 		public String host() {
@@ -1094,7 +1118,7 @@ public class SOCReplayClient extends SOCPlayerClient {
 		public void disconnectSoft() {}
 
 		@Override
-		public Object getData() {
+		public String getData() {
 			return null;
 		}
 
@@ -1104,7 +1128,7 @@ public class SOCReplayClient extends SOCPlayerClient {
 		}
 
 		@Override
-		public void setData(Object data) {}
+		public void setData(String data) {}
 
 		@Override
 		public void setAppData(Object data) {}

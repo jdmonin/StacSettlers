@@ -978,6 +978,15 @@ public class SOCGameListAtServer extends SOCGameList
     }
 
     /**
+     * Replaces the old game data.
+     * Intended for continuing the game from a different stage, while keeping the game info.
+     * @param newGame
+     */
+    public synchronized void replaceGame(SOCGame newGame){
+    	gameData.put(newGame.getName(), newGame);
+    }
+
+    /**
      * Game info including server-side information, such as the game type's {@link GameHandler}
      * and {@link GameMessageHandler}.
      * @author Jeremy D Monin &lt;jeremy@nand.net&gt;

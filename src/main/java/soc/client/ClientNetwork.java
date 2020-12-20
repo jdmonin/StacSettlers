@@ -22,17 +22,26 @@
  **/
 package soc.client;
 
+import java.io.BufferedReader;
+import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 
+import resources.Resources;
 import soc.baseclient.SOCDisplaylessPlayerClient;
 import soc.baseclient.ServerConnectInfo;
 import soc.disableDebug.D;
@@ -46,6 +55,16 @@ import soc.message.SOCMessage;
 import soc.message.SOCNewGameWithOptionsRequest;
 import soc.message.SOCRejectConnection;
 import soc.message.SOCVersion;
+import soc.robot.FactoryDescr;
+import soc.robot.SOCDefaultRobotFactory;
+import soc.robot.SOCRobotFactory;
+import soc.robot.stac.OriginalSSRobotFactory;
+import soc.robot.stac.StacRobotBrainFlatMCTS;
+import soc.robot.stac.StacRobotBrainRandom;
+import soc.robot.stac.StacRobotFactory;
+import soc.robot.stac.StacRobotType;
+import soc.robot.stac.MCTSRobotFactory;
+import soc.robot.stac.MCTSRobotType;
 import soc.server.SOCServer;
 import soc.server.genericServer.Connection;
 import soc.server.genericServer.StringConnection;
@@ -245,6 +264,15 @@ import soc.util.Version;
     }
 
     /**
+     * For STAC replay/DB clients, ability to set the practice connection.
+     * @since 2.4.50
+     */
+    public void setPracticeConnection(StringConnection sc)
+    {
+        prCli = sc;
+    }
+
+    /**
      * Start a practice game.  If needed, create and start {@link #practiceServer}.
      * @param practiceGameName  Game name
      * @param gameOpts  Game options, or {@code null}
@@ -280,7 +308,7 @@ import soc.util.Version;
                         String p[] = nextLine.split("=");
                         boolean c = Boolean.parseBoolean(p[1]);
                         if (c) {
-                            useParser = c;
+                            client.useParser = c;
                         }
                     }
                     else if (nextLine.startsWith("ForceEndTurns")) {
@@ -505,7 +533,7 @@ import soc.util.Version;
     {
         try
         {
-            localTCPServer = new SOCServer(tport, SOCServer.SOC_MAXCONN_DEFAULT, null, null);
+            localTCPServer = new SOCServer(tport, SOCServer.SOC_MAXCONN_DEFAULT, null, null, client.useParser);
             localTCPServer.setPriority(5);  // same as in SOCServer.main
             localTCPServer.start();
         }
@@ -628,7 +656,7 @@ import soc.util.Version;
 
             if (in != null)
             {
-                try { in.close(); } catch (Throwable th) {}
+                try { ((DataInputStream) in).close(); } catch (Throwable th) {}
                 in = null;
             }
             if (out != null)
@@ -865,11 +893,8 @@ import soc.util.Version;
 
         shutdownLocalServer();
 
-        for (Enumeration e = playerInterfaces.elements(); e.hasMoreElements();)
-        {
-        	SOCPlayerInterface pi = ((SOCPlayerInterface) e.nextElement());
-        	logger.endLog(pi.game.getName());
-        }
+        for (PlayerClientListener pcl : client.getClientListeners().values())
+            client.logger.endLog(pcl.getGame().getName());
 
         return canPractice;
     }

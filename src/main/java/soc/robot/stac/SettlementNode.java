@@ -32,9 +32,7 @@ public class SettlementNode extends ScoredNode implements Serializable{
 		
 		// Set the neigbouring hexes 
 		hexes = new HashSet<Hex>(3);
-		Vector v = SOCBoard.getAdjacentHexesToNode(node);
-		for (Object o : v) {
-			Integer i = (Integer) o;
+		for (Integer i : board.getAdjacentHexesToNode(node)) {
 			int roll = board.getNumberOnHexFromCoord(i);
 			int type = board.getHexTypeFromCoord(i);
 			hexes.add(new Hex(i, roll, type));

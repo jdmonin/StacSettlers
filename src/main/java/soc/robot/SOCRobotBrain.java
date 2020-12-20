@@ -23,6 +23,7 @@
  **/
 package soc.robot;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -40,17 +41,23 @@ import soc.game.SOCBoardLarge;
 import soc.game.SOCCity;
 import soc.game.SOCDevCardConstants;
 import soc.game.SOCGame;
+import soc.game.SOCGameOptionSet;
 import soc.game.SOCInventory;
+import soc.game.SOCInventoryItem;
 import soc.game.SOCPlayer;
 import soc.game.SOCPlayerNumbers;
 import soc.game.SOCPlayingPiece;
 import soc.game.SOCResourceConstants;
 import soc.game.SOCResourceSet;
 import soc.game.SOCRoad;
+import soc.game.SOCRoutePiece;
 import soc.game.SOCSettlement;
+import soc.game.SOCShip;
 import soc.game.SOCTradeOffer;
 import soc.message.SOCAcceptOffer;
+import soc.message.SOCBankTrade;
 import soc.message.SOCCancelBuildRequest;
+import soc.message.SOCChoosePlayer;
 import soc.message.SOCChoosePlayerRequest;
 import soc.message.SOCClearOffer;
 import soc.message.SOCCollectData;
@@ -61,16 +68,25 @@ import soc.message.SOCDiscardRequest;
 import soc.message.SOCGameState;
 import soc.message.SOCGameStats;
 import soc.message.SOCGameTextMsg;
+import soc.message.SOCInventoryItemAction;
 import soc.message.SOCMakeOffer;
 import soc.message.SOCMessage;
+import soc.message.SOCMovePiece;
 import soc.message.SOCMoveRobber;
 import soc.message.SOCParseResult;
 import soc.message.SOCPlayerElement;
+import soc.message.SOCPlayerElement.PEType;
+import soc.message.SOCPlayerElements;
 import soc.message.SOCPutPiece;
 import soc.message.SOCRejectOffer;
 import soc.message.SOCResourceCount;
 import soc.message.SOCSetPlayedDevCard;
+import soc.message.SOCSetSpecialItem;
+import soc.message.SOCSimpleAction;
+import soc.message.SOCSimpleRequest;
+import soc.message.SOCStartGame;
 import soc.message.SOCTurn;
+import soc.message.StacStartGame;
 import soc.robot.stac.StacRobotBrain;
 import soc.robot.stac.StacRobotDeclarativeMemory;
 import soc.robot.stac.simulation.Simulation;
@@ -968,6 +984,15 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
 
     /**
+     * @return the OBS
+     * @since 2.4.50
+     */
+    public OpeningBuildStrategy getOpeningBuildStrategy()
+    {
+        return openingBuildStrategy;
+    }
+
+    /**
      * turns the debug recorders on
      * @see #getDRecorder()
      * @see #turnOffDRecorder()
@@ -1307,12 +1332,12 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                     
                     if(mesType==SOCMessage.COLLECTDATA){
                     	//check the brain is of the correct type and if the message is for us
-                    	if(this.getClass().getName().equals(StacRobotBrain.class.getName()) && ((SOCCollectData) mes).getPlayerNumber() == ourPN){
+                    	if(this.getClass().getName().equals(StacRobotBrain.class.getName()) && ((SOCCollectData) mes).getPlayerNumber() == ourPlayerNumber){
                     		StacRobotBrain br = (StacRobotBrain) this;
                     		if(Simulation.dbh!= null && Simulation.dbh.isConnected()){// !!!
                     			//active game with at least one of our piece on the board and our turn
 		                    	if(game.getGameState()>=SOCGame.START1A && game.getGameState()<=SOCGame.OVER 
-		                    			&& game.getPlayer(ourPN).getPieces().size()>0 && game.getCurrentPlayerNumber()==ourPN){
+		                    			&& game.getPlayer(ourPlayerNumber).getPieces().size()>0 && game.getCurrentPlayerNumber()==ourPlayerNumber){
 		                    		//check if vector has changed since last computed to avoid duplicates
 		                    		int[] vector = br.createStateVector();
 		                    		if(stateVector==null || !Arrays.equals(stateVector, vector)){
@@ -1379,6 +1404,14 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         SOCDisplaylessPlayerClient.handleSTARTGAME_checkIsBotsOnly(game);
                             // might set game.isBotsOnly
                         handleGAMESTATE(((SOCStartGame) mes).getGameState());
+                            // clears waitingForGameState, updates oldGameState, calls ga.setGameState
+                    }
+
+                    else if (mesType == SOCMessage.STACSTARTGAME)
+                    {
+                        SOCDisplaylessPlayerClient.handleSTARTGAME_checkIsBotsOnly(game);
+                            // might set game.isBotsOnly
+                        handleGAMESTATE(((StacStartGame) mes).getGameState());
                             // clears waitingForGameState, updates oldGameState, calls ga.setGameState
                     }
 
@@ -1581,7 +1614,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                             //        else
                             //            printString += ("," + "F");
                             //    }
-                            //    if (om.getOffer().getFrom() == ourPN) {
+                            //    if (om.getOffer().getFrom() == ourPlayerNumber) {
                             //        //our offer
                             //        printString += (" Give=" + om.getOffer().getGiveSet() + " Get=" + om.getOffer().getGetSet());
                             //        if (om.getOffer().getGiveSet().getTotal() == 0) {
@@ -1619,7 +1652,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         {
                             final int acceptingPN = ((SOCAcceptOffer) mes).getAcceptingNumber();
 
-                            if (((SOCAcceptOffer) mes).getOfferingNumber() == ourPN)
+                            if (((SOCAcceptOffer) mes).getOfferingNumber() == ourPlayerNumber)
                             {
                                 handleTradeResponse(acceptingPN, true);
                             }
@@ -1649,7 +1682,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                             SOCDevCardAction dcMes = (SOCDevCardAction) mes;
                             if (dcMes.getAction() != SOCDevCardAction.CANNOT_PLAY)
                             {
-                                handleDEVCARD(dcMes);
+                                handleDEVCARDACTION(dcMes);
                             } else {
                                 // rejected by server, can't play our requested card
                                 rejectedPlayDevCardType = dcMes.getCardType();
@@ -2217,7 +2250,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
                     Thread.yield();
                 }
-            }catch(InterruptedException e){
+            catch(InterruptedException e){
             	//do nothing as the clean up is executed after exiting the catch block 
             }
             catch (Exception e)
@@ -2234,6 +2267,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                     System.err.println(eMsg);
                     e.printStackTrace();
                 }
+            }
             }
         }
         else
@@ -2497,12 +2531,12 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      *
      * @param newState  New game state, like {@link SOCGame#ROLL_OR_CARD}; if 0, does nothing
      */
-    protected void handleGAMESTATE(final int newState)
+    protected void handleGAMESTATE(int newState)
     {
         if (newState == 0)
             return;
 
-        waitingForGameState = ((gs == SOCGame.LOADING) || (gs == SOCGame.LOADING_RESUMING));  // almost always false
+        waitingForGameState = ((newState == SOCGame.LOADING) || (newState == SOCGame.LOADING_RESUMING));  // almost always false
         int currGS = game.getGameState();
         if (currGS != newState)
             oldGameState = currGS;  // if no actual change, don't overwrite previously known oldGameState
@@ -2523,7 +2557,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             // probably need to restrict - currently will call this after every action within a turn.  Set a flag when TURN is issued, unset here
             waitingForTurnMain = true;
         }
-        else if ((gs == SOCGame.PLAY1) && waitingForTurnMain)
+        else if ((newState == SOCGame.PLAY1) && waitingForTurnMain)
         {
             startTurnMainActions();
             waitingForTurnMain = false;
@@ -2814,7 +2848,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 //                	if(!saved){
 //                		saveGame();
 //                	}
-                    final int firstSettleNode = decisionMaker.planInitialSettlements();
+                    final int firstSettleNode = openingBuildStrategy.planInitialSettlements();
                     placeFirstSettlement(firstSettleNode);
                     expectPUTPIECE_FROM_START1A = true;
                     waitingForGameState = true;
@@ -2854,8 +2888,8 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 //                	if(!saved){
 //            			saveGame();
 //                	}
-                    final int secondSettleNode = decisionMaker.planSecondSettlement();
-                    placeInitSettlement(decisionMaker.secondSettlement);
+                    final int secondSettleNode = openingBuildStrategy.planSecondSettlement();
+                    placeInitSettlement(secondSettleNode);
 
                     expectPUTPIECE_FROM_START2A = true;
                     counter = 0;
@@ -3113,7 +3147,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             SOCPossiblePiece topPiece = plan.getPlannedPiece(0); 
 
             //D.ebugPrintln("$ POPPED "+topPiece);
-            if ((topPiece != null) && (topPiece.instanceof SOCPossibleRoad) && (plan.getPlanDepth() > 1))
+            if ((topPiece != null) && (topPiece instanceof SOCPossibleRoad) && (plan.getPlanDepth() > 1))
             {
                 SOCPossiblePiece secondPiece = plan.getPlannedPiece(1);
 
@@ -3197,7 +3231,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             ///
             if (gameStatePLAY1
                 && (! ourPlayerData.hasPlayedDevCard())
-                && (ourPlayerData.getInventory().hasPlayable(SOCDevCardConstants.MONO)
+                && ourPlayerData.getInventory().hasPlayable(SOCDevCardConstants.MONO)
                 && (rejectedPlayDevCardType != SOCDevCardConstants.MONO)
                 && monopolyStrategy.decidePlayMonopoly())
             {
@@ -3540,7 +3574,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
             if (waitingForTradeResponsePlayer[i]) {
                 everyoneResponded = false;
-                if (! game.getPlayer(pn).isRobot())
+                if (! game.getPlayer(i).isRobot())
                     allHumansRejected = false;
                 break;
             }
@@ -3661,7 +3695,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                             // TODO: figure out how to interrupt the Thread.sleep once all humans have responded
                             //  to the trade offer if it's faster than the pause time.
 
-                            pause((BOTS_PAUSE_FOR_HUMAN_TRADE * 1000 - 1500);
+                            pause(BOTS_PAUSE_FOR_HUMAN_TRADE * 1000 - 1500);
                                 // already waited 1.5 seconds: see pause above
                             break;      // one wait for all humans is enough
                         }
@@ -3749,7 +3783,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             break;
 
         case SOCDevCardAction.PLAY:
-            plCards.removeDevCard(SOCInventory.OLD, cardType);
+            cardsInv.removeDevCard(SOCInventory.OLD, cardType);
             pl.updateDevCardsPlayed(cardType);
             break;
 
@@ -4959,7 +4993,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      */
     protected void placeInitSettlement(final int initSettlement)
     {
-        if (initSettlement)
+        if (initSettlement == -1)
         {
             // This could mean that the server (incorrectly) asked us to
             // place another second settlement, after we've cleared the
@@ -5079,10 +5113,10 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             ///
             boolean anyHumans = false;
             boolean[]to = offer.getTo();
-            for (int i = 0; i < game.maxPlayers; i++)
+            for (int pn = 0; pn < game.maxPlayers; pn++)
             {
-                if (to[i]) {
-                    waitingForTradeResponsePlayer[i] = true;
+                if (to[pn]) {
+                    waitingForTradeResponsePlayer[pn] = true;
                 }
                 if (! (game.isSeatVacant(pn) || game.getPlayer(pn).isRobot()))
                     anyHumans = true;
@@ -5323,7 +5357,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     	doneTrading = info.doneTrading;
     	lastMove = info.lastMove;
     	lastTarget = info.lastTarget;
-    	decisionMaker.monopolyChoice = info.monopolyChoice;
+    	monopolyStrategy.monopolyChoice = info.monopolyChoice;
     	numberOfMessagesReceived = info.numberOfMessagesReceived;
     	oldGameState = info.oldGameState;
     	ourTurn = info.ourTurn;
@@ -5336,7 +5370,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         expectSTART1B = info.expectSTART1B;
         expectSTART2A = info.expectSTART2A;
         expectSTART2B = info.expectSTART2B;
-        expectPLAY = info.expectPLAY;
+        expectROLL_OR_CARD = info.expectPLAY;
         expectPLAY1 = info.expectPLAY1;
         expectPLACING_ROAD = info.expectPLACING_ROAD;
         expectPLACING_SETTLEMENT = info.expectPLACING_SETTLEMENT;        
@@ -5753,17 +5787,15 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 		int[] winGameETAs = new int[game.maxPlayers];
 	    for (int i = game.maxPlayers - 1; i >= 0; --i)
 	    	winGameETAs[i] = 500;
-	    Map<Integer, SOCPlayerTracker> playerTrackers = new HashMap<>();
-	    playerTrackers = getPlayerTrackers();
+	    SOCPlayerTracker[] playerTrackers = getPlayerTrackers();
 	    
-	    Iterator trackersIter = playerTrackers.values().iterator();
-	    while (trackersIter.hasNext()){
-	        SOCPlayerTracker tracker = (SOCPlayerTracker) trackersIter.next();
+	    for(int pn = 0; pn < playerTrackers.length; ++pn) {
+	        SOCPlayerTracker tracker = playerTrackers[pn];
 	        try{
 	        	tracker.recalcWinGameETA();
-	        	winGameETAs[tracker.getPlayer().getPlayerNumber()] = tracker.getWinGameETA();
+	        	winGameETAs[pn] = tracker.getWinGameETA();
 	        }catch (NullPointerException e){
-	             winGameETAs[tracker.getPlayer().getPlayerNumber()] = 500;
+	             winGameETAs[pn] = 500;
 	        }
 	    }
 	    return winGameETAs;
@@ -5944,42 +5976,32 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 	private boolean isNotIsolated(int start, SOCPlayer p){
 		SOCGame game = getGame();
 		SOCBoard bd = game.getBoard();
-		Vector visited = new Vector();
-		Stack stack = new Stack();
+		List<Integer> visited = new ArrayList<>();
+		Stack<Integer> stack = new Stack<>();
 		stack.add(Integer.valueOf(start));
 		while(!stack.empty()){
-			Integer coord = (Integer) stack.pop();
+			Integer coord = stack.pop();
 			visited.add(coord);
-			if(coord.intValue()!=start && p.hasSettlementOrCityAtNode(coord.intValue()))//stop when encountering one of our pieces on a node
+			if(coord.intValue()!=start && p.hasSettlementOrCityAtNode(coord)) //stop when encountering one of our pieces on a node
 				return true;
-			Vector adjacents = bd.getAdjacentNodesToNode(coord.intValue());
+			List<Integer> adjacents = bd.getAdjacentNodesToNode(coord);
 			//check if adjacents can be accessed (i.e. the edge is empty or has one of our pieces)
-			for(Object n : adjacents){
-				int edge = bd.getEdgeBetweenAdjacentNodes(coord.intValue(), ((Integer)n).intValue());
+			for(Integer n : adjacents){
+				int edge = bd.getEdgeBetweenAdjacentNodes(coord, n);
 				boolean wasVisited = false;
 				//check if it has been visited before
-				for(Object v : visited){
-					if(((Integer)v).intValue() == ((Integer)n).intValue())
+				for(Integer v : visited){
+					if(v.intValue() == n){
 						wasVisited = true;
+						break;
+					}
 				}
 				//check if the node is unnoccupied
-				boolean nodeUnoccupied = true;
-				for(Object sett : bd.getSettlements()){
-					if(((SOCPlayingPiece)sett).getCoordinates()==((Integer)n).intValue())
-						nodeUnoccupied = false; //we found a piece there
-				}	
-				for(Object city : bd.getCities()){
-					if(((SOCPlayingPiece)city).getCoordinates()==((Integer)n).intValue())
-						nodeUnoccupied = false; //we found a piece there
-				}
+				boolean nodeUnoccupied = (null == bd.settlementAtNode(n));
 				//check that the edge is unoccupied
-				boolean edgeUnoccupied = true;
-				for(Object road : bd.getRoads()){
-					if(((SOCPlayingPiece)road).getCoordinates()==edge)
-						edgeUnoccupied = false; //we found a piece there
-				}
+				boolean edgeUnoccupied = (null == bd.roadOrShipAtEdge(edge));
 				//we are (either connected to the next node or the edge is empty) and the next node is either free or has one of our pieces
-				if((p.hasRoadOrShipAtEdge(edge) || edgeUnoccupied) && (nodeUnoccupied || p.hasSettlementOrCityAtNode(((Integer)n).intValue()))){
+				if((p.hasRoadOrShipAtEdge(edge) || edgeUnoccupied) && (nodeUnoccupied || p.hasSettlementOrCityAtNode(n))){
 					if(!wasVisited)
 						stack.add(n);
 				}
@@ -5999,23 +6021,25 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 	private boolean pathAndRoadsExist(int start, int finish, SOCPlayer p){
 		SOCGame game = getGame();
 		SOCBoard bd = game.getBoard();
-		Vector visited = new Vector();
-		Stack stack = new Stack();
+		Vector<Integer> visited = new Vector<>();
+		Stack<Integer> stack = new Stack<>();
 		stack.add(Integer.valueOf(start));
 		while(!stack.empty()){
-			Integer coord = (Integer) stack.pop();
+			Integer coord = stack.pop();
 			visited.add(coord);
 			if(coord.intValue()==finish)
 				return true;
-			Vector adjacents = bd.getAdjacentNodesToNode(coord.intValue());
+			List<Integer> adjacents = bd.getAdjacentNodesToNode(coord.intValue());
 			//check if adjacents can be accessed (i.e. the edge is empty or has one of our pieces)
-			for(Object n : adjacents){
-				int edge = bd.getEdgeBetweenAdjacentNodes(coord.intValue(), ((Integer)n).intValue());
+			for(Integer n : adjacents){
+				int edge = bd.getEdgeBetweenAdjacentNodes(coord.intValue(), n);
 				boolean wasVisited = false;
 				//check if it was visited before
-				for(Object v : visited){
-					if(((Integer)v).intValue() == ((Integer)n).intValue())
+				for(Integer v : visited){
+					if(v.intValue() == n) {
 						wasVisited = true;
+						break;
+					}
 				}
 				//if we are connected to the next node add to stack
 				if(p.hasRoadOrShipAtEdge(edge)){
@@ -6060,7 +6084,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 	private int calcMaxDepthWithPath(int start, SOCPlayer p){
 		SOCGame game = getGame();
 		SOCBoard bd = game.getBoard();
-		Vector visited = new Vector();
+		Vector<Integer> visited = new Vector<>();
 		HashMap<Integer, Integer> coordToDepth = new HashMap<Integer, Integer>();
 		Queue q = new Queue();
 		q.put(Integer.valueOf(start));
@@ -6071,28 +6095,25 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 				break; //we don't have more than 15 roads anyway
 			Integer coord = (Integer) q.get();
 			//as we get one from the q we update the depth to the corresponding one in the map so we always keep track of the depth
-			depth = coordToDepth.get(coord).intValue();
+			depth = coordToDepth.get(coord);
 			visited.add(coord);
-			Vector adjacents = bd.getAdjacentNodesToNode(coord.intValue());
+			List<Integer> adjacents = bd.getAdjacentNodesToNode(coord);
 			//add to map that tracks depth
-			for(Object n : adjacents){
-				coordToDepth.put((Integer) n, Integer.valueOf(depth+1)); //next level so + 1
-			}
+			for(Integer n : adjacents)
+				coordToDepth.put(n, Integer.valueOf(depth+1)); //next level so + 1
 			
 			//check if adjacents can be accessed (i.e. the edge is empty or has one of our pieces)
-			for(Object n : adjacents){
-				int edge = bd.getEdgeBetweenAdjacentNodes(coord.intValue(), ((Integer)n).intValue());
+			for(Integer n : adjacents){
+				int edge = bd.getEdgeBetweenAdjacentNodes(coord, n);
 				boolean wasVisited = false;
 				//check if it was visited before
-				for(Object v : visited){
-					if(((Integer)v).intValue() == ((Integer)n).intValue())
+				for(Integer v : visited){
+					if(v.intValue() == n.intValue()) {
 						wasVisited = true;
+						break;
+					}
 				}
-				boolean unoccupied = true;
-				for(Object piece : bd.getPieces()){
-					if(((SOCPlayingPiece)piece).getCoordinates()==((Integer)n).intValue())
-						unoccupied = false; //we found a piece there
-				}	
+				boolean unoccupied = (null == bd.settlementAtNode(n));
 				//we are either connected to the next node or the edge is not occupied
 				if(p.hasRoadOrShipAtEdge(edge) || unoccupied){
 					if(!wasVisited)

@@ -21,6 +21,7 @@
  **/
 package soc.robot;
 
+import soc.game.SOCDevCard;
 import soc.game.SOCGame;
 import soc.game.SOCPlayer;
 import soc.game.SOCResourceSet;
@@ -69,6 +70,6 @@ public class SOCPossibleCard extends SOCPossiblePiece
 
     @Override
     public SOCResourceSet getResourceCost() {
-        return SOCGame.CARD_SET;
+        return SOCDevCard.COST;
     }
 }

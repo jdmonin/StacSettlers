@@ -14,6 +14,7 @@ import representation.FVGeneratorFactory;
 import representation.NumericalFVGenerator;
 import representation.NumericalFeatureVectorOffsets;
 import soc.game.SOCBoard;
+import soc.game.SOCBoard4p;
 import soc.game.SOCGame;
 import soc.game.SOCResourceConstants;
 import soc.util.SettlersOdds;
@@ -527,15 +528,14 @@ public class DBGameParser implements NumericalFeatureVectorOffsets,GameStateCons
 				ret[i] = actionFeatures[i];
 			}
 			
-			SOCBoard b = new SOCBoard(null, 4);
+			SOCBoard b = new SOCBoard4p(null);
 			b.makeNewBoard(null, false);//don't care about ports or options here
 			b.setHexLayout(StacDBHelper.transformToIntArr(ogsr.getHexLayout()));
 			b.setNumberLayout(StacDBHelper.transformToIntArr(ogsr.getNumberLayout()));
 			double[] expectedRss = new double[5];
 			int[] setts = ogsr.getSettlementsForPlayer(ogsr.getCurrentPlayer());//check if this is the correct player
 			for(int s : setts){
-				Vector hexes = b.getAdjacentHexesToNode(s);
-				for(Object h : hexes){
+				for(Integer h : b.getAdjacentHexesToNode(s)){
 					if((int)h != ogsr.getRobberHex() && b.getHexTypeFromCoord((int)h) < SOCBoard.WATER_HEX && b.getHexTypeFromCoord((int)h) > SOCBoard.DESERT_HEX){
 						expectedRss[b.getHexTypeFromCoord((int)h) - 1] += SettlersOdds.getRollsProb(b.getNumberOnHexFromCoord((int)h));
 					}
@@ -543,8 +543,7 @@ public class DBGameParser implements NumericalFeatureVectorOffsets,GameStateCons
 			}
 			int[] cities = ogsr.getCitiesForPlayer(ogsr.getCurrentPlayer());//check if this is the correct player
 			for(int c : cities){
-				Vector hexes = b.getAdjacentHexesToNode(c);
-				for(Object h : hexes){
+				for(Integer h : b.getAdjacentHexesToNode(c)){
 					if((int)h != ogsr.getRobberHex() && b.getHexTypeFromCoord((int)h) < SOCBoard.WATER_HEX && b.getHexTypeFromCoord((int)h) > SOCBoard.DESERT_HEX){
 						expectedRss[b.getHexTypeFromCoord((int)h) - 1] += 2*SettlersOdds.getRollsProb(b.getNumberOnHexFromCoord((int)h));
 					}

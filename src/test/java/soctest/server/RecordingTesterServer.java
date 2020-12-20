@@ -28,6 +28,8 @@ import java.util.Vector;
 import soc.message.SOCMessage;
 import soc.message.SOCServerPing;
 import soc.server.SOCServer;
+import soc.server.database.SOCDBHelper;
+import soc.server.logger.SOCNullLogger;
 
 /**
  * Non-testing class: Server which records game events into {@link #records}
@@ -77,7 +79,7 @@ public class RecordingTesterServer
     public RecordingTesterServer()
         throws IllegalStateException
     {
-        super(STRINGPORT_NAME, PROPS);
+        super(STRINGPORT_NAME, (SOCDBHelper) null, PROPS, new SOCNullLogger(), false);
     }
 
     @Override

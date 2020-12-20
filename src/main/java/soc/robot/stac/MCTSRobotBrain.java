@@ -43,20 +43,22 @@ import soc.dialogue.StacTradeMessage;
 import soc.game.SOCBoard;
 import soc.game.SOCCity;
 import soc.game.SOCDevCardConstants;
-import soc.game.SOCDevCardSet;
 import soc.game.SOCGame;
+import soc.game.SOCInventory;
 import soc.game.SOCPlayer;
 import soc.game.SOCPlayingPiece;
 import soc.game.SOCResourceConstants;
 import soc.game.SOCResourceSet;
 import soc.game.SOCRoad;
+import soc.game.SOCRoutePiece;
 import soc.game.SOCSettlement;
 import soc.game.SOCTradeOffer;
 import soc.game.StacTradeOffer;
-import soc.message.SOCDevCard;
+import soc.message.SOCDevCardAction;
 import soc.message.SOCGameState;
 import soc.message.SOCGameTextMsg;
 import soc.message.SOCPlayerElement;
+import soc.message.SOCPlayerElement.PEType;
 import soc.message.SOCPutPiece;
 import soc.message.SOCRobotFlag;
 import soc.robot.SOCBuildPlanStack;
@@ -637,7 +639,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
     
     
 	protected void rollOrPlayKnightOrExpectDice() {
-		expectPLAY = false;
+		expectROLL_OR_CARD = false;
 		if ((!waitingForOurTurn) && (ourTurn)) {
 			if (!expectPLAY1 && !expectDISCARD && !expectPLACING_ROBBER && !(expectDICERESULT && (counter < 4000))) {
 				getActionForPLAY();
@@ -881,7 +883,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 				illegal = true;
 				D.ebugERROR("Illegal attempt to place the robber - placing back in the same location; Player"
 						+ getPlayerNumber());
-			} else if (game.getBoard().getHexTypeFromCoord(tempHex) > SOCBoard.MAX_LAND_HEX) {
+			} else if (! game.getBoard().isHexOnLand(tempHex)) {
 				illegal = true;
 				D.ebugERROR("Illegal attempt to place the robber - no land hex; Player" + getPlayerNumber());
 			}
@@ -901,7 +903,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 		client.put(SOCRobotFlag.toCmd(getGame().getName(), true, getPlayerNumber()));
 	}
 	
-	@Override
+	// -- merge TODO: move to a RobberStrategy
 	protected void chooseRobberVictim(boolean[] choices) {
 		D.ebugPrintINFO("Player " + getPlayerNumber() + " choosing victim " + robberVictim);
 		pause(1);
@@ -909,11 +911,11 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 		pause(1);
 	}
 	
-    @Override
+    // -- merge TODO: move to a DiscardStrategy
     protected void discard(int numDiscards) {
     	SOCResourceSet discards = new SOCResourceSet();
     	if(numDiscards >= ((CatanConfig) gameFactory.getConfig()).N_MAX_DISCARD){//it would take too long if we have to compute all combinations over this
-    		 SOCGame.discardPickRandom(ourPlayerData.getResources(), numDiscards, discards, rand);
+    		 SOCGame.discardOrGainPickRandom(ourPlayerData.getResources(), numDiscards, true, discards, rand);
     		 D.ebugPrintlnINFO("Player " + getPlayerNumber() + " random discards due to large amount of resources");//I want to see how often this happens
     	}else{
     		//we use MCTS to decide
@@ -924,7 +926,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
         		counter ++;
         		if(counter >5){
         			D.ebugERROR("Player " + getPlayerNumber() + " Planning discards using MCTS failed 5 times, discarding at random");
-        			SOCGame.discardPickRandom(ourPlayerData.getResources(), numDiscards, discards, rand);
+        			SOCGame.discardOrGainPickRandom(ourPlayerData.getResources(), numDiscards, true, discards, rand);
         			break;
         		}
         		
@@ -1037,7 +1039,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 	                break;
 	            case A_BUILDCITY:
 	                coord = translateVertexToJSettlers(action[1]);
-	                targetPiece = new SOCPossibleCity(this, getPlayerData(), coord);
+	                targetPiece = new SOCPossibleCity(getPlayerData(), coord, getEstimatorFactory());
 	                lastMove = targetPiece;
 	                waitingForGameState = true;
 	                counter = 0;
@@ -1062,7 +1064,8 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 	                
 	                break;
 	            case A_PLAYCARD_MONOPOLY:
-	                decisionMaker.monopolyChoice = translateResToJSettlers(action[1]);
+	                // -- merge TODO: move to a MonopolyStrategy
+	                // is really: decisionMaker.monopolyChoice = translateResToJSettlers(action[1]);
 	                expectWAITING_FOR_MONOPOLY = true;
 	                waitingForGameState = true;
 	                counter = 0;
@@ -1189,7 +1192,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 	            case A_ENDTURN:
 	                waitingForGameState = true;
 	                counter = 0;
-	                expectPLAY = true;
+	                expectROLL_OR_CARD = true;
 	                waitingForOurTurn = true;
 	
 	                if (robotParameters.getTradeFlag() == 1)
@@ -1219,7 +1222,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 	        	D.ebugERROR("Forcing end turn MCTS robot; unable to find plan in PLAY1 state; Player " + getPlayerNumber());
 	        	waitingForGameState = true;
                 counter = 0;
-                expectPLAY = true;
+                expectROLL_OR_CARD = true;
                 waitingForOurTurn = true;
 
                 if (robotParameters.getTradeFlag() == 1)
@@ -1247,13 +1250,13 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
     }
     
     @Override
-    protected void handleDEVCARD(SOCDevCard mes){
-    	super.handleDEVCARD(mes);
+    protected void handleDEVCARDACTION(SOCDevCardAction mes){
+    	super.handleDEVCARDACTION(mes);
     	
     	if (isRobotType(MCTSRobotType.MCTS_FACTORED_BELIEF)) {
     		switch (mes.getAction())
 	        {
-	        case SOCDevCard.DRAW:
+	        case SOCDevCardAction.DRAW:
 	            if(mes.getPlayerNumber() == getPlayerNumber() || //in this case we observe the card type we drew
 	            (mes.getCardType() >= SOCDevCardConstants.CAP && mes.getCardType() < SOCDevCardConstants.UNKNOWN)){ // when drawing vp is observable
 	            	getGame().devCardPlayed(mes.getCardType());
@@ -1264,7 +1267,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 	            }
 	            break;
 	
-	        case SOCDevCard.PLAY:
+	        case SOCDevCardAction.PLAY:
 	            if(mes.getPlayerNumber() != getPlayerNumber()){//only if we are not playing it so we don't update twice;
 	            	getGame().devCardPlayed(mes.getCardType());
 	            }
@@ -1277,7 +1280,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
     
     protected void handleGAMESTATE(SOCGameState mes) {
     	if(isRobotType(MCTSRobotType.MCTS_FACTORED_BELIEF) && game.getCurrentPlayerNumber() != -1){
-    		if(game.getGameState() != SOCGame.OVER && game.getGameState() != SOCGame.PLACING_ROBBER && game.getGameState() != SOCGame.WAITING_FOR_CHOICE) {
+    		if(game.getGameState() != SOCGame.OVER && game.getGameState() != SOCGame.PLACING_ROBBER && game.getGameState() != SOCGame.WAITING_FOR_ROB_CHOOSE_PLAYER) {
     			int pn = game.getCurrentPlayerNumber();
     			if(getPlayerNumber() != pn) {
     				//include the "revealed" VP that are sometimes inferred by the belief model when revisions are performed
@@ -1326,9 +1329,9 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
         	//and ignore the set action as this only takes place when the dice is rolled and for the current player
         	if(action != SOCPlayerElement.SET){
         		//ignore the special case of gaining/losing from robbing someone as this requires knowledge of both players involved ad a specific order to be executed
-        		if(!(resourceType == SOCPlayerElement.UNKNOWN && amount == 1)){
+        		if(!(resourceType == PEType.UNKNOWN_RESOURCE.getValue() && amount == 1)){
         			ResourceSet set;
-        			if(resourceType == SOCPlayerElement.UNKNOWN){
+        			if(resourceType == PEType.UNKNOWN_RESOURCE.getValue()){
         				set = new ResourceSet(amount);
         			}else if(monopolyPhase && action == SOCPlayerElement.LOSE){
         				set = new ResourceSet(amount, translateResToSmartSettlers(resourceType));
@@ -1374,19 +1377,16 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 	        //so we can handle the situation when a player cancels a settlement
 	        SOCResourceSet rs = new SOCResourceSet();
 	        if ((mes.getPieceType() == SOCPlayingPiece.ROAD)
-	                && p.getRoads().size() == 2
+	                && p.getRoadsAndShips().size() == 2
 	                && p.getSettlements().size() == 2 
 	                && p.getCities().isEmpty() ) {
 	        	
-	            SOCPlayerTracker tr = (SOCPlayerTracker) playerTrackers.get
-	                    (Integer.valueOf(mes.getPlayerNumber()));
+	            SOCPlayerTracker tr = playerTrackers[mes.getPlayerNumber()];
 	                SOCSettlement se = tr.getPendingInitSettlement();
 	                
-	            Enumeration hexes = SOCBoard.getAdjacentHexesToNode(se.getCoordinates()).elements();
-	            while (hexes.hasMoreElements())
+	            for (Integer hex : game.getBoard().getAdjacentHexesToNode(se.getCoordinates()))
 	            {
-	                Integer hex = (Integer) hexes.nextElement();
-	                int type = game.getBoard().getHexTypeFromCoord(hex.intValue());
+	                int type = game.getBoard().getHexTypeFromCoord(hex);
 	                if (type>=SOCResourceConstants.CLAY && type <= SOCResourceConstants.WOOD) { 
 	                    rs.add(1, type);
 	                }
@@ -1405,7 +1405,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 		/*
 		 * if there is a single option just roll
 		 */
-		if (ourPlayerData.getDevCards().getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.KNIGHT) > 0){
+		if (ourPlayerData.getInventory().getAmount(SOCInventory.OLD, SOCDevCardConstants.KNIGHT) > 0){
 			expectDICERESULT = true;
 			counter = 0;
 			D.ebugPrintlnINFO("Player " + getPlayerNumber() + " rolling dice");
@@ -1637,14 +1637,17 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
     	}
 		mcts.shutdownNow(false);
 	}
-	
-	public void debugPrintBrainStatus() {
-        super.debugPrintBrainStatus();
+
+	@Override
+	public List<String> debugPrintBrainStatus() {
+        	List<String> ret = super.debugPrintBrainStatus();
         
         //print out the belief model to check if this caused any issues
         if (isRobotType(MCTSRobotType.MCTS_FACTORED_BELIEF)) {
-        	System.err.println(beliefModel.toString());
+        	ret.add(beliefModel.toString());
         }
+
+		return ret;
 	}
 	
     ///////////////////TRANSLATION METHODS FROM SSCLIENT//////////////
@@ -1654,8 +1657,10 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
      * @param GAMESTATE the current state
      * @param currentOffer the offer made to us by another player
      * @return 
+     * @throws IllegalStateException if an item cannot be generated (via CloneNotSupportedException); this is unlikely
      */
     private Game generateGame(int GAMESTATE, int[] currentOffer)
+        throws IllegalStateException
     {
     	//hacky but the whole of JSettlers is hacky...this should be set in the constructor but there is no player number at that point
     	if(isRobotType(MCTSRobotType.MCTS_NN_SEEDING))
@@ -1832,22 +1837,14 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 			st[OFS_DICE] = val;
 		}
         
-        v = game.getBoard().getSettlements();
-        pEnum = v.elements();
-        while (pEnum.hasMoreElements())
+        for (SOCSettlement p : game.getBoard().getSettlements())
         {
-            SOCSettlement p = (SOCSettlement) pEnum.nextElement();
-            
             indn = translateVertexToSmartSettlers(p.getCoordinates());
             val = p.getPlayer().getPlayerNumber();
             st[OFS_VERTICES+indn] = VERTEX_HASSETTLEMENT + val;
         }
-        v = game.getBoard().getCities();
-        pEnum = v.elements();
-        while (pEnum.hasMoreElements())
+        for (SOCCity p : game.getBoard().getCities())
         {
-            SOCCity p = (SOCCity) pEnum.nextElement();
-            
             indn = translateVertexToSmartSettlers(p.getCoordinates());
             val = p.getPlayer().getPlayerNumber();
             st[OFS_VERTICES+indn] = VERTEX_HASCITY + val;
@@ -1871,12 +1868,8 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
                 st[OFS_VERTICES + i] = VERTEX_TOOCLOSE;
         }
 
-        v = game.getBoard().getRoads();
-        pEnum = v.elements();
-        while (pEnum.hasMoreElements())
+        for (SOCRoutePiece p : game.getBoard().getRoadsAndShips())
         {
-            SOCRoad p = (SOCRoad) pEnum.nextElement();
-            
             indn = translateEdgeToSmartSettlers(p.getCoordinates());
             val = p.getPlayer().getPlayerNumber();
             st[OFS_EDGES+indn] = EDGE_OCCUPIED + val;
@@ -1899,7 +1892,12 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
         for (pl=0; pl<NPLAYERS; pl++)
         {
         	SOCPlayer p = game.getPlayer(pl);
-        	SOCDevCardSet ds = new SOCDevCardSet(p.getDevCards());
+        	SOCInventory ds;
+        	try {
+        		ds = new SOCInventory(p.getInventory());
+        	} catch (CloneNotSupportedException e) {
+        		throw new IllegalStateException("pn " + pl + " inventory clone failed: " + e, e);
+        	}
         	//JSettlers updates new cards at beginning of a player's turn, Catan/CatanWithBelief updates these at end of turn. Update them for all players except the current one
         	if(pl != game.getCurrentPlayerNumber())
         		ds.newToOld();
@@ -1938,27 +1936,27 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
                 
                 //the following should be set to 0 if the player in question is not this one, apart from the total that contains the unknowns
                 st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + CARD_KNIGHT] = 
-                        ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.KNIGHT);
+                        ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.KNIGHT);
                 st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + CARD_FREEROAD] = 
-                        ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.ROADS);
+                        ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.ROADS);
                 st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + CARD_FREERESOURCE] = 
-                        ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.DISC);
+                        ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.DISC);
                 st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + CARD_MONOPOLY] = 
-                        ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.MONO);
+                        ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.MONO);
                 st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + CARD_ONEPOINT] = 0;
-                st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + N_DEVCARDTYPES] = ds.getNumNewCards();
+                st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + N_DEVCARDTYPES] = ds.getNumUnplayed();
 
                 //the following should be set to 0 if the player in question is not this one, apart from the total that contains the unknowns
                 st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_KNIGHT] = 
-                        ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.KNIGHT);
+                        ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.KNIGHT);
                 st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_FREEROAD] = 
-                        ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.ROADS);
+                        ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.ROADS);
                 st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_FREERESOURCE] = 
-                        ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.DISC);
+                        ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.DISC);
                 st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_MONOPOLY] = 
-                        ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.MONO);
-                st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_ONEPOINT] = ds.getNumVPCards();
-                st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + N_DEVCARDTYPES] = ds.getNumOldCards();
+                        ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.MONO);
+                st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_ONEPOINT] = ds.getNumVPItems();
+                st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + N_DEVCARDTYPES] = ds.getByState(SOCInventory.PLAYABLE).size() + ds.getByState(SOCInventory.KEPT).size();
                 
             }else {
 	            st[OFS_PLAYERDATA[pl] + OFS_RESOURCES + RES_CLAY ] = rs.getAmount(SOCResourceConstants.CLAY);
@@ -1968,24 +1966,24 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 	            st[OFS_PLAYERDATA[pl] + OFS_RESOURCES + RES_WHEAT] = rs.getAmount(SOCResourceConstants.WHEAT);
 	            
 	            st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + CARD_KNIGHT] = 
-	                    ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.KNIGHT);
+	                    ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.KNIGHT);
 	            st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + CARD_FREEROAD] = 
-	                    ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.ROADS);
+	                    ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.ROADS);
 	            st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + CARD_FREERESOURCE] = 
-	                    ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.DISC);
+	                    ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.DISC);
 	            st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + CARD_MONOPOLY] = 
-	                    ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.MONO);
+	                    ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.MONO);
 	            st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + CARD_ONEPOINT] = 0;
 	
 	            st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_KNIGHT] = 
-	                    ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.KNIGHT);
+	                    ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.KNIGHT);
 	            st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_FREEROAD] = 
-	                    ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.ROADS);
+	                    ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.ROADS);
 	            st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_FREERESOURCE] = 
-	                    ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.DISC);
+	                    ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.DISC);
 	            st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_MONOPOLY] = 
-	                    ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.MONO);
-	            st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_ONEPOINT] = ds.getNumVPCards();
+	                    ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.MONO);
+	            st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_ONEPOINT] = ds.getNumVPItems();
             }
             
             
@@ -2226,8 +2224,8 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 				continue;
 			hn = translateHexToSmartSettlers(ho, bl);
 			int i = 0;
-			Vector vlist = SOCBoard.getAdjacentNodesToHex(ho);
-			Vector elist = SOCBoard.getAdjacentEdgesToHex(ho);
+			Vector vlist = SOCBoard.getAdjacentNodesToHex_SSettlers(ho);
+			Vector elist = SOCBoard.getAdjacentEdgesToHex_SSettlers(ho);
 			for (i = 0; i < 6; i++) {
 				vo = (Integer) vlist.get(i);
 				vn = bl.neighborHexVertex[hn][i];
@@ -2288,9 +2286,9 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 			return CARD_ONEPOINT;
 		case SOCDevCardConstants.TEMP:
 			return CARD_ONEPOINT;
-		case SOCDevCardConstants.TOW:
+		case SOCDevCardConstants.CHAPEL:
 			return CARD_ONEPOINT;
-		case SOCDevCardConstants.LIB:
+		case SOCDevCardConstants.MARKET:
 			return CARD_ONEPOINT;
 		case SOCDevCardConstants.UNIV:
 			return CARD_ONEPOINT;

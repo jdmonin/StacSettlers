@@ -170,7 +170,7 @@ public class TestBoardLayouts
                 try
                 {
                     ga.addPlayer("player", 1);
-                    ga.startGame();  // SOCBoardAtServer.makeNewBoard is called here (SOCBoard if classic/no scenario).
+                    ga.startGame(-1, false);  // SOCBoardAtServer.makeNewBoard is called here (SOCBoard if classic/no scenario).
                         // If board has Added Layout Part "AL" (SC_WOND), it's parsed and consistency-checked
                         // during makeNewBoard, which calls SOCBoardLarge.initLegalRoadsFromLandNodes()
 

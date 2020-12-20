@@ -49,7 +49,7 @@ import org.xml.sax.SAXException;
 
 import representation.FVGenerator;
 import representation.FVGeneratorFactory;
-import soc.client.SOCDisplaylessPlayerClient;
+import soc.baseclient.SOCDisplaylessPlayerClient;
 import soc.dialogue.StacDialogueManager;
 import soc.dialogue.StacTradeMessage;
 import soc.disableDebug.D;
@@ -63,7 +63,7 @@ import soc.game.SOCResourceSet;
 import soc.game.SOCSettlement;
 import soc.game.SOCTradeOffer;
 import soc.game.StacTradeOffer;
-import soc.message.SOCDevCard;
+import soc.message.SOCDevCardAction;
 import soc.message.SOCGameCopy;
 import soc.message.SOCGameStats;
 import soc.message.SOCGameTextMsg;
@@ -72,6 +72,7 @@ import soc.message.SOCPlayerElement;
 import soc.message.SOCPutPiece;
 import soc.robot.SOCBuildPlanStack;
 import soc.robot.SOCBuildingSpeedEstimate;
+import soc.robot.SOCBuildingSpeedEstimateFactory;
 import soc.robot.SOCBuildingSpeedFast;
 import soc.robot.SOCBuildingSpeedFastFractional;
 import soc.robot.SOCBuildingSpeedProbabilistic;
@@ -367,9 +368,8 @@ public class StacRobotBrain extends SOCRobotBrain<StacRobotDM, PersuasionStacRob
         }
         else {
             // The existing handling of known resource adding/subtracting/setting is suitable for use.      
-            SOCPlayerElement mes = new SOCPlayerElement(null, player.getPlayerNumber(), action, resourceType, amount);
             SOCDisplaylessPlayerClient.handlePLAYERELEMENT_numRsrc
-            (mes, player, resourceType);
+                (player, action, resourceType, amount);
         }          
         
 
@@ -405,7 +405,7 @@ public class StacRobotBrain extends SOCRobotBrain<StacRobotDM, PersuasionStacRob
     }
 
     public List<SettlementNode> getLegalSettlements(SOCPlayer p) {
-        List<Integer> legalSettlements = p.getLegalSettlements();
+        Set<Integer> legalSettlements = p.getLegalSettlements();
 
         List<SettlementNode> ret = new ArrayList<SettlementNode>(legalSettlements.size());
         // Iterate through settlements.  Doesn't matter which player we use, all have 
@@ -435,19 +435,17 @@ public class StacRobotBrain extends SOCRobotBrain<StacRobotDM, PersuasionStacRob
         //so we can handle the situation when a player cancels a settlement
         SOCResourceSet rs = new SOCResourceSet();
         if ((mes.getPieceType() == SOCPlayingPiece.ROAD)
-                && p.getRoads().size() == 2
+                && p.getRoadsAndShips().size() == 2
                 && p.getSettlements().size() == 2 
                 && p.getCities().isEmpty() ) {
         	
-            SOCPlayerTracker tr = (SOCPlayerTracker) playerTrackers.get
-                    (Integer.valueOf(mes.getPlayerNumber()));
+            SOCPlayerTracker tr = playerTrackers[mes.getPlayerNumber()];
                 SOCSettlement se = tr.getPendingInitSettlement();
                 
-            Enumeration hexes = SOCBoard.getAdjacentHexesToNode(se.getCoordinates()).elements();
-            while (hexes.hasMoreElements())
+            SOCBoard board = game.getBoard();
+            for (Integer hex : board.getAdjacentHexesToNode(se.getCoordinates()))
             {
-                Integer hex = (Integer) hexes.nextElement();
-                int type = game.getBoard().getHexTypeFromCoord(hex.intValue());
+                int type = board.getHexTypeFromCoord(hex.intValue());
                 if (type>=SOCResourceConstants.CLAY && type <= SOCResourceConstants.WOOD) { 
                     declarativeMemory.addOpponentResourcesObserved(mes.getPlayerNumber(), type, 1);
                     rs.add(1, type);
@@ -580,6 +578,35 @@ public class StacRobotBrain extends SOCRobotBrain<StacRobotDM, PersuasionStacRob
         return response;
     }
 
+    protected SOCBuildingSpeedEstimateFactory createEstimatorFactory() {
+        return new SOCBuildingSpeedEstimateFactory(this) {
+
+            public SOCBuildingSpeedEstimate getEstimator() {
+                if (isRobotType(StacRobotType.BSE_ACCURATE))
+                    return new SOCBuildingSpeedProbabilistic();
+                else if (isRobotType(StacRobotType.BSE_FRACTIONAL))
+                    return new SOCBuildingSpeedFastFractional();
+                else
+                    return new SOCBuildingSpeedFast();
+            }
+
+            public SOCBuildingSpeedEstimate getEstimator(final SOCPlayerNumbers numbers) {
+                if (isRobotType(StacRobotType.BSE_ACCURATE))
+                    return new SOCBuildingSpeedProbabilistic(numbers);
+                else if (isRobotType(StacRobotType.BSE_FRACTIONAL))
+                    return new SOCBuildingSpeedFastFractional(numbers);
+                else if (isRobotType(StacRobotType.BSE_USING_BELIEFS))
+                    return new StacBuildingSpeedFastUsingBeliefs(numbers, StacRobotBrain.this);
+                else
+                    return new SOCBuildingSpeedFast(numbers);
+            }
+
+            public final int[] getRollsForResourcesSorted(final SOCPlayer pl) {
+                return SOCBuildingSpeedEstimate.getRollsForResourcesSorted(pl);
+            }
+        };
+    }
+
     @Override
     protected SOCBuildPlanStack createBuildPlan() {
         return new SOCBuildPlanStack();
@@ -655,11 +682,11 @@ public class StacRobotBrain extends SOCRobotBrain<StacRobotDM, PersuasionStacRob
     }
     
     @Override
-    protected void handleDEVCARD(SOCDevCard mes){
-    	super.handleDEVCARD(mes);
+    protected void handleDEVCARDACTION(SOCDevCardAction mes){
+    	super.handleDEVCARDACTION(mes);
     	
     	//if ( isRobotType(StacRobotType.MDP_LEARNING_NEGOTIATOR) )
-    	//	negotiator.mdp_negotiator.handleDEVCARD( mes );
+    	//	negotiator.mdp_negotiator.handleDEVCARDACTION( mes );
 
     }
     
@@ -668,7 +695,9 @@ public class StacRobotBrain extends SOCRobotBrain<StacRobotDM, PersuasionStacRob
      * Also check whether trade embargoes are to be proposed or lifted.
      */
     @Override
-    protected void startTurnActions(int player) {
+    protected void startTurnMainActions() {
+        int player = getGame().getCurrentPlayerNumber();
+
         nOfOffersWithoutBuildingAction = 0;
         
         //allow the negotiator to take turn initial actions (like proposing or lifting embargoes)
@@ -764,49 +793,32 @@ public class StacRobotBrain extends SOCRobotBrain<StacRobotDM, PersuasionStacRob
     }
     
     @Override
-    public void debugPrintBrainStatus() {
-        super.debugPrintBrainStatus();
-        List<String> waitKeys = declarativeMemory.getWaiting();
-        for (String s : waitKeys) {
+    public List<String> debugPrintBrainStatus() {
+        List<String> rbSta = super.debugPrintBrainStatus();
+
+        for (String s : declarativeMemory.getWaiting()) {
             printMess("DlgMgr Waiting: " + s);
-            sendText("DlgMgr Waiting: " + s);
+            rbSta.add("DlgMgr Waiting: " + s);
         }
         
         if (waitingForTradeMsg || waitingForTradeResponse) {
-            System.err.println("Current player responses:");
+            rbSta.add("Current player responses:");
             for (int p = 0; p < game.maxPlayers; p++) {
-                System.err.println(p + " " + game.getPlayerNames()[p] + ": " + getDialogueManager().getPlayerResponse(p));
+                rbSta.add(p + " " + game.getPlayerNames()[p] + ": " + getDialogueManager().getPlayerResponse(p));
             }
         }
+
+        return rbSta;
     }
     
     @Override
     public SOCBuildingSpeedEstimate getEstimator(SOCPlayerNumbers numbers) {
-        if (isRobotType(StacRobotType.BSE_ACCURATE)) {
-            return new SOCBuildingSpeedProbabilistic(numbers);
-        }
-        else if (isRobotType(StacRobotType.BSE_FRACTIONAL)) {
-            return new SOCBuildingSpeedFastFractional(numbers);
-        }
-        else if (isRobotType(StacRobotType.BSE_USING_BELIEFS)) {
-            return new StacBuildingSpeedFastUsingBeliefs(numbers, this);
-        }
-        else {
-            return new SOCBuildingSpeedFast(numbers);
-        }
+        return bseFactory.getEstimator(numbers);
     }
     
     @Override
     public SOCBuildingSpeedEstimate getEstimator() {
-        if (isRobotType(StacRobotType.BSE_ACCURATE)) {
-            return new SOCBuildingSpeedProbabilistic();
-        }
-        else if (isRobotType(StacRobotType.BSE_FRACTIONAL)) {
-            return new SOCBuildingSpeedFastFractional();
-        }
-        else {
-            return new SOCBuildingSpeedFast();
-        }
+        return bseFactory.getEstimator();
     }
     
     // Debug function - send a chat message to the game to be reviewed with replay client
@@ -1183,7 +1195,8 @@ public class StacRobotBrain extends SOCRobotBrain<StacRobotDM, PersuasionStacRob
     	SOCTradeOffer failedoffer = declarativeMemory.getMyNegotiatedOffer();
     	//if it is our turn and a player tried to exploit the trade confirmation limitation or didn't realise it doesn't have enough
 		//resources, resend my negotiated offer to everyone excluding the player 
-    	if((txt.startsWith(SOCServer.MSG_ILLEGAL_TRADE) || txt.startsWith(SOCServer.MSG_REJECTED_TRADE_CONFIRMATION)) && isOurTurn() 
+        // -- merge TODO: look for SOCAcceptOffer(SOCBankTrade.PN_REPLY_CANNOT_MAKE_TRADE) or "confirmation rejected" data message instead
+    	if(false  //// (txt.startsWith(SOCServer.MSG_ILLEGAL_TRADE) || txt.startsWith(SOCServer.MSG_REJECTED_TRADE_CONFIRMATION)) && isOurTurn() 
                 && failedoffer != null){
     		
             declarativeMemory.stopWaiting();

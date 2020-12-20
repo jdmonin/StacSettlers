@@ -29,6 +29,7 @@ import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
+import java.util.Vector;
 
 
 /**
@@ -410,9 +411,33 @@ public abstract class SOCBoard implements Serializable, Cloneable
     protected static final int MINHEX = 0x11;
 
     /**
+     * largest coordinate value for an edge, in the v1 encoding.
+     * Named <tt>MAXEDGE</tt> before v1.1.11 ; the name change is a
+     * reminder that {@link SOCBoard6p#MAXEDGE_V2} represents a different encoding.
+     * @since 1.1.11
+     */
+    public static final int MAXEDGE_V1 = 0xCC;
+
+    /**
+     * smallest coordinate value for an edge, in the v1 encoding.
+     * Named <tt>MINEDGE</tt> before v1.1.11 ; the name change is a
+     * reminder that {@link SOCBoard6p#MINEDGE_V2} has a different value.
+     * @since 1.1.11
+     */
+    protected static final int MINEDGE_V1 = 0x22;
+
+    /**
+     * smallest coordinate value for a node on land, in the v1 encoding.
+     * Named <tt>MINNODE</tt> before v1.1.11 ; the name change is a
+     * reminder that {@link SOCBoard6p#MINNODE_V2} has a different value.
+     * @since 1.1.11
+     */
+    protected static final int MINNODE_V1 = 0x23;
+
+    /**
      * largest coordinate value for a node on land, in the v1 and v2 encodings
      */
-    private static final int MAXNODE = 0xDC;
+    public static final int MAXNODE = 0xDC;
 
     /***************************************
      * Hex data array, one element per water or land (or port, which is special water) hex.
@@ -714,7 +739,7 @@ public abstract class SOCBoard implements Serializable, Cloneable
     public static SOCBoard generateDefaultBoard()
         throws IllegalArgumentException
     {
-        SOCBoard bd = new SOCBoard(null, 4);
+        SOCBoard bd = new SOCBoard4p(null);
         bd.makeNewBoard(null,true);
         final int standardMapPorts[] = { 0, SHEEP_PORT, 0, 0, CLAY_PORT, WOOD_PORT, 0, WHEAT_PORT, ORE_PORT };
         bd.portsLayout = standardMapPorts;
@@ -885,6 +910,16 @@ public abstract class SOCBoard implements Serializable, Cloneable
      *          tile placement on board, or null.  <tt>opts</tt> must be
      *          the same as passed to constructor, and thus give the same size and layout
      *          (same {@link #getBoardEncodingFormat()}).
+     */
+    public void makeNewBoard(final SOCGameOptionSet opts)
+    {
+        makeNewBoard(opts, false);
+    }
+
+    /**
+     * Fill the board layout for a game being started: See {@link #makeNewBoard(SOCGameOptionSet)} for details.
+     * @param opts {@link SOCGameOption Game options}, or null
+     * @param defaultPorts  True to use the default board configuration for STAC, instead of shuffling ports
      */
     public void makeNewBoard(final SOCGameOptionSet opts, boolean defaultPorts)
     {
@@ -1670,11 +1705,11 @@ public abstract class SOCBoard implements Serializable, Cloneable
         /**
          * initialize the port vector
          */
-        ports = new Vector[6];  // 1 per resource type, MISC_PORT to WOOD_PORT
-        ports[MISC_PORT] = new Vector(8);
+        ports = new ArrayList[6];  // 1 per resource type, MISC_PORT to WOOD_PORT
+        ports[MISC_PORT] = new ArrayList<>(8);
         for (int i = CLAY_PORT; i <= WOOD_PORT; i++)
         {
-            ports[i] = new Vector(2);
+            ports[i] = new ArrayList<>(2);
         }
 
         for (int i = 0; i < SOCBoard4p.PORTS_FACING_V1.length; ++i)
@@ -2113,6 +2148,17 @@ public abstract class SOCBoard implements Serializable, Cloneable
     }
 
     /**
+     * Get the minimum node coordinate in this board encoding format.
+     * Note that the maximum is currently {@link #MAXNODE}, so it has no getter.
+     * @return minimum possible node coordinate
+     * @since 1.1.08
+     */
+    public int getMinNode()
+    {
+        return minNode;
+    }
+
+    /**
      * For subclass constructor usage, set the board height and width.
      * Does not set node or edge ranges (minNode, maxEdge, etc) because these
      * limits aren't used in all encodings.
@@ -2162,7 +2208,7 @@ public abstract class SOCBoard implements Serializable, Cloneable
     /**
      * Adjacent node coordinates to an edge, within valid range to be on the board.
      *<P>
-     * For v1 and v2 encoding, this range is {@link SOCBoard4p#MINNODE_V1} to {@link #MAXNODE},
+     * For v1 and v2 encoding, this range is {@link #MINNODE_V1} to {@link #MAXNODE},
      *   or {@link SOCBoard6p#MINNODE_V2} to {@link #MAXNODE}.
      * For v3 encoding, nodes are around all valid land or water hexes,
      *   and the board size is {@link #getBoardHeight()} x {@link #getBoardHeight()}.
@@ -2184,7 +2230,7 @@ public abstract class SOCBoard implements Serializable, Cloneable
 
     /**
      * Adjacent node coordinates to an edge.
-     * Does not check against range {@link SOCBoard4p#MINNODE_V1} to {@link #MAXNODE},
+     * Does not check against range {@link #MINNODE_V1} to {@link #MAXNODE},
      * so nodes in the water (off the land board) may be returned.
      * @param coord  Edge coordinate; not checked for validity
      * @return the nodes that touch this edge, as an array of 2 integer coordinates
@@ -3528,6 +3574,7 @@ public abstract class SOCBoard implements Serializable, Cloneable
      *           Never returns {@code null} or empty.
      * @since 2.0.00
      * @see #getAdjacentNodesToHex_arr(int)
+     * @see #getAdjacentNodesToHexOld(int)
      * @see #getAdjacentNodeToHex(int, int)
      */
     public List<Integer> getAdjacentNodesToHex(final int hexCoord)
@@ -3565,6 +3612,8 @@ public abstract class SOCBoard implements Serializable, Cloneable
 
     /**
      * @return an array of node coordinates surrounding a hex coordinate
+     * @see #getAdjacentNodesToHex(int)
+     * @see #getAdjacentNodesToHex_SSettlers(int)
      */
     public int[] getAdjacentNodesToHexOld(final int hexCoord) throws IllegalArgumentException{
     	int[] nodes = new int[6];//always 6 nodes adjacent to a hex
@@ -3876,8 +3925,9 @@ public abstract class SOCBoard implements Serializable, Cloneable
     /**
      * Method copied from SmartSettlers in order to preserve their approach.
      * @return the NODEs adjacent to this hex
+     * @see #getAdjacentNodesToHex(int)
      */
-    public static Vector getAdjacentNodesToHex(int coord)
+    public static Vector getAdjacentNodesToHex_SSettlers(int coord)
     {
         Vector nodes = new Vector(6);
         int tmp;
@@ -3931,7 +3981,7 @@ public abstract class SOCBoard implements Serializable, Cloneable
      * Method copied from SmartSettlers in order to preserve their approach. 
      * @return the edges touching this Hex
      */
-    public static Vector getAdjacentEdgesToHex(int coord)
+    public static Vector getAdjacentEdgesToHex_SSettlers(int coord)
     {
         Vector edges = new Vector(6);
         int tmp;
@@ -3983,10 +4033,9 @@ public abstract class SOCBoard implements Serializable, Cloneable
     
     public void emptyPiecesVectors(){
         //reinitialise stuff
-    	pieces = new Vector(96);
-        roads = new Vector(60);
-        settlements = new Vector(20);
-        cities = new Vector(16);
+        roadsAndShips = new ArrayList<>(60);
+        settlements = new ArrayList<>(20);
+        cities = new ArrayList<>(16);
     }
 
     //

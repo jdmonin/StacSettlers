@@ -26,12 +26,12 @@ import soc.game.SOCPlayer;
 import soc.game.SOCResourceConstants;
 import soc.game.SOCResourceSet;
 import soc.robot.DiscardStrategy;
-import soc.robot.SOCBuildPlanStack;
+import soc.robot.SOCBuildPlan;
 import soc.robot.SOCRobotBrain;
 
 /**
  * Trivial sample discard strategy: Not recommended for actual use!
- * For details see {@link #discard(int, SOCBuildPlanStack)}.
+ * For details see {@link #discard(int, SOCBuildPlan)}.
  * @since 2.2.00
  */
 public class SampleDiscardStrategy extends DiscardStrategy
@@ -60,7 +60,7 @@ public class SampleDiscardStrategy extends DiscardStrategy
      */
     @Override
     public SOCResourceSet discard
-        (final int numDiscards, SOCBuildPlanStack buildingPlan)
+        (final int numDiscards, SOCBuildPlan buildingPlan)
     {
         SOCResourceSet currRes = ourPlayerData.getResources().copy();
 

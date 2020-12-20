@@ -99,7 +99,7 @@ public abstract class Server extends Thread implements Serializable, Cloneable
     protected static final Map<Thread, Object> startedThreads = new WeakHashMap<Thread, Object>();
     
     // start a thread and keep the reference to it
-    protected synchronized static void startThread(Thread t, Object o) {
+    public synchronized static void startThread(Thread t, Object o) {
         t.start();
         startedThreads.put(t,o);
     }
@@ -605,10 +605,8 @@ public abstract class Server extends Thread implements Serializable, Cloneable
         // Set "up" _before_ starting treater (avoid race condition)
         up = true;
 
-        Server.startThread(treater, this);
-        // No need to track this - this is automatically closed when server stops... startThread(treater);// track it as it won't get cleaned if the server doesn't get cleaned
-
         inQueue.startMessageProcessing();
+            // No need to track this - this is automatically closed when server stops... startThread(treater);// track it as it won't get cleaned if the server doesn't get cleaned
 
         serverUp();  // Any processing for child class to do after serversocket is bound, before the main loop begins
 
@@ -624,7 +622,7 @@ public abstract class Server extends Thread implements Serializable, Cloneable
                     Connection connection = ss.accept();
                     if (port != -1)
                     {
-                        startThread((NetConnection) con, this);
+                        startThread(new Thread((NetConnection) connection), this);
                     }
                     else
                     {

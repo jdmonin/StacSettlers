@@ -31,7 +31,9 @@ import java.io.DataInput;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.IOException;
 import java.io.StringWriter;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Hashtable;
@@ -61,6 +63,7 @@ import soc.game.SOCGameOption;
 import soc.game.SOCGameOptionSet;
 import soc.game.SOCPlayer;
 import soc.game.SOCScenario;
+import soc.game.StacGameParameters;
 import soc.robot.FactoryDescr;
 import soc.robot.SOCDefaultRobotFactory;
 import soc.robot.SOCRobotFactory;
@@ -440,7 +443,7 @@ public class SOCPlayerClient
      * My dialogue managers for handling NL chat input.
      */
 //    private StacPlayerDialogueManager dialogueManager;
-    private Map<String, StacPlayerDialogueManager> dialogueManagers = new HashMap<>();
+    /*package*/ Map<String, StacPlayerDialogueManager> dialogueManagers = new HashMap<>();
 
     /**
      * all announced game names on the remote server, including games which we can't
@@ -509,7 +512,7 @@ public class SOCPlayerClient
      * ---MG
      * Keeping track of whether the user has already seem the trade reminder dialog
      */
-    private boolean showDialogForTradeReminder = true;
+    /*package*/ boolean showDialogForTradeReminder = true;
 
     protected StacChatLogger logger;
 
@@ -697,6 +700,11 @@ public class SOCPlayerClient
     public String getNickname(final boolean forPractice)
     {
         return (forPractice) ? practiceNickname : nickname;
+    }
+
+    protected boolean getShowDialogForTradeReminder()
+    {
+    	return showDialogForTradeReminder;
     }
 
     protected SOCPlayerInterface getPlayerInterface(String gaName, SOCGame ga, final int[] layoutVS, final Map<String, Object> localPrefs) {
@@ -1186,15 +1194,14 @@ public class SOCPlayerClient
             }
         } else {
             //we are defaulting to use settlers.inf as server for STACSettlers
-            withConnectOrPractice = false; //true; //this shows the panel to create a local server, conenct to a remote server or start a practice game; we're not using this for the experiments
-            client = //new SOCPlayerClient(withConnectOrPractice);
-            new SOCPlayerClient("settlers.inf.ed.ac.uk", 8880, withConnectOrPractice);
+            // withConnectOrPractice = false; //true; //this shows the panel to create a local server, conenct to a remote server or start a practice game; we're not using this for the experiments
+//            new SOCPlayerClient("settlers.inf.ed.ac.uk", 8880, withConnectOrPractice);
 //            withConnectOrPractice = false; //true;
 //            client = new SOCPlayerClient(withConnectOrPractice);
 ////            Hashtable gameOptions = new Hashtable();
-//                  GameOptionServerSet gameOptions = new GameOptionServerSet();
+//                  ServerGametypeInfo gameOptions = new ServerGametypeInfo();
 //
-//            client.startPracticeGame("PRACTICE", gameOptions.optionSet, false);
+//            client.startPracticeGame("PRACTICE", gameOptions.knownOpts, false);
 //            client.connect();
 //
 //            return;
@@ -1250,11 +1257,11 @@ public class SOCPlayerClient
 
                 // Are we a client to any active games?
                 if (piActive == null)
-                    piActive = client.findAnyActiveGame(false);
+                    piActive = mainDisplay.findAnyActiveGame(false);
 
                 if (piActive != null) {
                     SOCLeaveAll leaveAllMes = new SOCLeaveAll();
-                    client.putNet(leaveAllMes.toCmd());
+                    client.gameMessageSender.put(leaveAllMes.toCmd(), false);
                 }
             }
         });

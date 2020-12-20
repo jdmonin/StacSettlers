@@ -373,10 +373,11 @@ public class StacChatTradeMsgParser {
      * Parses a message following the formal trade language rules into a bank trade message
      * @param msg the message to be parsed
      * @param gameName the name of the game this message will be sent to
+     * @param playerNumber  player number requesting the bank trade
      * @param output a buffer containing any error messages to be printed out in the game message interface
      * @return null or the SOCBankTrade object to be sent to the server
      */
-    public static SOCBankTrade parseBankTradeMsg(String msg, String gameName, StringWriter output){
+    public static SOCBankTrade parseBankTradeMsg(String msg, String gameName, final int playerNumber, StringWriter output){
     	//cut the beginning b: or ba: or ban: or bank:
     	int index = msg.indexOf(":");
     	msg = msg.substring(index+1);
@@ -453,7 +454,7 @@ public class StacChatTradeMsgParser {
             }
         }
     	//build the bank msg and return it
-        return new SOCBankTrade(gameName, give, get);
+        return new SOCBankTrade(gameName, give, get, playerNumber);
     	
     }
     
@@ -987,10 +988,11 @@ public class StacChatTradeMsgParser {
      * Parses a message following the formal trade language rules into a bank trade message
      * @param msg the message to be parsed
      * @param gameName the name of the game this message will be sent to
+     * @param playerNumber  player number requesting the bank trade
      * @param output a buffer containing any error messages to be printed out in the game message interface
      * @return null or the SOCBankTrade object to be sent to the server
      */
-    public static SOCBankTrade parseNLBankTradeMsg(String msg, String gameName, StringWriter output) {
+    public static SOCBankTrade parseNLBankTradeMsg(String msg, String gameName, int playerNumber, StringWriter output) {
         String normalisedMsg = msg.toLowerCase();
  
         if (normalisedMsg.toLowerCase().matches(NL_BANK_TRADE)) {
@@ -1037,7 +1039,7 @@ public class StacChatTradeMsgParser {
                 }
                 
                 //prepare return value
-                return new SOCBankTrade(gameName, give, get);
+                return new SOCBankTrade(gameName, give, get, playerNumber);
             }
         }
         

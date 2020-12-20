@@ -931,7 +931,7 @@ public class StacRobotDialogueManager extends StacDialogueManager {
 //                        OfferWithStats ows = (OfferWithStats) offer;
 //                        productive = ows.getEta() == 0;                        
 //                    }
-                    int eta = brain.getNegotiator().getETAToTargetResources(brain.getPlayerData(), bp.totalResourcesForBuidPlan(), offer.getGiveSet(), offer.getGetSet(), brain.getEstimator());
+                    int eta = brain.getNegotiator().getETAToTargetResources(brain.getPlayerData(), bp.getTotalResourcesForBuildPlan(), offer.getGiveSet(), offer.getGetSet(), brain.getEstimator());
                     productive = eta == 0;
                     // TODO: add productivity param
                     useJMT = jmt.useJMT(brain, productive);
@@ -1029,23 +1029,10 @@ public class StacRobotDialogueManager extends StacDialogueManager {
             return null;
         }
         
-        SOCResourceSet resourcesToBlock = new SOCResourceSet();
         SOCPossiblePiece predictedPiece = predicted.getPlannedPiece(0);
-
-        switch (predictedPiece.getType()) {
-            case SOCPossiblePiece.ROAD:
-                resourcesToBlock = SOCGame.ROAD_SET;
-                break;
-            case SOCPossiblePiece.SETTLEMENT:
-                resourcesToBlock = SOCGame.SETTLEMENT_SET;
-                break;
-            case SOCPossiblePiece.CITY:
-                resourcesToBlock = SOCGame.CITY_SET;
-                break;
-            case SOCPossiblePiece.CARD:
-                resourcesToBlock = SOCGame.CARD_SET;
-                break;                                    
-        }
+        SOCResourceSet resourcesToBlock = predictedPiece.getResourcesToBuild();
+        if (resourcesToBlock == null)
+            resourcesToBlock = new SOCResourceSet();
         return resourcesToBlock;
     }
     

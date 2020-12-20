@@ -7,7 +7,6 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FileDialog;
 import java.awt.FlowLayout;
-import java.awt.Frame;
 import java.awt.Insets;
 import java.awt.Label;
 import java.awt.Panel;
@@ -21,7 +20,7 @@ import java.util.Vector;
 import javax.swing.BoxLayout;
 import javax.swing.JFrame;
 import javax.swing.JTextArea;
-
+import javax.swing.WindowConstants;
 
 import aima.core.util.MockRandomizer;
 import mcts.game.catan.Catan;
@@ -34,13 +33,14 @@ import soc.game.SOCBoard;
 import soc.game.SOCCity;
 import soc.game.SOCDevCardConstants;
 import soc.game.SOCGame;
+import soc.game.SOCGameOptionSet;
 import soc.game.SOCPlayer;
 import soc.game.SOCPlayingPiece;
 import soc.game.SOCRoad;
 import soc.game.SOCSettlement;
 import soc.message.SOCBoardLayout;
 import soc.message.SOCChangeFace;
-import soc.message.SOCDevCard;
+import soc.message.SOCDevCardAction;
 import soc.message.SOCDevCardCount;
 import soc.message.SOCDiceResult;
 import soc.message.SOCGameState;
@@ -92,31 +92,24 @@ public class StacDBReplayClient extends SOCReplayClient{
 	
 	private static final String START = "START";
 	
-	private Frame parentFrame;
+	private JFrame parentFrame;
 
-	public void startPracticeGame(String practiceGameName, Hashtable gameOpts, boolean mainPanelIsActive)
+	@Override
+	public boolean startPracticeGame(String practiceGameName, SOCGameOptionSet gameOpts, boolean mainPanelIsActive)
     {
-		prCli = new DumbStringConn();
-		
-        // local server will support per-game options //what is this for?
-        if (so != null)
-        	so.setEnabled(true);
+		getNet().setPracticeConnection(new DumbStringConn());
 		
         dtq = new DBToQueue(this, dbh, gameID);            
         
-    	// May take a while to start server & game.
-        // The new-game window will clear this cursor.
-        setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
-
         // Avoid possible NPEs
         ensureGamesParams(practiceGameName);
         if (nickname == null)
             setNickname(OBSERVER_DEFAULT_NAME);
 
         // Do some basic messages to start the window, which aren't in the log file
-        SOCNewGameWithOptions newGame = new SOCNewGameWithOptions(practiceGameName, (String) null, -1);
+        SOCNewGameWithOptions newGame = new SOCNewGameWithOptions(practiceGameName, null, -1, -2);
         treat(newGame, true);
-        SOCJoinGameAuth auth = new SOCJoinGameAuth(practiceGameName, true);
+        SOCJoinGameAuth auth = new SOCJoinGameAuth(practiceGameName);
         treat(auth, true);
         //also for sitting everyone down etc
         int[] playerIds;
@@ -157,6 +150,7 @@ public class StacDBReplayClient extends SOCReplayClient{
         // Now start the simulator        
         new Thread(dtq).start(); 
         
+        return true;
     }
 	
 	/**
@@ -165,6 +159,8 @@ public class StacDBReplayClient extends SOCReplayClient{
     public static void main(String[] args)
     {    
     	StacDBReplayClient client;
+        final SwingMainDisplay mainDisplay;
+
         boolean withConnectOrPractice = true;
         client = new StacDBReplayClient(withConnectOrPractice);
         client.dbh.initialize();
@@ -177,13 +173,20 @@ public class StacDBReplayClient extends SOCReplayClient{
         }
         
         // Invisible frame for the player client, necessary to track games list, etc
-        Frame frame = new Frame("JSettlers client " + Version.version());       
-        client.initVisualElements(); // after the background is set        
-        frame.add(client, BorderLayout.CENTER);
+        JFrame frame = new JFrame("JSettlers client " + Version.version());
+
+        final int displayScale = SwingMainDisplay.checkDisplayScaleFactor(frame);
+        SwingMainDisplay.scaleUIManagerFonts(displayScale);
+
+        mainDisplay = new SwingMainDisplay(true, client, displayScale);
+        client.setMainDisplay(mainDisplay);
+
+        mainDisplay.initVisualElements(); // after the background is set
+        frame.add(mainDisplay, BorderLayout.CENTER);
         frame.setVisible(false);
         
         // Actual frame for the replay
-        client.parentFrame = new Frame("JSettlers Replay client");
+        client.parentFrame = new JFrame("JSettlers Replay client");
         frame = client.parentFrame;
         Panel pan = new Panel() {
         	public Insets getInsets() { return new Insets (4, 8, 8, 8); }
@@ -191,7 +194,9 @@ public class StacDBReplayClient extends SOCReplayClient{
         pan.setBackground(new Color(Integer.parseInt("61AF71",16)));
         pan.setForeground(Color.black);
         // Add a listener for the close event
-        frame.addWindowListener(client.createWindowAdapter());        
+        frame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+        frame.addWindowListener(mainDisplay.createWindowAdapter());
+
         pan.setLayout(new BoxLayout(pan, BoxLayout.Y_AXIS));
         
         Button b = new Button("Start game");
@@ -332,7 +337,7 @@ public class StacDBReplayClient extends SOCReplayClient{
 						updatePlayersRss(ogsr);
 					}else if(actionType==GameActionRow.ENDTURN){
 						updateGameState(ogsr);
-						cl.treat(new SOCTurn(gameName, ogsr.getCurrentPlayer()), true);
+						cl.treat(new SOCTurn(gameName, ogsr.getCurrentPlayer(), 0), true);
 						updatePlayedDevCard(ogsr);
 					}else if(actionType==GameActionRow.ROLL){
 						updateGameState(ogsr);
@@ -375,12 +380,12 @@ public class StacDBReplayClient extends SOCReplayClient{
 						cl.treat(new SOCDevCardCount(gameName, ogsr.getDevCardsLeft()), true); //don't really care as it is not displayed but do it anyway:)
 						//in here we will need to compare with the old osgr to find out what changed in order to be able to display what card has been bought
 						int ct = compareOGSRsForDevCards(ogsr, dbh.selectOGSR(gameID, (idCounter-1)));
-						cl.treat(new SOCDevCard(gameName, ogsr.getCurrentPlayer(), SOCDevCard.DRAW, ct), true);
+						cl.treat(new SOCDevCardAction(gameName, ogsr.getCurrentPlayer(), SOCDevCardAction.DRAW, ct), true);
 						updateVPForAll(ogsr);
 					}else if(actionType==GameActionRow.PLAYKNIGHT){
 						updatePlayedDevCard(ogsr);
 						updateGameState(ogsr);
-						cl.treat(new SOCDevCard(gameName, ogsr.getCurrentPlayer(), SOCDevCard.PLAY, SOCDevCardConstants.KNIGHT), true);
+						cl.treat(new SOCDevCardAction(gameName, ogsr.getCurrentPlayer(), SOCDevCardAction.PLAY, SOCDevCardConstants.KNIGHT), true);
 						if(ogsr.getLALabel(ogsr.getCurrentPlayer())==1)
 							cl.treat(new SOCLargestArmy(gameName, ogsr.getCurrentPlayer()),true);
 						updateVPForAll(ogsr);
@@ -388,16 +393,16 @@ public class StacDBReplayClient extends SOCReplayClient{
 						updatePlayedDevCard(ogsr);
 						updatePlayersRss(ogsr);
 						updateGameState(ogsr);
-						cl.treat(new SOCDevCard(gameName, ogsr.getCurrentPlayer(), SOCDevCard.PLAY, SOCDevCardConstants.MONO), true);
+						cl.treat(new SOCDevCardAction(gameName, ogsr.getCurrentPlayer(), SOCDevCardAction.PLAY, SOCDevCardConstants.MONO), true);
 					}else if(actionType==GameActionRow.PLAYDISC){
 						updatePlayedDevCard(ogsr);
 						updatePlayersRss(ogsr);
 						updateGameState(ogsr);
-						cl.treat(new SOCDevCard(gameName, ogsr.getCurrentPlayer(), SOCDevCard.PLAY, SOCDevCardConstants.DISC), true);
+						cl.treat(new SOCDevCardAction(gameName, ogsr.getCurrentPlayer(), SOCDevCardAction.PLAY, SOCDevCardConstants.DISC), true);
 					}else if(actionType==GameActionRow.PLAYROAD){
 						updatePlayedDevCard(ogsr);
 						updateGameState(ogsr);
-						cl.treat(new SOCDevCard(gameName, ogsr.getCurrentPlayer(), SOCDevCard.PLAY, SOCDevCardConstants.ROADS), true);
+						cl.treat(new SOCDevCardAction(gameName, ogsr.getCurrentPlayer(), SOCDevCardAction.PLAY, SOCDevCardConstants.ROADS), true);
 					}else if(actionType==GameActionRow.WIN){
 						updateGameState(ogsr);
 						updateVPForAll(ogsr);
@@ -522,8 +527,8 @@ public class StacDBReplayClient extends SOCReplayClient{
 	     * @param pob the Integer[][] array stored in the ogsr
 	     */
 		private void updatePiecesOnBoard(Integer[][] pob){
-			SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(gameName);
-            SOCGame ga = pi.getGame();
+			PlayerClientListener pcl = cl.getClientListener(gameName);
+            SOCGame ga = pcl.getGame();
 	        SOCBoard board = ga.getBoard();
 	        board.emptyPiecesVectors();
             //go through pob array and add to board;
@@ -540,16 +545,13 @@ public class StacDBReplayClient extends SOCReplayClient{
 	        	}//otherwise ignore.... this shouldn't happen
 	        }
 	        //now I need to redraw the board panel
-			pi.boardPanel.validate();
-			pi.boardPanel.flushBoardLayoutAndRepaint();
+			pcl.boardLayoutUpdated();
 	    }
 		
 		private void updateVPForAll(ObsGameStateRow ogsr){
-			SOCPlayerInterface pi = (SOCPlayerInterface) cl.playerInterfaces.get(gameName);
+			PlayerClientListener pcl = cl.getClientListener(gameName);
 			for (int i = 0; i < 4; i++)
-	        {
-	            pi.getPlayerHandPanel(i).updateJustVP(ogsr.getTotalVP(i));
-	        }
+				pcl.playerVPDisplayUpdate(i, ogsr.getTotalVP(i));
 		}
 		
 	}

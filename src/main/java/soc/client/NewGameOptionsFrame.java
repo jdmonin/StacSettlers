@@ -858,13 +858,13 @@ import soc.util.Version;
             JPanel bp, GridBagLayout gbl, GridBagConstraints gbc)
     {
     	//only show options if it is in development mode
-    	if(!cl.devMode)
+    	if(! mainDisplay.getClient().devMode)
     		return;
 
     	//---MG
     	//we're only presenting one option: whether this is a regular SOCL game or not
     	
-    	if (op.optKey != "RG" && op.optKey != "LB" && op.optKey != "CN" && op.optKey != "FO") {
+    	if (op.key.equals("RG") || op.key.equals("LB") || op.key.equals("CN") || op.key.equals("FO")) {
     		//System.err.println("Not initialising option: " + op.optKey);
     		return;
     	}
@@ -1526,9 +1526,9 @@ import soc.util.Version;
             return;
         }
 
-        cl.loadBoard = getLoadBoardOption();
-        cl.chatNegotiations = getChatNegotiationsOption();
-        cl.fullyObservable = getFullyObservableOption();
+        ((SwingMainDisplay) mainDisplay).loadBoard = getLoadBoardOption();
+        ((SwingMainDisplay) mainDisplay).chatNegotiations = getChatNegotiationsOption();
+        ((SwingMainDisplay) mainDisplay).fullyObservable = getFullyObservableOption();
 
         dispose();
     }
@@ -1692,7 +1692,7 @@ import soc.util.Version;
     	for (int i = 0; i < optArr.length; ++i)
         {
             op = (SOCGameOption) optArr[i];
-            if(op.optKey.equals("LB")){
+            if(op.key.equals("LB")){
             	return op.getBoolValue();
             }
         }
@@ -1708,7 +1708,7 @@ import soc.util.Version;
     	for (int i = 0; i < optArr.length; ++i)
         {
             op = (SOCGameOption) optArr[i];
-            if(op.optKey.equals("CN")){
+            if(op.key.equals("CN")){
             	return op.getBoolValue();
             }
         }
@@ -1724,7 +1724,7 @@ import soc.util.Version;
     	for (int i = 0; i < optArr.length; ++i)
         {
             op = (SOCGameOption) optArr[i];
-            if(op.optKey.equals("FO")){
+            if(op.key.equals("FO")){
             	return op.getBoolValue();
             }
         }

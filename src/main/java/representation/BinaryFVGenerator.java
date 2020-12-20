@@ -51,7 +51,7 @@ public class BinaryFVGenerator extends FeatureVectorGenerator implements BinaryF
      * The list of states for which this class can provide specific vectors
      */
 	public static final int[] states ={SOCGame.START1A, SOCGame.START1B, SOCGame.START2A, SOCGame.START2B, 
-		SOCGame.PLAY, SOCGame.PLAY1, SOCGame.WAITING_FOR_DISCARDS, SOCGame.WAITING_FOR_CHOICE, //waiting for choice may be together with placing robber
+		SOCGame.ROLL_OR_CARD, SOCGame.PLAY1, SOCGame.WAITING_FOR_DISCARDS, SOCGame.WAITING_FOR_ROB_CHOOSE_PLAYER, //waiting for choice may be together with placing robber
 		SOCGame.PLACING_FREE_ROAD1, SOCGame.PLACING_FREE_ROAD2, SOCGame.PLACING_ROBBER, SOCGame.WAITING_FOR_MONOPOLY, 
 		SOCGame.WAITING_FOR_DISCOVERY}; 
     

@@ -30,9 +30,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Vector;
 
+import soc.game.SOCBoard;
 import soc.game.SOCPlayer;
+import soc.game.SOCPlayerNumbers;
 import soc.game.SOCResourceConstants;
 import soc.game.SOCResourceSet;
+import soc.util.SOCRobotParameters;
 
 
 /**
@@ -43,7 +46,7 @@ import soc.game.SOCResourceSet;
  * of it that way.  DM = Decision Maker
  *<P>
  * Uses the info in the {@link SOCPlayerTracker}s.
- * One important method here is {@link #planStuff(int)},
+ * One important method here is {@link #planStuff()},
  * which updates {@link #buildingPlan} and related fields.
  *
  * @author Robert S. Thomas
@@ -113,12 +116,12 @@ public abstract class SOCRobotDM<BP extends SOCBuildPlan>
    * {@link #ourPlayerData}'s building plan.
    * Same Stack as {@link SOCRobotBrain#getBuildingPlan()}.
    * May include {@link SOCPossibleCard} to be bought.
-   * Filled each turn by {@link #planStuff(int)}.
+   * Filled each turn by {@link #planStuff()}.
    * Emptied by {@link SOCRobotBrain}'s calls to {@link SOCRobotBrain#resetBuildingPlan()}.
    *<P>
    * Before v2.4.50 this was an unencapsulated Stack of {@link SOCPossiblePiece}.
    */
-  protected SOCBuildPlanStack buildingPlan;
+  protected BP buildingPlan;
 
   /**
    * Strategy to plan and build initial settlements and roads.
@@ -175,7 +178,63 @@ public abstract class SOCRobotDM<BP extends SOCBuildPlan>
     public static final int SMART_STRATEGY = 0;
     public static final int FAST_STRATEGY = 1;
     
-	public SOCRobotDM() {
+    /**
+     * Constructor for setting most DM fields from a robot brain.
+     *
+     * @param brain  the robot brain
+     * @since 2.4.50
+     */
+    protected SOCRobotDM(SOCRobotBrain<?, ?, SOCBuildPlanStack> brain, int strategyType, BP plan)
+    {
+        this(brain.getRobotParameters(), brain.openingBuildStrategy, brain.getEstimatorFactory(),
+	    brain.getPlayerTrackers(), brain.getOurPlayerTracker(), brain.getOurPlayerData(),
+	    plan, strategyType);
+    }
+
+    /**
+     * Constructor for specifying most DM fields instead of using a brain.
+     *
+     * @param params  the robot parameters
+     * @param obs  a robot brain's current {@link OpeningBuildStrategy}, or {@code null} to create one here,
+     *     in case DM needs to call {@link OpeningBuildStrategy#estimateResourceRarity()}
+     * @param bsef  the BSE factory to use, or {@code null} to create a
+     *     new <tt>{@link SOCBuildingSpeedEstimateFactory}(null)</tt>
+     * @param pt   the player trackers, same format as {@link SOCRobotBrain#getPlayerTrackers()}
+     * @param opt  our player tracker
+     * @param opd  our player data; also calls {@link SOCPlayer#getGame()} here
+     * @param bp   our building plan
+     * @since 2.4.50
+     */
+    protected SOCRobotDM(SOCRobotParameters params,
+            OpeningBuildStrategy obs,
+            SOCBuildingSpeedEstimateFactory bsef,
+            SOCPlayerTracker[] pt,
+            SOCPlayerTracker opt,
+            SOCPlayer opd,
+            BP bp,
+            int strategyType) {
+        this.strategy = strategyType;
+        playerTrackers = pt;
+        ourPlayerTracker = opt;
+        player = opd;
+        ourPlayerNumber = opd.getPlayerNumber();
+        buildingPlan = bp;
+        bseFactory = (bsef != null) ? bsef : new SOCBuildingSpeedEstimateFactory(null);
+        openingBuildStrategy = (obs != null) ? obs : new OpeningBuildStrategy(opd.getGame(), opd, null);
+
+        maxGameLength = params.getMaxGameLength();
+        maxETA = params.getMaxETA();
+        etaBonusFactor = params.getETABonusFactor();
+        adversarialFactor = params.getAdversarialFactor();
+        leaderAdversarialFactor = params.getLeaderAdversarialFactor();
+        devCardMultiplier = params.getDevCardMultiplier();
+        threatMultiplier = params.getThreatMultiplier();
+
+        threatenedRoads = new ArrayList<SOCPossibleRoad>();
+        goodRoads = new ArrayList<SOCPossibleRoad>();
+        threatenedSettlements = new ArrayList<SOCPossibleSettlement>();
+        goodSettlements = new ArrayList<SOCPossibleSettlement>();
+
         //why are these set to clay or sheep ????
 		resourceChoices = new SOCResourceSet();
         resourceChoices.add(2, SOCResourceConstants.CLAY);
@@ -272,12 +331,11 @@ public abstract class SOCRobotDM<BP extends SOCBuildPlan>
       if (chooseIfNotNeeded)
           resourceChoices.clear();
 
-      final SOCResourceSet ourResources = ourPlayerData.getResources();
+      final SOCResourceSet ourResources = player.getResources();
       int numMore = numChoose;
 
       // Used only if chooseIfNotNeeded:
       int buildingItem = 0;  // for ourBuildingPlan.peek
-      boolean stackTopIs0 = false;
 
       /**
        * If ! chooseIfNotNeeded, this loop
@@ -319,18 +377,10 @@ public abstract class SOCRobotDM<BP extends SOCBuildPlan>
               // Otherwise, choose our least-frequently-rolled resources.
 
               ++buildingItem;
-              final int bpSize = buildingPlan.size();
+              final int bpSize = buildingPlan.getPlanDepth();
               if (bpSize > buildingItem)
               {
-                  if (buildingItem == 1)
-                  {
-                      // validate direction of stack growth for buildingPlan
-                      stackTopIs0 = (0 == buildingPlan.indexOf(buildingPlan.getPlannedPiece(0)));
-                  }
-
-                  int i = (stackTopIs0) ? buildingItem : (bpSize - buildingItem) - 1;
-
-                  SOCPossiblePiece targetPiece = buildingPlan.elementAt(i);
+                  SOCPossiblePiece targetPiece = buildingPlan.getPlannedPiece(buildingItem);
                   targetResources = targetPiece.getResourcesToBuild();  // may be null
 
                   // Will continue at top of loop to add
@@ -342,7 +392,7 @@ public abstract class SOCRobotDM<BP extends SOCBuildPlan>
                   // Choose based on our least-frequent dice rolls.
 
                   final int[] resourceOrder =
-                      bseFactory.getRollsForResourcesSorted(ourPlayerData);
+                      bseFactory.getRollsForResourcesSorted(player);
 
                   int curRsrc = 0;
                   while (numMore > 0)
@@ -398,7 +448,7 @@ public abstract class SOCRobotDM<BP extends SOCBuildPlan>
 
       if (! buildingPlan.isEmpty())
       {
-          final SOCPossiblePiece targetPiece = buildingPlan.peek();
+          final SOCPossiblePiece targetPiece = buildingPlan.getPlannedPiece(0);
           targetResources = targetPiece.getResourcesToBuild();  // may be null
           chooseFreeResourcesIfNeeded(targetResources, numChoose, true);
       } else {

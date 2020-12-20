@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas
- * Portions of this file Copyright (C) 2007,2009 Jeremy D. Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2007,2009,2020 Jeremy D. Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -199,10 +199,10 @@ public class SOCDevCardSet implements Serializable, Cloneable
         sum += devCards[OLD][SOCDevCardConstants.DISC];
         sum += devCards[OLD][SOCDevCardConstants.MONO];
         sum += devCards[OLD][SOCDevCardConstants.CAP];
-        sum += devCards[OLD][SOCDevCardConstants.LIB];
+        sum += devCards[OLD][SOCDevCardConstants.MARKET];
         sum += devCards[OLD][SOCDevCardConstants.UNIV];
         sum += devCards[OLD][SOCDevCardConstants.TEMP];
-        sum += devCards[OLD][SOCDevCardConstants.TOW];
+        sum += devCards[OLD][SOCDevCardConstants.CHAPEL];
         sum += devCards[OLD][SOCDevCardConstants.UNKNOWN];
         return sum;
     }
@@ -215,10 +215,10 @@ public class SOCDevCardSet implements Serializable, Cloneable
     {
         int sum = 0;
         sum += devCards[NEW][SOCDevCardConstants.CAP];
-        sum += devCards[NEW][SOCDevCardConstants.LIB];
+        sum += devCards[NEW][SOCDevCardConstants.MARKET];
         sum += devCards[NEW][SOCDevCardConstants.UNIV];
         sum += devCards[NEW][SOCDevCardConstants.TEMP];
-        sum += devCards[NEW][SOCDevCardConstants.TOW];
+        sum += devCards[NEW][SOCDevCardConstants.CHAPEL];
         sum += devCards[NEW][SOCDevCardConstants.KNIGHT];
         sum += devCards[NEW][SOCDevCardConstants.ROADS];
         sum += devCards[NEW][SOCDevCardConstants.DISC];
@@ -236,15 +236,15 @@ public class SOCDevCardSet implements Serializable, Cloneable
         int sum = 0;
 
         sum += devCards[OLD][SOCDevCardConstants.CAP];
-        sum += devCards[OLD][SOCDevCardConstants.LIB];
+        sum += devCards[OLD][SOCDevCardConstants.MARKET];
         sum += devCards[OLD][SOCDevCardConstants.UNIV];
         sum += devCards[OLD][SOCDevCardConstants.TEMP];
-        sum += devCards[OLD][SOCDevCardConstants.TOW];
+        sum += devCards[OLD][SOCDevCardConstants.CHAPEL];
         sum += devCards[NEW][SOCDevCardConstants.CAP];
-        sum += devCards[NEW][SOCDevCardConstants.LIB];
+        sum += devCards[NEW][SOCDevCardConstants.MARKET];
         sum += devCards[NEW][SOCDevCardConstants.UNIV];
         sum += devCards[NEW][SOCDevCardConstants.TEMP];
-        sum += devCards[NEW][SOCDevCardConstants.TOW];
+        sum += devCards[NEW][SOCDevCardConstants.CHAPEL];
 
         return sum;
     }

@@ -24,13 +24,18 @@
  **/
 package soc.server;
 
+import java.io.File;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
+import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.NoSuchElementException;
 
 import soc.debug.D;
+import soc.dialogue.StacTradeMessage;
 import soc.game.SOCBoardLarge;
 import soc.game.SOCCity;
 import soc.game.SOCDevCard;
@@ -50,10 +55,16 @@ import soc.game.SOCShip;
 import soc.game.SOCSpecialItem;
 import soc.game.SOCTradeOffer;
 import soc.game.SOCVillage;
+import soc.game.StacGameParameters;
 import soc.message.*;
 import soc.message.SOCGameElements.GEType;
 import soc.message.SOCPlayerElement.PEType;
+import soc.robot.SOCPossiblePiece;
+import soc.robot.stac.Persuasion;
+import soc.robot.stac.StacRobotBrain;
+import soc.server.database.stac.GameActionRow;
 import soc.server.genericServer.Connection;
+import soc.util.DeepCopy;
 import soc.util.SOCStringManager;
 
 /**
@@ -125,8 +136,9 @@ public class SOCGameMessageHandler
         //Do my own little treatment of messages this server receives
         if (message.getType() == SOCMessage.GAMETEXTMSG) {
 
-            SOCGameTextMsg gameTextMessage = (SOCGameTextMsg) SOCMessage.toMsg(s);
-            SOCPlayer player = game.getPlayer(c.getData()); //player who sent the message
+            SOCGameTextMsg gameTextMessage = (SOCGameTextMsg) message;
+            String sender = connection.getData(); //ID of player who sent the message
+            SOCPlayer player = game.getPlayer(sender); //player who sent the message
 
             String text = gameTextMessage.getText();
             if (text.endsWith("\n")) {
@@ -135,30 +147,28 @@ public class SOCGameMessageHandler
             String outputString;
             //player is not initialised if the game has not started yet, so we'll have to generate a different message then
             if (player == null) {
-                outputString = "player=" + sender + "|speaking-queue=" + game.speakingQueue + "|text=" + text;
+                outputString = "player=" + connection.getData() + "|speaking-queue=" + game.speakingQueue + "|text=" + text;
             } else {
                 SOCResourceSet resources = player.getResources();
                 String resourcesString = resources.toString();
                 String cityCoordinates = new String();
-                //@SuppressWarnings("unchecked")
-                //Enumeration<SOCPlayingPiece> e = (Enumeration<SOCPlayingPiece>) player.getCities().elements();
-                for (Enumeration<SOCPlayingPiece> e = (Enumeration<SOCPlayingPiece>) player.getCities().elements(); e.hasMoreElements();)
-                    cityCoordinates = cityCoordinates + "," + e.nextElement().getCoordinates();
+                for (SOCPlayingPiece p : player.getCities())
+                    cityCoordinates = cityCoordinates + "," + p.getCoordinates();
                 if (cityCoordinates.length() > 0)
                     cityCoordinates = cityCoordinates.substring(1);
                 String stmtCoordinates = new String();
-                for (Enumeration<SOCPlayingPiece> e = (Enumeration<SOCPlayingPiece>) player.getSettlements().elements(); e.hasMoreElements();)
-                    stmtCoordinates = stmtCoordinates + "," + e.nextElement().getCoordinates();
+                for (SOCPlayingPiece p : player.getSettlements())
+                    stmtCoordinates = stmtCoordinates + "," + p.getCoordinates();
                 if (stmtCoordinates.length() > 0)
                     stmtCoordinates = stmtCoordinates.substring(1);
                 String roadCoordinates = new String();
-                for (Enumeration<SOCPlayingPiece> e = (Enumeration<SOCPlayingPiece>) player.getRoads().elements(); e.hasMoreElements();)
-                    roadCoordinates = roadCoordinates + "," + e.nextElement().getCoordinates();
+                for (SOCPlayingPiece p : player.getRoadsAndShips())
+                    roadCoordinates = roadCoordinates + "," + p.getCoordinates();
                 if (roadCoordinates.length() > 0)
                     roadCoordinates = roadCoordinates.substring(1);
 
                 outputString =
-                    formattedDate() +
+                    SOCServer.formattedDate() +
                     ":GAME-TEXT-MESSAGE:[game=" + gameTextMessage.getGame() +
                     "|player=" + sender +
                     "|speaking-queue=" + game.speakingQueue +
@@ -167,7 +177,7 @@ public class SOCGameMessageHandler
                     "|roads=[" + roadCoordinates +
                     "]|settlements=[" + stmtCoordinates +
                     "]|cities=[" + cityCoordinates +
-                    "]|dev-cards=" + player.getDevCards().getTotal() +
+                    "]|dev-cards=" + player.getInventory().getTotal() +
                     "|text=" + text +
                     "]";
             }
@@ -420,7 +430,7 @@ public class SOCGameMessageHandler
          * a player sent a request to speak
          */
         case SOCMessage.REQUESTTOSPEAK:
-            handleREQUESTTOSPEAK(c, (SOCRequestToSpeak) mes);
+            handleREQUESTTOSPEAK(connection, (SOCRequestToSpeak) message);
             break;
 
         /**
@@ -428,7 +438,7 @@ public class SOCGameMessageHandler
          * a player is starting a Register Trade interation
          */
         case SOCMessage.PLAYERSTARTSTRADING:
-            handlePLAYERSTARTSTRADING(c, (SOCPlayerStartsTrading) mes);
+            handlePLAYERSTARTSTRADING(connection, (SOCPlayerStartsTrading) message);
             break;
 
         /**
@@ -436,19 +446,19 @@ public class SOCGameMessageHandler
          * Messages required for the save/load function
          */
         case SOCMessage.GAMECOPY:
-            handleGAMECOPY(c, (SOCGameCopy) mes);
+            handleGAMECOPY(connection, (SOCGameCopy) message);
             break;
 
         case SOCMessage.LOADGAME:
-            handleLOADGAME(c, (SOCLoadGame) mes);
+            handleLOADGAME(connection, (SOCLoadGame) message);
             break;
 
         case SOCMessage.ROBOTFLAGCHANGE:
-            handleROBOTFLAGCHANGE(c, (SOCRobotFlag) mes);
+            handleROBOTFLAGCHANGE(connection, (SOCRobotFlag) message);
             break;
 
         case SOCMessage.CONFIRMTRADEANSWER:
-            handleCONFIRMTRADEANSWER(c, (StacConfirmTradeAnswer) mes);
+            handleCONFIRMTRADEANSWER(game, connection, (StacConfirmTradeAnswer) message);
 
         /**
          * Ignore all other message types, unknown message types.
@@ -515,13 +525,13 @@ public class SOCGameMessageHandler
                 // This is the wrong place to send this game state, as resources have not been allocated
                 //  Send a special legacy message type to be ignored by the agent if desired.
                 if (ga.getGameState() == SOCGame.PLAY1) {
-                    messageToGame(gn, new SOCGameState(gn, SOCGame.PLAY1_LEGACY));
+                    srv.messageToGame(gn, new SOCGameState(gn, SOCGame.PLAY1_LEGACY));
                 }
                 else {
-                    sendGameState(ga);  // For 7, give visual feedback before sending discard request
+                    handler.sendGameState(ga);  // For 7, give visual feedback before sending discard request
                 }
                 
-                writeToDB(ga, GameActionRow.ROLL);
+                srv.writeToDB(ga, GameActionRow.ROLL);
 
                 handler.sendGameState(ga);  // For 7, give visual feedback before sending discard request
 
@@ -822,7 +832,7 @@ public class SOCGameMessageHandler
                     }
 
                     // Send the new, correct game state message
-                    sendGameState(ga);
+                    handler.sendGameState(ga);
 
                     if (ga.getGameState() == SOCGame.WAITING_FOR_PICK_GOLD_RESOURCE)
                         // gold picks text, PLAYERELEMENT, and SIMPLEREQUEST(PROMPT_PICK_RESOURCES)s
@@ -843,8 +853,8 @@ public class SOCGameMessageHandler
                        }
                        }
                      */
-                     if(COLLECT_VALUE_FUNCTION_APPROX)
-                         messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
+                     if(srv.COLLECT_VALUE_FUNCTION_APPROX)
+                         srv.messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
                 }
                 else
                 {
@@ -946,9 +956,9 @@ public class SOCGameMessageHandler
                 srv.messageToGameKeyed(ga, true, true, "action.discarded", player.getName(), numRes);
                     // "{0} discarded {1} resources."
 
-                writeToDB(ga, GameActionRow.DISCARD);
-                if(COLLECT_VALUE_FUNCTION_APPROX)
-                        messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
+                srv.writeToDB(ga, GameActionRow.DISCARD);
+                if(srv.COLLECT_VALUE_FUNCTION_APPROX)
+                        srv.messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
 
                 /**
                  * send the new state, or end turn if was marked earlier as forced
@@ -1028,9 +1038,9 @@ public class SOCGameMessageHandler
                 }
                 srv.messageToGame(gaName, true, moveMsg);
 
-                writeToDB(ga, GameActionRow.MOVEROBBER);
-                if(COLLECT_VALUE_FUNCTION_APPROX)
-                        messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
+                srv.writeToDB(ga, GameActionRow.MOVEROBBER);
+                if(srv.COLLECT_VALUE_FUNCTION_APPROX)
+                        srv.messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
 
                 final List<SOCPlayer> victims = result.getVictims();
 
@@ -1042,8 +1052,8 @@ public class SOCGameMessageHandler
                      */
                     SOCPlayer victim = victims.get(0);
                     handler.reportRobbery(ga, player, victim, result.getLoot());
-                    if(COLLECT_VALUE_FUNCTION_APPROX)
-                        messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
+                    if(srv.COLLECT_VALUE_FUNCTION_APPROX)
+                        srv.messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
 
                 } else {
                     final String msgKey;
@@ -1181,9 +1191,9 @@ public class SOCGameMessageHandler
                             handler.reportRobbery
                                 (ga, ga.getPlayer(c.getData()), ga.getPlayer(pn), rsrc);
                             handler.sendGameState(ga);
-                            writeToDB(ga, GameActionRow.CHOOSEPLAYER);
-                            if(COLLECT_VALUE_FUNCTION_APPROX)
-                            	messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
+                            srv.writeToDB(ga, GameActionRow.CHOOSEPLAYER);
+                            if(srv.COLLECT_VALUE_FUNCTION_APPROX)
+                            	srv.messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
                             break;
                         }
                         // else, fall through and send "can't steal" message
@@ -1244,7 +1254,7 @@ public class SOCGameMessageHandler
             {
                 // To ensure we keep results for the last turn, tell the DB we are starting
                 //  a new turn with a dummy player.
-                db.newTurn(ga.getName(), "DUMMY");
+                srv.db.newTurn(ga.getName(), "DUMMY");
 
                 // Should not happen; is here just in case.
                 SOCPlayer pl = ga.getPlayer(plName);
@@ -1257,7 +1267,7 @@ public class SOCGameMessageHandler
                     srv.messageToPlayer(c, gname, SOCServer.PN_REPLY_TO_UNDETERMINED, msg);
                 }
 
-                writeToDB(ga, GameActionRow.WIN);
+                srv.writeToDB(ga, GameActionRow.WIN);
             } else if (handler.checkTurn(c, ga)) {
                 SOCPlayer pl = ga.getPlayer(plName);
                 if ((pl != null) && ga.canEndTurn(pl.getPlayerNumber()))
@@ -1270,7 +1280,7 @@ public class SOCGameMessageHandler
                             // "{0} skipped placing the second road."
 
                     handler.endGameTurn(ga, pl, true);
-                    writeToDB(ga, GameActionRow.ENDTURN);
+                    srv.writeToDB(ga, GameActionRow.ENDTURN);
                 }
                 else
                     srv.messageToPlayer(c, gname, pl.getPlayerNumber(), /*I*/"You can't end your turn yet."/*18N*/ );
@@ -1487,11 +1497,11 @@ public class SOCGameMessageHandler
             handler.sendTradeOffer(player, null);
 
             if (!StacRobotBrain.isChatNegotiation()) {
-                if(!usingPersuasion){
-                	db.logTradeEvent(player, mes, ga.getCurrentPlayerNumber(), isInitialOffer, false); // force-accept messages require trading via the dialogue manager; so it can't be one
+                if(! srv.usingPersuasion){
+                	srv.db.logTradeEvent(player, mes, ga.getCurrentPlayerNumber(), isInitialOffer, false); // force-accept messages require trading via the dialogue manager; so it can't be one
                 }
                 else{
-                	db.logTradeEvent(player, mes, ga.getCurrentPlayerNumber(), isInitialOffer, new Persuasion(), player.getGame().getRoundCount()); // using persuasions require trading via the dialogue manager; so it can't be one                                
+                	srv.db.logTradeEvent(player, mes, ga.getCurrentPlayerNumber(), isInitialOffer, new Persuasion(), player.getGame().getRoundCount()); // using persuasions require trading via the dialogue manager; so it can't be one                                
                 }
 
                 // System.err.println(ga.getTurnCount() + " - observing trade event - MAKE OFFER: " + mes.toString());
@@ -1580,7 +1590,7 @@ public class SOCGameMessageHandler
 
         final String gaName = ga.getName();
         srv.messageToGame(gaName, true, new SOCRejectOffer(gaName, pn));
-        db.logTradeEvent(player, rejectMessage,  ga.getCurrentPlayerNumber());
+        srv.db.logTradeEvent(player, mes, ga.getCurrentPlayerNumber());
         // System.err.println(ga.getTurnCount() + " - observing trade event - REJECT OFFER: " + rejectMessage.toString());
     }
 
@@ -1595,8 +1605,7 @@ public class SOCGameMessageHandler
         (final SOCGame ga, final Connection c, final SOCAcceptOffer mes)
     {
         if (D.ebugOn) {
-            String gameName = mes.getGame();
-            SOCPlayer offeringPlayer = game.getPlayer(mes.getOfferingNumber());
+            SOCPlayer offeringPlayer = ga.getPlayer(mes.getOfferingNumber());
             D.ebugPrintlnINFO("ACCEPT OFFER -- " + offeringPlayer.getName() + " -- accept offer: " + offeringPlayer.getCurrentOffer());
             // SOCPlayer acceptingPlayer = game.getPlayer(mes.getAcceptingNumber());
             // System.err.println("Accept offer (off: " + offeringPlayer.getName() + ", acc: " + acceptingPlayer.getName() + "): " + offeringPlayer.getCurrentOffer());
@@ -1607,7 +1616,7 @@ public class SOCGameMessageHandler
             return;
 
         executeTrade(ga, mes.getOfferingNumber(), player.getPlayerNumber(), c);
-        writeToDB(ga, GameActionRow.TRADE);
+        srv.writeToDB(ga, GameActionRow.TRADE);
     }
 
     /**
@@ -1624,7 +1633,7 @@ public class SOCGameMessageHandler
      * @param c  accepting player client's connection, if need to reply that trade is not possible
      * @since 2.4.50
      */
-    private void executeTrade
+    /*package*/ void executeTrade
         (final SOCGame ga, final int offeringNumber, final int acceptingNumber, final Connection c)
     {
         ga.takeMonitor();
@@ -1632,6 +1641,7 @@ public class SOCGameMessageHandler
         try
         {
             final String gaName = ga.getName();
+            SOCPlayer player = ga.getPlayer(acceptingNumber);
 
             String canMakeTradeComment = ga.canMakeTrade(offeringNumber, acceptingNumber);
             if (canMakeTradeComment == null)
@@ -1639,18 +1649,19 @@ public class SOCGameMessageHandler
                 ga.makeTrade(offeringNumber, acceptingNumber);
                 handler.reportTrade(ga, offeringNumber, acceptingNumber);
 
-                if(!usingPersuasion){
-                    db.logTradeEvent(player, ga.getPlayer(offeringNumber), mes, ga.getCurrentPlayerNumber(), lastTradeOfferWasForceAccept);
+                SOCAcceptOffer mes = new SOCAcceptOffer(gaName, acceptingNumber, offeringNumber);
+                if(! srv.usingPersuasion){
+                    srv.db.logTradeEvent(player, ga.getPlayer(offeringNumber), mes, ga.getCurrentPlayerNumber(), srv.lastTradeOfferWasForceAccept);
                 }
                 else{
-                    db.logTradeEvent(player, ga.getPlayer(offeringNumber), mes, ga.getCurrentPlayerNumber(), lastTradeOfferPersuasion);                        	
+                    srv.db.logTradeEvent(player, ga.getPlayer(offeringNumber), mes, ga.getCurrentPlayerNumber(), srv.lastTradeOfferPersuasion);
                 }
 
                 String accepter = player.getName();
-                String offerer = ga.getPlayer(mes.getOfferingNumber()).getName();
-                SOCTradeOffer currentOffer = ga.getPlayer(mes.getOfferingNumber()).getCurrentOffer();
-                db.logResourcesReceivedByTrading(offerer, currentOffer.getGetSet());
-                db.logResourcesReceivedByTrading(accepter, currentOffer.getGiveSet());
+                String offerer = ga.getPlayer(offeringNumber).getName();
+                SOCTradeOffer currentOffer = ga.getPlayer(offeringNumber).getCurrentOffer();
+                srv.db.logResourcesReceivedByTrading(offerer, currentOffer.getGetSet());
+                srv.db.logResourcesReceivedByTrading(accepter, currentOffer.getGiveSet());
 
                 /**
                  * announce the accepted offer to game; won't re-send mes from client
@@ -1660,11 +1671,11 @@ public class SOCGameMessageHandler
 
                 // System.err.println(ga.getTurnCount() + " - Server sending message for accepted trade: " + mes.toString());
                 //newProt                        tradeResponses.put(ga.getName(),new StacTradeMessage[ga.maxPlayers]);//clear the trade responses after a trade was accepted
-                D.ebugPrintlnINFO("--- Server: clearing trade response after trade was executed for players " + mes.getAcceptingNumber() 
-                        + " and " + mes.getOfferingNumber() + tradeResponsesString(gaName));
-                StacTradeMessage[] responses = tradeResponses.get(ga.getName());
-                responses[mes.getAcceptingNumber()] = null;
-                responses[mes.getOfferingNumber()] = null;
+                D.ebugPrintlnINFO("--- Server: clearing trade response after trade was executed for players " + acceptingNumber
+                        + " and " + offeringNumber + srv.tradeResponsesString(gaName));
+                StacTradeMessage[] responses = srv.tradeResponses.get(ga.getName());
+                responses[acceptingNumber] = null;
+                responses[offeringNumber] = null;
 
                 /**
                  * clear all offers
@@ -1711,21 +1722,18 @@ public class SOCGameMessageHandler
                 //In chat negotiations, we need to send a message to both players,
                 //so, send a message to the second person involved, the accepter
                 if (StacRobotBrain.isChatNegotiation()) {
-                    Enumeration connEnum = getConnections();
-                    while (connEnum.hasMoreElements()) {
-                        StringConnection conn = (StringConnection) connEnum.nextElement();
-                        String connName = (String)conn.getData();
-                        String acceptingName = ga.getPlayerNames()[acceptingNumber];
-                        if (connName.equals(acceptingName)) {
-                            D.ebugPrintlnINFO("Sending extra warning about impossible trade to: " + (String)conn.getData() +
-                                    " in addition to: " + (String)c.getData());
-                            messageToPlayer(conn, gaName, MSG_ILLEGAL_TRADE + " - " + canMakeTradeComment);
-                        }
+                    String acceptingName = ga.getPlayerNames()[acceptingNumber];
+                    Connection conn = srv.getConnection(acceptingName);
+                    if (conn != null) {
+                        D.ebugPrintlnINFO("Sending extra warning about impossible trade to: " + acceptingName +
+                                " in addition to: " + (String)c.getData());
+                        // -- merge TODO: send SOCAcceptOffer(SOCBankTrade.PN_REPLY_CANNOT_MAKE_TRADE)
+                        ////srv.messageToPlayer(conn, gaName, MSG_ILLEGAL_TRADE + " - " + canMakeTradeComment);
                     }
                 }
 
-                D.ebugPrintlnINFO("--- Server: clearing trade response for all players (6)" + tradeResponsesString(gaName));
-                tradeResponses.put(ga.getName(),new StacTradeMessage[ga.maxPlayers]);//clear the trade responses after an illegal trade
+                D.ebugPrintlnINFO("--- Server: clearing trade response for all players (6)" + srv.tradeResponsesString(gaName));
+                srv.tradeResponses.put(gaName, new StacTradeMessage[ga.maxPlayers]);//clear the trade responses after an illegal trade
             }
         }
         catch (Exception e)
@@ -1762,10 +1770,10 @@ public class SOCGameMessageHandler
                     ga.makeBankTrade(give, get);
                     handler.reportBankTrade(ga, give, get);
 
-                    db.logBankTradeEvent(ga.getPlayer(ga.getCurrentPlayerNumber()), mes);
-                    writeToDB(ga, GameActionRow.TRADE);
-                    if(COLLECT_VALUE_FUNCTION_APPROX)
-                    	messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
+                    srv.db.logBankTradeEvent(ga.getPlayer(ga.getCurrentPlayerNumber()), mes);
+                    srv.writeToDB(ga, GameActionRow.TRADE);
+                    if(srv.COLLECT_VALUE_FUNCTION_APPROX)
+                    	srv.messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
                 } else {
                     final int pn = ga.getCurrentPlayerNumber();
                     if (c.getVersion() >= SOCBankTrade.VERSION_FOR_REPLY_REASONS)
@@ -1943,7 +1951,7 @@ public class SOCGameMessageHandler
             if (ga.couldBuildRoad(pn))
             {
                 ga.buyRoad(pn);
-                db.logBuildAction(ga.getPlayer(pn).getName(), SOCPossiblePiece.ROAD);
+                srv.db.logBuildAction(ga.getPlayer(pn).getName(), SOCPossiblePiece.ROAD);
 
                 if (usePlayerElements)
                 {
@@ -1974,7 +1982,7 @@ public class SOCGameMessageHandler
             if (ga.couldBuildSettlement(pn))
             {
                 ga.buySettlement(pn);
-                db.logBuildAction(ga.getPlayer(pn).getName(), SOCPossiblePiece.SETTLEMENT);
+                srv.db.logBuildAction(ga.getPlayer(pn).getName(), SOCPossiblePiece.SETTLEMENT);
 
                 if (usePlayerElements)
                 {
@@ -2011,7 +2019,7 @@ public class SOCGameMessageHandler
             if (ga.couldBuildCity(pn))
             {
                 ga.buyCity(pn);
-                db.logBuildAction(ga.getPlayer(pn).getName(), SOCPossiblePiece.CITY);
+                srv.db.logBuildAction(ga.getPlayer(pn).getName(), SOCPossiblePiece.CITY);
 
                 if (usePlayerElements)
                 {
@@ -2361,7 +2369,7 @@ public class SOCGameMessageHandler
                             ga.putPiece(rd);  // Changes game state and (if initial placement) player
                             SOCPlayer newLRPlayer = ga.getPlayerWithLongestRoad();
                             if (oldLRPlayer != newLRPlayer) {
-                                db.logLA_LRPlayerChanged(newLRPlayer.getName(), "LR");
+                                srv.db.logLA_LRPlayerChanged(newLRPlayer.getName(), "LR");
                             }
 
                             // If placing this piece reveals a fog hex, putPiece will call srv.gameEvent
@@ -2408,13 +2416,13 @@ public class SOCGameMessageHandler
                                 handler.sendGameState_sendGoldPickAnnounceText(ga, gaName, c, null);
                             }
 
-                        	if(COLLECT_FULL_GAMEPLAY){
-                        		dummy.setGame((SOCGame)DeepCopy.copy(ga));
-                        		dummy.handlePUTPIECE_updateTrackers((SOCPutPiece)mes);
+                        	if(srv.COLLECT_FULL_GAMEPLAY){
+                        		srv.dummy.setGame((SOCGame)DeepCopy.copy(ga));
+                        		srv.dummy.handlePUTPIECE_updateTrackers((SOCPutPiece)mes);
                         	}
-                            writeToDB(ga, GameActionRow.BUILDROAD);
-                            if(COLLECT_VALUE_FUNCTION_APPROX)
-                            	messageToGame(ga.getName(), new SOCCollectData(ga.getName(), player.getPlayerNumber()));
+                            srv.writeToDB(ga, GameActionRow.BUILDROAD);
+                            if(srv.COLLECT_VALUE_FUNCTION_APPROX)
+                            	srv.messageToGame(ga.getName(), new SOCCollectData(ga.getName(), player.getPlayerNumber()));
 
                         } else {
                             D.ebugPrintlnINFO("ILLEGAL ROAD: 0x" + Integer.toHexString(coord)
@@ -2463,13 +2471,13 @@ public class SOCGameMessageHandler
                                 srv.gameList.releaseMonitorForGame(gaName);
                             }
 
-                        	if(COLLECT_FULL_GAMEPLAY){
-                        		dummy.setGame((SOCGame)DeepCopy.copy(ga));
-                        		dummy.handlePUTPIECE_updateTrackers((SOCPutPiece)mes);
+                        	if(srv.COLLECT_FULL_GAMEPLAY){
+                        		srv.dummy.setGame((SOCGame)DeepCopy.copy(ga));
+                        		srv.dummy.handlePUTPIECE_updateTrackers((SOCPutPiece)mes);
                         	}
-                            writeToDB(ga, GameActionRow.BUILDSETT);
-                            if(COLLECT_VALUE_FUNCTION_APPROX)
-                            	messageToGame(ga.getName(), new SOCCollectData(ga.getName(), player.getPlayerNumber()));
+                            srv.writeToDB(ga, GameActionRow.BUILDSETT);
+                            if(srv.COLLECT_VALUE_FUNCTION_APPROX)
+                            	srv.messageToGame(ga.getName(), new SOCCollectData(ga.getName(), player.getPlayerNumber()));
 
                             // Check player and send new game state
                             if (! handler.checkTurn(c, ga))
@@ -2538,13 +2546,13 @@ public class SOCGameMessageHandler
                                 srv.gameList.releaseMonitorForGame(gaName);
                             }
 
-                        	if(COLLECT_FULL_GAMEPLAY){
-                        		dummy.setGame((SOCGame)DeepCopy.copy(ga));
-                        		dummy.handlePUTPIECE_updateTrackers((SOCPutPiece)mes);
+                        	if(srv.COLLECT_FULL_GAMEPLAY){
+                        		srv.dummy.setGame((SOCGame)DeepCopy.copy(ga));
+                        		srv.dummy.handlePUTPIECE_updateTrackers((SOCPutPiece)mes);
                         	}
-                            writeToDB(ga, GameActionRow.BUILDCITY);
-                            if(COLLECT_VALUE_FUNCTION_APPROX)
-                            	messageToGame(ga.getName(), new SOCCollectData(ga.getName(), player.getPlayerNumber()));
+                            srv.writeToDB(ga, GameActionRow.BUILDCITY);
+                            if(srv.COLLECT_VALUE_FUNCTION_APPROX)
+                            	srv.messageToGame(ga.getName(), new SOCCollectData(ga.getName(), player.getPlayerNumber()));
 
                             // Check player and send new game state
                             if (! handler.checkTurn(c, ga))
@@ -2846,11 +2854,11 @@ public class SOCGameMessageHandler
      * @param c  the connection
      * @param mes  the message
      */
-    private void handleREQUESTTOSPEAK(StringConnection c, SOCRequestToSpeak mes) {
+    private void handleREQUESTTOSPEAK(Connection c, SOCRequestToSpeak mes) {
     	//System.err.println("request to speak; Game: " + mes.getGame() +
     	//		"; Player: " + mes.getParam1() + "; Withdrawal: " + mes.getParam2());
     	
-	    SOCGame game = gameList.getGameData(mes.getGame());
+	    SOCGame game = srv.getGame(mes.getGame());
 	    String player = mes.getParam1();
     	if (mes.getParam2()) {
     		//withdrawal request
@@ -2884,7 +2892,7 @@ public class SOCGameMessageHandler
 				//messageToPlayer(nextSpeaker, );
 				//System.err.println("Giving permission to player " + nextSpeaker);
 				System.err.println("Sending permission to speak with game objct owner: " + game.getOwner());
-				messageToGame(game.getName(), new SOCPermissionToSpeak(game.getName(), nextSpeaker));
+				srv.messageToGame(game.getName(), new SOCPermissionToSpeak(game.getName(), nextSpeaker));
 				game.currentSpeaker = nextSpeaker;
 				game.speakingQueue.remove(0);
 			} else {
@@ -2907,23 +2915,23 @@ public class SOCGameMessageHandler
 			queue.add(0, game.currentSpeaker);
 		}
 		String queueString = queue.toString().replaceAll(", ", ";");
-		messageToGame(game.getName(), new SOCSpeakingQueueChanged(game.getName(), queueString));
+		srv.messageToGame(game.getName(), new SOCSpeakingQueueChanged(game.getName(), queueString));
 	}
 
     /**
      * We received a message from a player client that confirms that a trade should be executed.
+     * @param ga    game, from {@link SOCMessageForGame#getGame()}
      * @param c     the sending connection
      * @param mes   the answer to the confirmation request
      */
-    private void handleCONFIRMTRADEANSWER(StringConnection c, StacConfirmTradeAnswer mes) {
-        HashMap map = pendingTrades.get(mes.getGame());
+    private void handleCONFIRMTRADEANSWER(SOCGame ga, Connection c, StacConfirmTradeAnswer mes) {
+        HashMap map = srv.pendingTrades.get(mes.getGame());
         if (map == null) {
             D.ebugERROR("*** Unexpected confirm trade answer message for game " + mes.getGame());
             return;
         }
         
         String playerName = (String)c.getData();
-        SOCGame ga = gameList.getGameData(mes.getGame());
         int offeringPlayer = (Integer) map.get("offeringPlayer"); //ga.getPlayer((String) map.get("offeringPlayer")).getPlayerNumber();
         int acceptingPlayer = (Integer) map.get("acceptingPlayer"); //ga.getPlayer((String) map.get("acceptingPlayer")).getPlayerNumber();
         if (mes.getAnswer()) {
@@ -2938,27 +2946,31 @@ public class SOCGameMessageHandler
             if (traders.size() > 0)
                 return;
 
-            SOCAcceptOffer accMsg = new SOCAcceptOffer(ga.getName(), acceptingPlayer, offeringPlayer);
-            executeTrade(ga, accMsg, c);
+            executeTrade(ga, offeringPlayer, acceptingPlayer, c);
 
-            if(COLLECT_FULL_GAMEPLAY)
-                writeToDB(ga, GameActionRow.TRADE);
-            if(COLLECT_VALUE_FUNCTION_APPROX)
-                messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
+            if(srv.COLLECT_FULL_GAMEPLAY)
+                srv.writeToDB(ga, GameActionRow.TRADE);
+            if(srv.COLLECT_VALUE_FUNCTION_APPROX)
+                srv.messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
         } else {
             String gaName = mes.getGame();
             
             String offeringName = ga.getPlayerNames()[offeringPlayer];
             String acceptingName = ga.getPlayerNames()[acceptingPlayer];
-            Enumeration connEnum = getConnections();
-            while (connEnum.hasMoreElements()) {
-                StringConnection conn = (StringConnection) connEnum.nextElement();
-                String connName = (String)conn.getData();
-                if ((connName.equals(offeringName) || connName.equals(acceptingName)) && !connName.equals(playerName)) {
-                    messageToPlayer(conn, gaName, MSG_REJECTED_TRADE_CONFIRMATION);
-                }
+            // -- merge TODO: send some data message instead of text to parse
+            /*
+            if (! playerName.equals(offeringName)) {
+                Connection conn = srv.getConnection(offeringName);
+                if (conn != null)
+                    srv.messageToPlayer(conn, gaName, MSG_REJECTED_TRADE_CONFIRMATION);
             }
-            pendingTrades.remove(gaName);
+            if (! playerName.equals(acceptingName)) {
+                Connection conn = srv.getConnection(acceptingName);
+                if (conn != null)
+                    srv.messageToPlayer(conn, gaName, MSG_REJECTED_TRADE_CONFIRMATION);
+            }
+            */
+            srv.pendingTrades.remove(gaName);
         }
     }
 
@@ -2992,7 +3004,7 @@ public class SOCGameMessageHandler
                     && (ga.couldBuyDevCard(pn)))
                 {
                     int card = ga.buyDevCard();
-                    db.logBuildAction(ga.getPlayer(pn).getName(), SOCPossiblePiece.CARD);
+                    srv.db.logBuildAction(ga.getPlayer(pn).getName(), SOCPossiblePiece.CARD);
                     final int devCount = ga.getNumDevCards();
 
                     // Note: If this message sequence changes, update SOCBuyDevCardRequest javadoc
@@ -3120,9 +3132,9 @@ public class SOCGameMessageHandler
 
                     handler.sendGameState(ga);
 
-                    writeToDB(ga, GameActionRow.BUYDEVCARD);
-                    if(COLLECT_VALUE_FUNCTION_APPROX)
-                    	messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
+                    srv.writeToDB(ga, GameActionRow.BUYDEVCARD);
+                    if(srv.COLLECT_VALUE_FUNCTION_APPROX)
+                    	srv.messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
                 } else {
                     // unlikely; client should know to not send request in those conditions
 
@@ -3218,7 +3230,7 @@ public class SOCGameMessageHandler
                         ga.playKnight();
                         SOCPlayer newLAPlayer = ga.getPlayerWithLargestArmy();
                         if (oldLAPlayer != newLAPlayer) {
-                            db.logLA_LRPlayerChanged(newLAPlayer.getName(), "LA");
+                            srv.db.logLA_LRPlayerChanged(newLAPlayer.getName(), "LA");
                         }
 
                         final String cardplayed = (isWarshipConvert)
@@ -3276,9 +3288,9 @@ public class SOCGameMessageHandler
 
                             handler.sendGameState(ga);
 
-                            writeToDB(ga, GameActionRow.PLAYKNIGHT);
-                            if(COLLECT_VALUE_FUNCTION_APPROX)
-                                messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
+                            srv.writeToDB(ga, GameActionRow.PLAYKNIGHT);
+                            if(srv.COLLECT_VALUE_FUNCTION_APPROX)
+                                srv.messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
                         }
                     } else {
                         denyPlayCardNow = true;
@@ -3306,7 +3318,7 @@ public class SOCGameMessageHandler
                         srv.gameList.releaseMonitorForGame(gaName);
 
                         handler.sendGameState(ga);
-                        writeToDB(ga, GameActionRow.PLAYROAD);
+                        srv.writeToDB(ga, GameActionRow.PLAYROAD);
                         if (ga.getGameState() == SOCGame.PLACING_FREE_ROAD1)
                             srv.messageToPlayerKeyed
                                 (c, gaName, pn, (ga.hasSeaBoard) ? "action.card.road.place.2s" : "action.card.road.place.2r");
@@ -3421,10 +3433,10 @@ public class SOCGameMessageHandler
      * Deep copies the game information required for restarting from the current game state and
      * communicates the request to the participating players.
      *
-     * @param c the StringConnection for sending messages back to the client (not needed)
+     * @param c the Connection for sending messages back to the client (not needed)
      * @param mes the message
      */
-    private void handleGAMECOPY(StringConnection c, SOCGameCopy mes) {
+    private void handleGAMECOPY(Connection c, SOCGameCopy mes) {
 //    	System.out.println("Server: received copy request, sending copy request back"); //-- for quick debugging
     	String folderName = DeepCopy.SAVES_DIR + mes.getFolder();
     	if(folderName.equals(DeepCopy.SAVES_DIR)){
@@ -3437,42 +3449,44 @@ public class SOCGameMessageHandler
         if(!dir.exists())
         	dir.mkdirs();
     	
-    	DeepCopy.copyToFile(gameList.getGameData(mes.getGame()), "server" , folderName); 	//clone it
-    	messageToGame(mes.getGame(), new SOCGameCopy(mes.getGame(),folderName,mes.getPlayerNumber())); //we need a new message to keep the new folder name
+    	DeepCopy.copyToFile(srv.getGame(mes.getGame()), "server" , folderName); 	//clone it
+    	srv.messageToGame(mes.getGame(), new SOCGameCopy(mes.getGame(),folderName,mes.getPlayerNumber())); //we need a new message to keep the new folder name
 //    	System.out.println("Server: received copy request, sending copy request back"); //-- for quick debugging
 	}
     
     /**
      * Reads the game information from files, replaces the existing one and sends the load request to the participating players;
      *
-     * @param c the StringConnection for sending messages back to the client (not needed here)
+     * @param c the Connection for sending messages back to the client (not needed here)
      * @param mes the message
      */
-    private void handleLOADGAME(StringConnection c, SOCLoadGame mes) {
-		if(mes.getFolder().equals("")){
+    private void handleLOADGAME(Connection c, SOCLoadGame mes) {
+		final String gaName = mes.getGame(), folderName = mes.getFolder();
+		if(folderName.equals("")){
 			D.ebugERROR("Cannot load game, folder name not provided. Ignoring message");
 			return; //if an empty folder name has been passed from the client don't initiate the load just inore message
 		}
-		loadGame(mes);
-		messageToGame(mes.getGame(), mes);
+		loadGame(gaName, folderName);
+		srv.messageToGame(gaName, mes);
 //    	System.out.println("Server: received load game message"); //--for quick debugging
 	}
     
     /**
      * Does the actual loading of the game.
-     * @param mes the load game msg
+     * @param gaName  Game name from {@link SOCLoadGame} message; not null or ""
+     * @param folderName  Folder name from {@link SOCLoadGame} message; not null or ""
      */
-    private void loadGame(SOCLoadGame mes){
-		String prefix = mes.getFolder() + "/"; //add the slash missed by the getDirectory
-		gameList.takeMonitorForGame(mes.getGame());
-		SOCGame originalGame = gameList.getGameData(mes.getGame()); //in order to get the right player names
+    protected void loadGame(final String gaName, final String folderName){
+		String prefix = folderName + "/"; //add the slash missed by the getDirectory
+		srv.getGameList().takeMonitorForGame(gaName);
+		SOCGame originalGame = srv.getGame(gaName); //in order to get the right player names
 		SOCGame cloneGame = (SOCGame) DeepCopy.readFromFile(prefix + "server_soc.game.SOCGame");
 		cloneGame.setName(originalGame.getName());//keep the current game name
 		cloneGame.resetTimes();
 		//without the correct player names in the game, the server will "lose" the connection to the client
 		cloneGame.updatePlayerNames(originalGame.getPlayerNames()); //keep the old player names
 		
-		StacGameParameters gp = gamesParams.get(originalGame.getName());
+		StacGameParameters gp = srv.gamesParams.get(originalGame.getName());
 		//set the simulation depth if we are loading to run simulations;
 		if(gp.simulationDepth != 0)
 			cloneGame.setFinishTurn(cloneGame.getTurnCount() + gp.simulationDepth);
@@ -3486,8 +3500,8 @@ public class SOCGameMessageHandler
 		}
 		
 		cloneGame.resetRandom();//don't forget we want different dice results;
-		gameList.replaceGame(cloneGame); //replace the old game
-		gameList.releaseMonitorForGame(mes.getGame());
+		srv.getGameList().replaceGame(cloneGame); //replace the old game
+		srv.getGameList().releaseMonitorForGame(gaName);
 		
     }
 	
@@ -3495,15 +3509,15 @@ public class SOCGameMessageHandler
 	 * Change the robot flag of a player in order to (de)activate the end turn thread.
 	 * Also let everyone know if that player is a robot/human so the negotiations will take place via
 	 * the appropiate interface(i.e. chat for robots and both chat and original trade interface for human players).
-	 * @param c the StringConnection for sending messages back to the client (not needed here)
+	 * @param c the Connection for sending messages back to the client (not needed here)
 	 * @param mes the message
 	 */
-    private void handleROBOTFLAGCHANGE(StringConnection c, SOCRobotFlag mes) {
-    	SOCGame game = gameList.getGameData(mes.getGame());
+    private void handleROBOTFLAGCHANGE(Connection c, SOCRobotFlag mes) {
+    	SOCGame game = srv.getGame(mes.getGame());
     	SOCPlayer player = game.getPlayer(mes.getPlayerNumber());
 		player.setRobotFlagUnsafe(mes.getFlag());
 		//tell everyone connected to the game what type of player is in that position
-		messageToGame(mes.getGame(), mes);
+		srv.messageToGame(mes.getGame(), mes);
 	}
 	//---MD end of handling methods for SAVE/Load function
     
@@ -3515,9 +3529,9 @@ public class SOCGameMessageHandler
      * @param c  the connection
      * @param mes  the message
      */
-    private void handlePLAYERSTARTSTRADING(StringConnection c, SOCPlayerStartsTrading mes) {
+    private void handlePLAYERSTARTSTRADING(Connection c, SOCPlayerStartsTrading mes) {
     	//just send it to the game so that it's printed by the clients
-    	messageToGame(mes.getGame(), mes);
+    	srv.messageToGame(mes.getGame(), mes);
     }
 
     /**
@@ -3566,9 +3580,9 @@ public class SOCGameMessageHandler
                             // "{0} received {1,rsrcs} from the bank."
                         handler.sendGameState(ga);
 
-                        writeToDB(ga, GameActionRow.PLAYDISC);
-                        if(COLLECT_VALUE_FUNCTION_APPROX)
-                            messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
+                        srv.writeToDB(ga, GameActionRow.PLAYDISC);
+                        if(srv.COLLECT_VALUE_FUNCTION_APPROX)
+                            srv.messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
                     } else {
                         srv.messageToPlayerKeyed(c, gaName, pn, "action.card.discov.notlegal");
                             // "That is not a legal Year of Plenty pick."
@@ -3783,9 +3797,9 @@ public class SOCGameMessageHandler
 
                     handler.sendGameState(ga);
 
-                    writeToDB(ga, GameActionRow.PLAYMONO);
-                    if(COLLECT_VALUE_FUNCTION_APPROX)
-                    	messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
+                    srv.writeToDB(ga, GameActionRow.PLAYMONO);
+                    if(srv.COLLECT_VALUE_FUNCTION_APPROX)
+                    	srv.messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
                 } else {
                     srv.messageToPlayerKeyedSpecial
                         (c, ga, SOCServer.PN_REPLY_TO_UNDETERMINED, "reply.playdevcard.cannot.now", SOCDevCardConstants.MONO);

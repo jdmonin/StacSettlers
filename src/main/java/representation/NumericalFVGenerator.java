@@ -9,6 +9,7 @@ import java.util.Vector;
 
 import mcts.game.catan.Board;
 import soc.game.SOCBoard;
+import soc.game.SOCBoard4p;
 import soc.game.SOCPlayingPiece;
 import soc.game.SOCResourceConstants;
 import soc.server.database.stac.ExtGameStateRow;
@@ -940,12 +941,13 @@ public class NumericalFVGenerator extends FeatureVectorGenerator implements Nume
 			//For each legal in the set
 			//if they are legal locations get production and if these are a port and add to a counter
 			int[] prodNPort = new int[11];
-			Set legalLocations = new HashSet<Integer>();
+			Set<Integer> legalLocations = new HashSet<>();
+			final SOCBoard4p board = new SOCBoard4p(null);
 			
 			int[] nodes;
 			int[] neighbours1Away;
 			for(Object i : roads){
-				nodes = SOCBoard.getAdjacentNodesToEdge_arr((int)i);
+				nodes = board.getAdjacentNodesToEdge_arr((int)i);
 				//check if these are on board and if these are legal location (i.e. empty and no adjacent settlement)
 				if(SOCBoard.isNodeOnBoard_v1(nodes[0]) && !allCoords.contains(nodes[0])){
 					neighbours1Away = SOCBoard.getAdjacentNodesToNode_arr_v1(nodes[0]);
@@ -974,7 +976,7 @@ public class NumericalFVGenerator extends FeatureVectorGenerator implements Nume
 					//if there is a road there already ignore as we are taking care of our own in the logic above, while we can't go over the opponents roads
 					if(allRoads.contains(r))
 						continue;
-					nodes = SOCBoard.getAdjacentNodesToEdge_arr((int)r);
+					nodes = board.getAdjacentNodesToEdge_arr((int)r);
 					//check if these are on board and if these are legal location
 					if(SOCBoard.isNodeOnBoard_v1(nodes[0]) && !allCoords.contains(nodes[0])){
 						neighbours1Away = SOCBoard.getAdjacentNodesToNode_arr_v1(nodes[0]);
@@ -1003,17 +1005,15 @@ public class NumericalFVGenerator extends FeatureVectorGenerator implements Nume
 			int number = 0;
 			/*setting a new hex layout, seems to update the port information also, though not the portlayout which seems to be only used 
 			in the creation of a new board not when getting information about a boad...confusing */
-			SOCBoard board = SOCBoard.createBoard(null, 4);
 			board.setHexLayout(StacDBHelper.transformToIntArr(ogsr.getHexLayout()));
 			board.setNumberLayout(StacDBHelper.transformToIntArr(ogsr.getNumberLayout()));
 			
 			//iterate over all legal locations that this player can reach and add production or if it is a port
-			for(Object l : legalLocations){
-				v = SOCBoard.getAdjacentHexesToNode((int) l);
-				for(Object h : v){
+			for(Integer l : legalLocations){
+				for(Integer h : board.getAdjacentHexesToNode(l)) {
 					//get type and number
-					type = board.getHexTypeFromCoord((int)h);
-					number = reduceNumberRange(board.getNumberOnHexFromCoord((int)h));
+					type = board.getHexTypeFromCoord(h);
+					number = reduceNumberRange(board.getNumberOnHexFromCoord(h));
 					//based on type add to counter index
 					switch (type) {
 			        case SOCResourceConstants.CLAY:

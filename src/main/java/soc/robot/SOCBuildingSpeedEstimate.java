@@ -50,7 +50,7 @@ import java.util.Vector;
  *  are referred to as "Fast" in all cases.  TBD whether it's worth 
  *  renaming.
  */
-public class SOCBuildingSpeedEstimate
+public abstract class SOCBuildingSpeedEstimate
 {
     public static final int ROAD = 0;
     public static final int SETTLEMENT = 1;
@@ -74,7 +74,7 @@ public class SOCBuildingSpeedEstimate
      * because {@link SOCPlayerNumbers} methods translate the gold hexes into
      * each of the normal 5 resource types.
      */
-    private int[] rollsPerResource;
+    protected int[] rollsPerResource;
 
     /**
      * Resource sets gained for each dice roll number (2 to 12).
@@ -85,7 +85,7 @@ public class SOCBuildingSpeedEstimate
      * because {@link SOCPlayerNumbers} methods translate each gold hex number
      * into 1 resource of each of the normal 5 types.
      */
-    private SOCResourceSet[] resourcesForRoll;
+    protected SOCResourceSet[] resourcesForRoll;
 
     /**
      * Create a new SOCBuildingSpeedEstimate, calculating
@@ -132,7 +132,7 @@ public class SOCBuildingSpeedEstimate
      */
     public static final int[] getRollsForResourcesSorted(final SOCPlayer pl)
     {
-        SOCBuildingSpeedEstimate estimate = new SOCBuildingSpeedEstimate(pl.getNumbers());
+        SOCBuildingSpeedEstimate estimate = new SOCBuildingSpeedFast(pl.getNumbers());
         final int[] rollsPerResource = estimate.getRollsPerResource();
         int[] resourceOrder =
         {

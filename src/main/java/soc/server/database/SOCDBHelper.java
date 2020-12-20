@@ -32,6 +32,7 @@ import soc.message.SOCMakeOffer;
 import soc.message.SOCRejectOffer;
 import soc.robot.stac.Persuasion;
 import soc.server.SOCServer;  // solely for javadocs, ROBOT_PARAMS_*, and getSettingsFormatted callback
+import soc.server.database.DBHelper.AuthPasswordRunnable;
 import soc.util.IntPair;
 import soc.util.SOCRobotParameters;
 
@@ -4870,28 +4871,6 @@ public class SOCDBHelper implements DBHelper
         } else {
             System.err.println("* All required DB tests passed.");
         }
-    }
-
-    /**
-     * Interface for callbacks from {@link SOCDBHelper#authenticateUserPassword(String, String, AuthPasswordRunnable)}.
-     * See {@link #authResult(String, boolean)} for callback details.
-     *
-     * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
-     * @since 1.2.00
-     */
-    public static interface AuthPasswordRunnable
-    {
-        /**
-         * Called after user and password are authenticated or rejected, which may be a slow process which runs in
-         * its own Thread. So, this callback will occur in the caller's Thread or in a Thread dedicated to
-         * {@link BCrypt} calls.
-         * @param dbUserName  Username if auth was successful, or {@code null}; same meaning as the String
-         *     returned from {@link SOCDBHelper#authenticateUserPassword(String, String, AuthPasswordRunnable)}.
-         * @param hadDelay  If true, this callback has been delayed by {@code BCrypt} calculations;
-         *     otherwise it's an immediate callback (user not found, password didn't use BCrypt hashing)
-         *     and for consistency you might want to delay replying to the client.
-         */
-        public void authResult(final String dbUserName, final boolean hadDelay);
     }
 
     /**

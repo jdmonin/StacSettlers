@@ -24,6 +24,7 @@
 package soc.client;
 
 import java.awt.EventQueue;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.Iterator;
@@ -32,6 +33,8 @@ import java.util.Map;
 import java.util.StringTokenizer;
 
 import soc.baseclient.SOCDisplaylessPlayerClient;
+import soc.dialogue.StacDialogueManager;
+import soc.dialogue.StacTradeMessage;
 import soc.disableDebug.D;
 import soc.game.SOCBoardLarge;
 import soc.game.SOCDevCardConstants;
@@ -53,6 +56,8 @@ import soc.message.*;
 import soc.message.SOCGameElements.GEType;
 import soc.message.SOCPlayerElement.PEType;
 
+import soc.robot.stac.StacRobotDialogueManager;
+import soc.util.DeepCopy;
 import soc.util.SOCFeatureSet;
 import soc.util.SOCGameList;
 import soc.util.SOCStringManager;
@@ -294,10 +299,17 @@ import soc.util.Version;
                 break;
 
             /**
-             * message that the game is starting
+             * message that a general game is starting
              */
             case SOCMessage.STARTGAME:
                 handleSTARTGAME((SOCStartGame) mes);
+                break;
+
+            /**
+             * message that a stac game is starting
+             */
+            case SOCMessage.STACSTARTGAME:
+                handleSTACSTARTGAME((StacStartGame) mes);
                 break;
 
             /**
@@ -740,19 +752,15 @@ import soc.util.Version;
             	//handlePLAYERSTARTSTRADING((SOCPlayerStartsTrading) mes);
             	SOCClearGameHistory clearMsg = (SOCClearGameHistory) mes;
                 
-            	String gaName = clearMsg.getGame();
-            	SOCGame ga = (SOCGame) games.get(gaName);
-
 //                    //---MG
 //                	if (ga.getGameState() > SOCGame.ROLL_OR_CARD) {
 //                		//delete the currently visible interaction history, because we don't allow perfect memory
 //                		//but only do this after the game has started; otherwise some messages prompting action are swallowed 
                 	
             	//only clear if the message is for us, otherwise ignore
-            	if(clearMsg.getPlayerNumber() == ga.getPlayer(getNickname()).getPlayerNumber() && !devMode){
-	            	SOCPlayerInterface pi = (SOCPlayerInterface) playerInterfaces.get(gaName);
-	                pi.clearTextWindow();
-	                pi.clearChatWindow();
+            	if(clearMsg.getPlayerNumber() == ga.getPlayer(client.getNickname(ga.isPractice)).getPlayerNumber() && ! client.devMode){
+	            	PlayerClientListener pcl = client.getClientListener(gaName);
+	                pcl.clearTextAndChatDisplays();
             	}
             	break;
             
@@ -1301,7 +1309,7 @@ import soc.util.Version;
                 client.getMainDisplay().gameJoined(ga, mes.getLayoutVS(), client.getGameReqLocalPrefs().get(gaName));
 
 //            System.err.println("CLIENT: JOINGAMEAUTH with game options: " + gameOpts.toString() + " message: " + mes.toString()); //---MG
-            client.showDialogForTradeReminder =  mes.getShowDialog(); //---MG
+            client.showDialogForTradeReminder = false;  // mes.getShowDialog(); //---MG
 //            System.err.printf("CLIENT: get show dialog set to %b\n", getShowDialogForTradeReminder());
 //            showDialogForTradeReminder = retrieveShowDialogForTradeReminderFromDatabase(); //---MG
 
@@ -1435,48 +1443,46 @@ import soc.util.Version;
         if (pcl == null)
             return;
 
-        String fromNickname = mes.getNickname();
+        String fromNickname = mes.getNickname(), mesText = mes.getText();
         if (fromNickname.equals(SOCGameTextMsg.SERVERNAME))  // for pre-2.0.00 servers not using SOCGameServerText
         {
             fromNickname = null;
 
             if (mesText.contains(" traded ") && !mesText.contains(" bank.")){
                 //a trade was executed so clear the responses
-                SOCGame ga = (SOCGame) games.get(mes.getGame());
+                SOCGame ga = client.games.get(mes.getGame());
                 D.ebugPrintlnINFO("PlayerClient: Clearing all trade messages - after trade was made");
-                StacPlayerDialogueManager dm = dialogueManagers.get(ga.getName());
+                StacPlayerDialogueManager dm = client.dialogueManagers.get(ga.getName());
                 if (dm != null)
                     dm.clearTradeResponses();
 
-                for(int i = 0; i < ga.maxPlayers; i++)
-                    pi.getPlayerHandPanel(i).offer.setVisible(false);
-
-                if (pi.clientIsCurrentPlayer())//if a trade was finished enable saving
-                    pi.clientHand.save.setEnabled(true);
+                pcl.clearTradeOffer(null, false);
+                    //if clientIsCurrentPlayer, will enable save button
 
             }else if(mesText.contains(" stole a resource from ")){
             	//do nothing
-            } else if (mesText.startsWith(SOCServer.MSG_ILLEGAL_TRADE) || mesText.startsWith(SOCServer.MSG_ILLEGAL_OFFER) || mesText.startsWith(SOCServer.MSG_REJECTED_TRADE_CONFIRMATION)) {
-                pi.hideTradeConfirmationPanel();
+            ////            } else if (mesText.startsWith(SOCServer.MSG_ILLEGAL_TRADE) || mesText.startsWith(SOCServer.MSG_ILLEGAL_OFFER) || mesText.startsWith(SOCServer.MSG_REJECTED_TRADE_CONFIRMATION)) {
+            // -- merge TODO: look for SOCAcceptOffer(SOCBankTrade.PN_REPLY_CANNOT_MAKE_TRADE) or "confirmation rejected" data message instead
+            ////                pcl.tradeConfirmationHide();
             }
         } else {
                 if (mes.getText().startsWith(StacTradeMessage.TRADE)) {
-                    StacPlayerDialogueManager dm = dialogueManagers.get(mes.getGame());
+                    StacPlayerDialogueManager dm = client.dialogueManagers.get(mes.getGame());
                     if (dm != null)
                         dm.handleTradeGameTextMessage(mes);
                     
-                    if (getClass() == SOCReplayClient.class) {
-                        SOCGame ga = (SOCGame) games.get(mes.getGame());
+                    if (client instanceof SOCReplayClient) {
+                        SOCGame ga = (SOCGame) client.games.get(mes.getGame());
                         String tradeString = StacDialogueManager.fromMessage(mes.getText());
                         StacTradeMessage tm = StacTradeMessage.parse(tradeString);
-                        pi.chatPrint(ga.getPlayerNames()[tm.getSenderInt()] + ": " + tm.getNLChatString());
+                        pcl.chatPrintText(ga.getPlayerNames()[tm.getSenderInt()] + ": " + tm.getNLChatString());
                     }
                 } else if (mes.getText().contains("ANN:BP:")) {
                     StringBuffer annMsg = StacChatTradeMsgParser.annMessageToString(mes);
-                    pi.chatPrint(annMsg.toString());
+                    pcl.chatPrintText(annMsg.toString());
                 } else if(mes.getText().contains("REQ:")){
                     String reqMsg = StacChatTradeMsgParser.reqMessageToString(mes);
-                    pi.chatPrint(reqMsg);
+                    pcl.chatPrintText(reqMsg);
                 }else {
                     //ignore NULL:ST as these do not communicate anything to the human player
                     if(mes.getText().contains("NULL:ST") || mes.getText().equals(StacRobotDialogueManager.ANN_PARTICIPATION))
@@ -1607,7 +1613,7 @@ import soc.util.Version;
     }
 
     /**
-     * handle the "start game" message
+     * handle the general "start game" message
      * @param mes  the message
      */
     protected void handleSTARTGAME(SOCStartGame mes)
@@ -1619,16 +1625,48 @@ import soc.util.Version;
 
         //initialise the object storing the trade responses for this game
         D.ebugPrintlnINFO("PlayerClient: Clearing all trade messages and trade responses - (handleSTARTGAME)");
-        StacPlayerDialogueManager dm = dialogueManagers.get(mes.getGame());
+        StacPlayerDialogueManager dm = client.dialogueManagers.get(mes.getGame());
         if (dm != null) {
             dm.clearLastTradeMessages();
             dm.clearTradeResponses();
         }
 
     	try {
-		SOCPlayer clientPlayer = ga.getPlayer(getNickname());
+		SOCPlayer clientPlayer = ga.getPlayer(client.getNickname(ga.isPractice));
 		if (clientPlayer != null)
-			logger.startLog(mes.getGame(), clientPlayer.getPlayerNumber());
+			client.logger.startLog(mes.getGame(), clientPlayer.getPlayerNumber());
+		} catch (IOException e) {
+			D.ebugERROR("Failed to start the chat logger " + e.toString());
+		}
+        
+        if (ga.getGameState() == SOCGame.NEW)
+            // skip gameStarted call if handleGAMESTATE already called it
+            pcl.gameStarted();
+    }
+
+    /**
+     * handle the stac "start game" message
+     * @param mes  the message
+     */
+    protected void handleSTACSTARTGAME(StacStartGame mes)
+    {
+        PlayerClientListener pcl = client.getClientListener(mes.getGame());
+        final SOCGame ga = client.games.get(mes.getGame());
+        if ((pcl == null) || (ga == null))
+            return;
+
+        //initialise the object storing the trade responses for this game
+        D.ebugPrintlnINFO("PlayerClient: Clearing all trade messages and trade responses - (handleSTACSTARTGAME)");
+        StacPlayerDialogueManager dm = client.dialogueManagers.get(mes.getGame());
+        if (dm != null) {
+            dm.clearLastTradeMessages();
+            dm.clearTradeResponses();
+        }
+
+    	try {
+		SOCPlayer clientPlayer = ga.getPlayer(client.getNickname(ga.isPractice));
+		if (clientPlayer != null)
+			client.logger.startLog(mes.getGame(), clientPlayer.getPlayerNumber());
 		} catch (IOException e) {
 			D.ebugERROR("Failed to start the chat logger " + e.toString());
 		}
@@ -1705,19 +1743,20 @@ import soc.util.Version;
         ga.setCurrentPlayerNumber(pnum);
         ga.updateAtTurn();
         PlayerClientListener pcl = client.getClientListener(mes.getGame());
-        playSound("Temple.wav", false /* pi.clientHand.muteSound.getBoolValue() */);
+        //  -- merge TODO: reconcile with jsettlers2 roll-prompt sound
+        ////playSound("Temple.wav", false /* pi.clientHand.muteSound.getBoolValue() */);
         pcl.playerTurnSet(pnum);
 
             //clear the trade responses before starting a new turn just in case a robot had its turn ended
-            StacPlayerDialogueManager dm = dialogueManagers.get(mes.getGame());
+            StacPlayerDialogueManager dm = client.dialogueManagers.get(mes.getGame());
             if (dm != null)
                 dm.handleStartTurn();
             
             for (int i = 0; i < ga.maxPlayers; ++i)
             {	//clear trading stuff at turn in case a robot has either ended its turn before we could reply or if it was forced
                 ga.getPlayer(i).setCurrentOffer(null);
-                pi.getPlayerHandPanel(i).updateCurrentOffer();
             }
+            pcl.requestedTradeClear(null, false);
     }
 
     /**
@@ -2328,22 +2367,22 @@ import soc.util.Version;
         if (pn != -1)
             player = ga.getPlayer(pn);
 
+        PlayerClientListener pcl = client.getClientListener(mes.getGame());
+
         if (pn != -1)
         {
-            	SOCTradeOffer off = ga.getPlayer(pn).getCurrentOffer();
+            	SOCTradeOffer off = player.getCurrentOffer();
             	boolean forUs = false;
             	if(off != null)
-            		forUs = off.getTo()[pi.getClientPlayerNumber()];
+            		forUs = off.getTo()[pcl.getClientPlayerNumber()];
             	if(!forUs){
-                    ga.getPlayer(pn).setCurrentOffer(null);
-                    pi.getPlayerHandPanel(pn).updateCurrentOffer();//can clear it if it's not for us
+                    player.setCurrentOffer(null);
                 }
         }
         else
             for (int i = 0; i < ga.maxPlayers; ++i)
                 ga.getPlayer(i).setCurrentOffer(null);
 
-        PlayerClientListener pcl = client.getClientListener(mes.getGame());
         pcl.requestedTradeClear(player, false);
     }
 
@@ -2413,9 +2452,10 @@ import soc.util.Version;
         final SOCPlayer player = ga.getPlayer(pn);
         final PlayerClientListener pcl = client.getClientListener(mes.getGame());
         final int clientPN = (pcl != null) ? pcl.getClientPlayerNumber() : -2;  // not -1: message may have that
+        final boolean isClientPlayer = (pn == clientPN);
         final int act = mes.getAction();
 
-        if ((pn == clientPN) && (act == SOCDevCardAction.ADD_OLD) && (ga.getGameState() == SOCGame.OVER))
+        if (isClientPlayer && (act == SOCDevCardAction.ADD_OLD) && (ga.getGameState() == SOCGame.OVER))
         {
             return;  // ignore messages at OVER about our own VP dev cards
         }
@@ -2424,7 +2464,7 @@ import soc.util.Version;
         if (ctypes != null)
         {
             for (final int ctype : ctypes)
-                handleDEVCARDACTION(ga, player, act, ctype);
+                handleDEVCARDACTION(ga, player, isClientPlayer, act, ctype);
         } else {
             int ctype = mes.getCardType();
             if ((! isPractice) && (client.sVersion < SOCDevCardConstants.VERSION_FOR_RENUMBERED_TYPES))
@@ -2434,7 +2474,7 @@ import soc.util.Version;
                 else if (ctype == SOCDevCardConstants.UNKNOWN_FOR_VERS_1_X)
                     ctype = SOCDevCardConstants.UNKNOWN;
             }
-            handleDEVCARDACTION(ga, player, act, ctype);
+            handleDEVCARDACTION(ga, player, isClientPlayer, act, ctype);
         }
 
         if (pcl != null)
@@ -2447,22 +2487,22 @@ import soc.util.Version;
      * {@link PlayerClientListener#playerDevCardsUpdated(SOCPlayer, boolean)}: Caller must do so afterwards.
      */
     private void handleDEVCARDACTION
-        (final SOCGame ga, final SOCPlayer player, final int act, final int ctype)
+        (final SOCGame ga, final SOCPlayer player, final boolean isClientPlayer, final int act, final int ctype)
     {
         switch (act)
         {
         case SOCDevCardAction.DRAW:
             player.getInventory().addDevCard(1, SOCInventory.NEW, ctype);
-            if(mesPN == pi.getClientPlayerNumber()){ //in this case we observe the card type
-                ga.devCardPlayed(mes.getCardType());
+            if(isClientPlayer){ //in this case we observe the card type
+                ga.devCardPlayed(ctype);
             }
             break;
 
         case SOCDevCardAction.PLAY:
             player.getInventory().removeDevCard(SOCInventory.OLD, ctype);
             player.updateDevCardsPlayed(ctype);
-            if(mesPN != pi.getClientPlayerNumber()){//only if we are not playing it so we won't update twice;
-                ga.devCardPlayed(mes.getCardType());
+            if(! isClientPlayer){//only if we are not playing it so we won't update twice;
+                ga.devCardPlayed(ctype);
             }
             break;
 
@@ -3236,13 +3276,13 @@ import soc.util.Version;
 	 * @param mes the SOC message
 	 */
     protected void handleGAMECOPY(SOCGameCopy mes) {
-		SOCPlayerInterface pi = (SOCPlayerInterface) playerInterfaces.get(mes.getGame());
-		SOCGame original = (SOCGame) this.games.get(mes.getGame());
-		boolean res = DeepCopy.copyToFile(original, "" + pi.getClientPlayerNumber(), mes.getFolder()); //writing the object bytes to file
+		PlayerClientListener pcl = client.getClientListener(mes.getGame());
+		SOCGame original = (SOCGame) client.games.get(mes.getGame());
+		boolean res = DeepCopy.copyToFile(original, "" + pcl.getClientPlayerNumber(), mes.getFolder()); //writing the object bytes to file
         if (res)
-            pi.print("* Game saved.");
+            pcl.printText("* Game saved.");
         else
-            pi.print("* Problem saving game.");
+            pcl.printText("* Problem saving game.");
 	}
 	
     /**
@@ -3251,9 +3291,9 @@ import soc.util.Version;
      * @param mes the message
      */
     protected void handleLOADGAME(SOCLoadGame mes) {
-    	SOCGame originalGame = (SOCGame) games.get(mes.getGame()); //in order to get the old player names
-    	SOCPlayerInterface pi = (SOCPlayerInterface) playerInterfaces.get(originalGame.getName());
-    	int pn = pi.getClientPlayerNumber(); //this player's number (position on board)
+    	SOCGame originalGame = (SOCGame) client.games.get(mes.getGame()); //in order to get the old player names
+    	PlayerClientListener pcl = client.getClientListener(originalGame.getName());
+    	int pn = pcl.getClientPlayerNumber(); //this player's number (position on board)
     	    	
     	//read the game object from file
     	String prefix = mes.getFolder() + "/";
@@ -3272,51 +3312,20 @@ import soc.util.Version;
     	clone.isPractice = originalGame.isPractice;
     	
     	//replace the old game object inside the client
-		this.games.remove(originalGame.getName());
-		this.games.put(clone.getName(), clone);
+		client.games.remove(originalGame.getName());
+		client.games.put(clone.getName(), clone);
 		
 		//this.serverGames.replaceGame(game);  // this does not need replacing as it is null under practice conditions 
 		
 		//replace/update all references to the old game and player objects
-		pi.game = clone; 				
-		pi.boardPanel.setGame(clone);
-		pi.boardPanel.setBoard(clone.getBoard());
-		if(!this.getClass().equals(SOCReplayClient.class)){//avoid in the replay client case
-			pi.boardPanel.setPlayer(clone.getPlayer(pn));
-			pi.buildingPanel.resetPlayer(clone.getPlayer(pn)); 
-			//make sure we are known as a human player, just in case we are replacing a robot
-			put(SOCRobotFlag.toCmd(clone.getName(), false, pn), clone.isPractice);
-			clone.getPlayer(pn).setRobotFlagUnsafe(false);
-		}
+		pcl.setGame(clone);
+
 		//now show/draw the updates for the board and building panel
-		pi.boardPanel.validate();
-		pi.boardPanel.flushBoardLayoutAndRepaint();
-		pi.buildingPanel.updateDevCardCount();
-		pi.buildingPanel.updateButtonStatus();
-		pi.buildingPanel.validate();
-		pi.buildingPanel.repaint();
-		
-		//do the same for each hand panel now
-		int n = clone.maxPlayers; //number of players
-		for(int i = 0; i < n; i++){
-			SOCHandPanel hpan = pi.getPlayerHandPanel(i);
-			hpan.game = clone;
-			hpan.player = clone.getPlayer(i);
-			hpan.faceImg.setGame(clone);
-			hpan.larmyLab.setText(clone.getPlayer(i).hasLargestArmy() ? "L. Army" : "");
-			hpan.lroadLab.setText(clone.getPlayer(i).hasLongestRoad() ? "L. Road" : "");
-			if(!this.getClass().equals(SOCReplayClient.class)){
-				//there are no handPanel buttons during replay
-				hpan.updateButtonsAtLoad();
-				hpan.doneBut.setLabel(SOCHandPanel.DONE);
-				hpan.doneBut.setEnabled(true);
-			}
-			hpan.updateAll();
-			hpan.validate();
-			hpan.repaint();
-		}
+		pcl.boardUpdated();
+		pcl.devCardDeckUpdated();
+		pcl.gameStateChanged(clone.getGameState());
         
-        StacPlayerDialogueManager dm = dialogueManagers.get(clone.getName());
+        StacPlayerDialogueManager dm = client.dialogueManagers.get(clone.getName());
         if (dm != null) {
             dm.setGame(clone);
             dm.clearTradeResponses();
@@ -3327,7 +3336,7 @@ import soc.util.Version;
 	}
 	
     private void handleROBOTFLAGCHANGE(SOCRobotFlag mes){
-    	SOCGame game = (SOCGame) games.get(mes.getGame());
+    	SOCGame game = (SOCGame) client.games.get(mes.getGame());
     	SOCPlayer player = game.getPlayer(mes.getPlayerNumber());
 		player.setRobotFlagUnsafe(mes.getFlag());
     }
@@ -3340,14 +3349,20 @@ import soc.util.Version;
      */
     private final void handlePERMISSIONTOSPEAK(SOCPermissionToSpeak mes)
     {
-        SOCPlayerInterface pi = (SOCPlayerInterface) playerInterfaces.get(mes.getGame());
+    	SOCGame game = (SOCGame) client.games.get(mes.getGame());
+        PlayerClientListener pcl = client.getClientListener(mes.getGame());
+        if ((game == null) || (pcl == null))
+            return;
     	//System.err.println("Got permission to speak: " + mes + " interface: " + pi);
     	String playerWithPermission = mes.getParam();
-    	String myPlayer = nickname;
+    	String myPlayer = client.getNickname(game.isPractice);
+
+   	/*
     	if (playerWithPermission.equals(myPlayer)) {
     		pi.textInputShowRequestBut = false;
+    		pi.doLayout();
     	}
-		pi.doLayout();
+    	 */
     }
     
     /**
@@ -3411,11 +3426,14 @@ import soc.util.Version;
      */
     private void handlePLAYERSTARTSTRADING(SOCPlayerStartsTrading mes) { 
         final String gn = mes.getGame();
-        SOCPlayerInterface pi = (SOCPlayerInterface) playerInterfaces.get(gn);
+        final SOCGame game = client.games.get(mes.getGame());
+        PlayerClientListener pcl = client.getClientListener(gn);
+        if ((game == null) || (pcl == null))
+            return;
         final String player = mes.getPlayer();
-        if (!player.equals(nickname)) {
+        if (! player.equals(client.getNickname(game.isPractice))) {
         	final String msg = "* " + player + " started registering a trade.\n";
-        	pi.print(msg);
+        	pcl.printText(msg);
         }
     }
     
@@ -3429,31 +3447,27 @@ import soc.util.Version;
             return;
         
         final String gaName = mes.getGame();
-        SOCPlayerInterface pi = (SOCPlayerInterface) playerInterfaces.get(gaName);
+        PlayerClientListener pcl = client.getClientListener(gaName);
         int p1 = mes.getPlayer1();
         int p2 = mes.getPlayer2();
-        int ourPlayerNumber = pi.getClientPlayerNumber();
+        int ourPlayerNumber = pcl.getClientPlayerNumber();
         if (p1 != ourPlayerNumber && p2 != ourPlayerNumber)
             return;
         SOCResourceSet p1GiveSet = mes.getPlayer1Resources();
         SOCResourceSet p2GiveSet = mes.getPlayer2Resources();
-        int[] p1GiveSetInt, p2GiveSetInt;
-        p1GiveSetInt = new int[5];
-        p2GiveSetInt = new int[5];
-        for (int rs = SOCResourceConstants.CLAY; rs <= SOCResourceConstants.WOOD; rs++) {
-            p1GiveSetInt[rs-1] = p1GiveSet.getAmount(rs);
-            p2GiveSetInt[rs-1] = p2GiveSet.getAmount(rs);
-        }
+
+        SOCPlayer tradePartner;
+        SOCResourceSet weGive, weGet;
         if (p1 == ourPlayerNumber) {
-            String tradePartnerName = ((SOCGame)games.get(gaName)).getPlayer(p2).getName();
-            pi.gameTextFieldLabel.setText("Confirm your trade with " + tradePartnerName);
-            pi.setOfferSquares(p1GiveSetInt, p2GiveSetInt);
+            tradePartner = pcl.getGame().getPlayer(p2);
+            weGive = p1GiveSet;
+            weGet  = p2GiveSet;
         } else {
-            String tradePartnerName = ((SOCGame)games.get(gaName)).getPlayer(p1).getName();
-            pi.gameTextFieldLabel.setText("Confirm your trade with " + tradePartnerName);
-            pi.setOfferSquares(p2GiveSetInt, p1GiveSetInt);
+            tradePartner = pcl.getGame().getPlayer(p1);
+            weGive = p2GiveSet;
+            weGet  = p1GiveSet;
         }
-        pi.showTradeConfirmationPanel();
+        pcl.tradeConfirmationShow(weGive, weGet, tradePartner);
     }
 
 }  // class MessageHandler

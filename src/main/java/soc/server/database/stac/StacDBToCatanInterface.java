@@ -10,6 +10,7 @@ import mcts.game.catan.Catan;
 import mcts.game.catan.CatanConfig;
 import mcts.game.catan.GameStateConstants;
 import soc.game.SOCBoard;
+import soc.game.SOCBoard4p;
 import soc.game.SOCDevCardConstants;
 import soc.game.SOCGame;
 import soc.game.SOCPlayingPiece;
@@ -202,7 +203,7 @@ public class StacDBToCatanInterface implements GameStateConstants {
 	 */
 	public static Catan generateGameFromDB(ObsGameStateRow ogsr, ExtGameStateRow egsr, int GAMESTATE){
 		
-		SOCBoard board = SOCBoard.createBoard(null, 4);
+		SOCBoard board = new SOCBoard4p(null);
 		board.setHexLayout(StacDBHelper.transformToIntArr(ogsr.getHexLayout()));
 		board.setNumberLayout(StacDBHelper.transformToIntArr(ogsr.getNumberLayout()));
 		
@@ -362,8 +363,8 @@ public class StacDBToCatanInterface implements GameStateConstants {
                 continue;
             hn = translateHexToSmartSettlers(ho, bl);
             int i = 0;
-            Vector vlist = SOCBoard.getAdjacentNodesToHex(ho);
-            Vector elist = SOCBoard.getAdjacentEdgesToHex(ho);
+            Vector vlist = SOCBoard.getAdjacentNodesToHex_SSettlers(ho);
+            Vector elist = SOCBoard.getAdjacentEdgesToHex_SSettlers(ho);
             for (i = 0; i<6; i++)
             {
             	vo = (Integer) vlist.get(i);
@@ -579,8 +580,9 @@ public class StacDBToCatanInterface implements GameStateConstants {
 	        }
 	        
 	        //for each road remove the adjacent settlement from the list 
+	        SOCBoard board = new SOCBoard4p(null);
 	        for(Object o : roads){
-	        	int[] nodes = SOCBoard.getAdjacentNodesToEdge_arr((int) o);
+	        	int[] nodes = board.getAdjacentNodesToEdge_arr((int) o);
 	        	settCoords.remove(nodes[0]);
 	        	settCoords.remove(nodes[1]);
 	        }

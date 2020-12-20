@@ -83,7 +83,7 @@ public class DiscardStrategy
      *     {@code ourPlayerData}.{@link SOCPlayer#getResources() getResources()}
      */
     public SOCResourceSet discard
-        (final int numDiscards, SOCBuildPlanStack buildingPlan)
+        (final int numDiscards, SOCBuildPlan buildingPlan)
     {
         //log.debug("DISCARDING...");
 
@@ -92,9 +92,9 @@ public class DiscardStrategy
         /**
          * make a plan if we don't have one
          */
-        if (buildingPlan.empty())
+        if (buildingPlan.isEmpty())
         {
-            brain.decisionMaker.planStuff(brain.getRobotParameters().getStrategyType());
+            brain.decisionMaker.planStuff();
             buildingPlan = brain.getBuildingPlan();
         }
 
@@ -102,7 +102,7 @@ public class DiscardStrategy
          * if we have a plan, then try to keep the resources
          * needed for that plan, otherwise discard at random
          */
-        if (! buildingPlan.empty())
+        if (! buildingPlan.isEmpty())
         {
             SOCPossiblePiece targetPiece = buildingPlan.getPlannedPiece(0);
             brain.negotiator.setTargetPiece(ourPlayerData.getPlayerNumber(), buildingPlan);

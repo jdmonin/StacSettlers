@@ -5,7 +5,7 @@ import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Vector;
 
-import soc.client.SOCDisplaylessPlayerClient;
+import soc.baseclient.SOCDisplaylessPlayerClient;
 import soc.disableDebug.D;
 import soc.game.SOCBoard;
 import soc.game.SOCDevCardConstants;
@@ -20,6 +20,7 @@ import soc.game.SOCSettlement;
 import soc.game.SOCTradeOffer;
 import soc.message.SOCGameStats;
 import soc.message.SOCGameTextMsg;
+import soc.message.SOCMessage;
 import soc.message.SOCParseResult;
 import soc.message.SOCPlayerElement;
 import soc.util.CappedQueue;
@@ -45,9 +46,8 @@ public class SOCRobotBrainImpl extends SOCRobotBrain<SOCRobotDMImpl, SOCRobotNeg
 			int resourceType, int amount) {
 		// Wrapper - don't like how this is done, move the interleaving here and leave our own version free to 
 		//  rework as desired
-		SOCPlayerElement mes = new SOCPlayerElement(null, player.getPlayerNumber(), action, resourceType, amount);
 		SOCDisplaylessPlayerClient.handlePLAYERELEMENT_numRsrc
-        (mes, player, resourceType);
+		    (player, action, resourceType, amount);
 	}
 
 	@Override
@@ -63,14 +63,17 @@ public class SOCRobotBrainImpl extends SOCRobotBrain<SOCRobotDMImpl, SOCRobotNeg
 	@Override
         protected SOCBuildingSpeedEstimateFactory createEstimatorFactory() {
 		return new SOCBuildingSpeedEstimateFactory(this) {
+
                     public SOCBuildingSpeedEstimate getEstimator() {
                         return new SOCBuildingSpeedFast();
                     }
+
                     public SOCBuildingSpeedEstimate getEstimator(final SOCPlayerNumbers numbers) {
                         return new SOCBuildingSpeedFast(numbers);
                     }
+
                     public final int[] getRollsForResourcesSorted(final SOCPlayer pl) {
-                        return SOCBuildingSpeedFast.getRollsForResourcesSorted(pl);
+                        return SOCBuildingSpeedEstimate.getRollsForResourcesSorted(pl);
                     }
 		};
         }
@@ -87,12 +90,12 @@ public class SOCRobotBrainImpl extends SOCRobotBrain<SOCRobotDMImpl, SOCRobotNeg
 
 	@Override
     public SOCBuildingSpeedEstimate getEstimator() {
-        return new SOCBuildingSpeedFast();
+        return bseFactory.getEstimator();
     }
     
 	@Override
     public SOCBuildingSpeedEstimate getEstimator(SOCPlayerNumbers numbers) {
-        return new SOCBuildingSpeedFast(numbers);
+        return bseFactory.getEstimator(numbers);
     }
 	
 	@Override

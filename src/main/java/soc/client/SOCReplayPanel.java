@@ -181,6 +181,7 @@ public class SOCReplayPanel extends Panel implements ActionListener
 
     /**
      * Update turn counter label.
+     * @param turnNumber  Turn number, from {@link game.getTurnCount()}
      */
     public void setTurnLabel(final int turnNumber)
     {

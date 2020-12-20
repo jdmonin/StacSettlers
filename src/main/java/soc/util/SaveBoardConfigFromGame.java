@@ -24,13 +24,17 @@ public class SaveBoardConfigFromGame {
 		if(f.exists()){
 			SOCGame game = (SOCGame) DeepCopy.readFromFile("saves/board/server_soc.game.SOCGame");
 			board = game.getBoard();
+
 			//clear the board of all the pieces 
-			Vector pieces = board.getPieces();
-			for(Object p : pieces){
-				board.removePiece((SOCPlayingPiece)p);
-			}
+			for(SOCPlayingPiece p : board.getCities())
+				board.removePiece(p);
+			for(SOCPlayingPiece p : board.getSettlements())
+				board.removePiece(p);
+			for(SOCPlayingPiece p : board.getRoadsAndShips())
+				board.removePiece(p);
+
 			//place the robber back on the desert and clear previous hex
-			int [] hexes = board.getHexLandCoords();
+			int [] hexes = board.getLandHexCoords();
 			int desertHex = -1;
 			for(int h : hexes)
 				if(board.getHexTypeFromCoord(h) == SOCBoard.DESERT_HEX){

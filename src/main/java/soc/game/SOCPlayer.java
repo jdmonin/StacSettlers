@@ -4157,11 +4157,6 @@ public class SOCPlayer implements SOCDevCardConstants, Serializable, Cloneable
                 }
             }
 
-            // Trash the old legal settlements list and force a recalc.
-            //  Could instead update on the fly, but that may be risky with copy operators, etc
-            //  Also, this may never actually be called, so don't do unnecessary work
-            legalSettlementsList = null;
-
             // if it's our piece, add potential roads/ships and city.
             // otherwise, check for cutoffs of our potential roads/ships by this piece.
 

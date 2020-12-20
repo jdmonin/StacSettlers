@@ -107,7 +107,7 @@ public class StacRobotBrainFlatMCTS extends StacRobotBrain {
 			this.mcts = ((StacRobotBrainFlatMCTS) br).mcts;
 		}
 		
-        @Override
+        // -- merge TODO: move to a RobberStrategy
         public int selectMoveRobber(int robberHex) {
         	//change the type to the correct next action
         	FlatMctsType mType = mcts.getType();
@@ -132,7 +132,7 @@ public class StacRobotBrainFlatMCTS extends StacRobotBrain {
 //        	}
         }
         
-        @Override
+        // -- merge TODO: move to a RobberStrategy
         public int choosePlayerToRob(){
 //        	if(playerToRob != -1){
 //        		System.out.println("Remind choose player to rob: " + playerToRob + " for player "+ brain.getPlayerNumber()); //debug
@@ -145,10 +145,10 @@ public class StacRobotBrainFlatMCTS extends StacRobotBrain {
 //        		System.out.println("Decided to rob player " + msg.getChoice());//debug
 //        		return msg.getChoice();
 //        	}else
-        		return super.choosePlayerToRob();
+        		return -1; // is really: return super.choosePlayerToRob();
         }
         
-        @Override
+        // -- merge TODO: move to an OpeningBuildStrategy
         public void planInitialSettlements() {
         	//change the type to the correct next action
         	FlatMctsType mType = mcts.getType();
@@ -174,7 +174,7 @@ public class StacRobotBrainFlatMCTS extends StacRobotBrain {
 //        	}
         }
 
-        @Override
+        // -- merge TODO: move to an OpeningBuildStrategy
         public void planSecondSettlement() {
         	//change the type to the correct next action
         	FlatMctsType mType = mcts.getType();
@@ -183,7 +183,7 @@ public class StacRobotBrainFlatMCTS extends StacRobotBrain {
         	
         	//if we have planned before do not plan again, just remind the server which location we decided on
         	if(secondSettlementLocation!= -1){
-        		secondSettlement = secondSettlementLocation;
+        		// is really: secondSettlement = secondSettlementLocation;
 //        		System.out.println("Remind to place second settlement at " + secondSettlementLocation);//debug
         		return;
         	}
@@ -193,8 +193,8 @@ public class StacRobotBrainFlatMCTS extends StacRobotBrain {
         		mcts.getQueue().empty();//empty before adding any moves
         		CappedQueue q = mcts.selectPlay();  
         		SOCPutPiece msg = (SOCPutPiece) q.get();
-        		secondSettlementLocation = msg.getCoordinates();
-        		secondSettlement = msg.getCoordinates();
+        		// is really: secondSettlementLocation = msg.getCoordinates();
+        		// is really: secondSettlement = msg.getCoordinates();
 //        		System.out.println("Decided to place second settlement at " + msg.getCoordinates());//debug
         	}else{//parent decision logic
         		super.planSecondSettlement();

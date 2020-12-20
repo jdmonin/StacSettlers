@@ -87,9 +87,6 @@ public abstract class SOCPossiblePiece implements Serializable
     public static final int MIN = -3;
     public static final int MAXPLUSONE = 4;
 
-    // Empty vector to use during constructors called from parse(str)
-    private static final Vector EMPTY_VECTOR = new Vector();
-
     /**
      * The type of this playing piece; a constant
      *    such as {@link SOCPossiblePiece#ROAD}, {@link SOCPossiblePiece#CITY}, etc.
@@ -384,13 +381,13 @@ public abstract class SOCPossiblePiece implements Serializable
             SOCPossiblePiece ret = null;
             switch (pieceType) {
                 case (ROAD) :
-                    ret = new SOCPossibleRoad(null, coord, EMPTY_VECTOR);        
+                    ret = new SOCPossibleRoad(null, coord, null);
                     break;
                 case (SETTLEMENT) :
-                    ret = new SOCPossibleSettlement(null, coord, EMPTY_VECTOR);
+                    ret = new SOCPossibleSettlement(null, coord, null);
                     break;
                 case (CITY) :
-                    ret = new SOCPossibleCity(coord);
+                    ret = new SOCPossibleCity(null, coord, null);
                     break;
                 case (CARD) :
                     ret = new SOCPossibleCard(null, 0);

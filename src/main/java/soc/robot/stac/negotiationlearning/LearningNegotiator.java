@@ -21,7 +21,7 @@ import soc.game.SOCPlayingPiece;
 import soc.game.SOCResourceSet;
 import soc.game.SOCTradeOffer;
 import soc.game.StacTradeOffer;
-import soc.message.SOCDevCard;
+import soc.message.SOCDevCardAction;
 import soc.message.SOCPutPiece;
 import soc.robot.SOCBuildPlanStack;
 import soc.robot.SOCPossiblePiece;
@@ -658,8 +658,8 @@ public class LearningNegotiator {
 			logger.log( Level.FINEST, "LearningNegotiator> build plan null or not matching" );
     }
     
-    public void handleDEVCARD( SOCDevCard mes ) {
-    	if ( mes.getAction() != SOCDevCard.DRAW ) {
+    public void handleDEVCARDACTION( SOCDevCardAction mes ) {
+    	if ( mes.getAction() != SOCDevCardAction.DRAW ) {
     		logger.log( Level.FINEST, "LearningNegotiator> attempt to handle DEV CARD of different type than DRAW" );
     		return;
     	}

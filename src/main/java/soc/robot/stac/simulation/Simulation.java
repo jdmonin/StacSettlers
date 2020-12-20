@@ -17,10 +17,10 @@ import java.util.List;
 import mcts.listeners.TimedIterationListener;
 import representation.FVGeneratorFactory;
 import resources.Resources;
-import soc.client.SOCPlayerClient.GameOptionServerSet;
+import soc.client.ServerGametypeInfo;
 import soc.disableDebug.D;
 import soc.message.SOCNewGameWithOptionsRequest;
-import soc.message.SOCStartGame;
+import soc.message.StacStartGame;
 import soc.robot.FactoryDescr;
 import soc.robot.SOCDefaultRobotFactory;
 import soc.robot.SOCRobotBrain;
@@ -38,13 +38,14 @@ import soc.server.SOCServer;
 import soc.server.database.LearningLogger;
 import soc.server.database.stac.StacDBHelper;
 import soc.server.database.stac.StateValueRow;
-import soc.server.genericServer.LocalStringConnection;
-import soc.server.genericServer.LocalStringServerSocket;
+import soc.server.genericServer.StringConnection;
+import soc.server.genericServer.StringServerSocket;
 import soc.server.genericServer.Server;
 import soc.server.logger.SOCConditionalLogger;
 import soc.server.logger.SOCFileLogger;
 import soc.server.logger.SOCLogger;
 import soc.server.logger.SOCNullLogger;
+import soc.util.SOCGameList;
 import soc.util.Timer;
 
 /**
@@ -126,7 +127,7 @@ public class Simulation {
     private boolean isValidAgentConfiguration;
 
     public Simulation() {
-        SOCServer.GAME_NAME_MAX_LENGTH = 100;
+        SOCGameList.GAME_NAME_MAX_LENGTH = 100;
         //when a robot is replacing a human player this field blocks the creation of more than 5 games
         SOCServer.CLIENT_MAX_CREATE_GAMES = -1;
     }
@@ -192,7 +193,7 @@ public class Simulation {
         	D.ebug_enable();
         else
         	D.ebug_disable();
-        practiceServer = new SOCServer(SOCServer.PRACTICE_STRINGPORT, 30, resultsLogger, null, null, gameLogger, useParser);
+        practiceServer = new SOCServer(SOCServer.PRACTICE_STRINGPORT, resultsLogger, null, gameLogger, useParser);
     }
 
     /**
@@ -585,7 +586,7 @@ public class Simulation {
         }
         practiceServer.setPriority(5);  
         practiceServer.start();
-        GameOptionServerSet gOpts =  new GameOptionServerSet();  
+        ServerGametypeInfo gOpts =  new ServerGametypeInfo();
 
         for (FactoryDescr f : factories) {
             practiceServer.setupLocalRobots(f.factory, f.name, f.count);
@@ -597,7 +598,7 @@ public class Simulation {
         //SOCRobotBrain.disableTrades();               
 
             // Create a connection to communicate with the server
-        LocalStringConnection prCli = LocalStringServerSocket.connectTo(SOCServer.PRACTICE_STRINGPORT);
+        StringConnection prCli = StringServerSocket.connectTo(SOCServer.PRACTICE_STRINGPORT);
 
         int i=0;
         // Try to run 10k games.
@@ -624,8 +625,8 @@ public class Simulation {
                  if (i<runNumGames[j]) {
                      failedMctsSimulation = false; //reset the flag; it is set to true only in StacMCTS if simulations fail
                      String gameName = runName[j] + "_" + i;
-                     prCli.put(SOCNewGameWithOptionsRequest.toCmd("simulation-master", "", "localhost", gameName, gOpts.optionSet));
-                     prCli.put(SOCStartGame.toCmd(gameName, dontShufflePlayers, load, folderName, noTurns, playerToStart, loadBoard, chatNegotiations, fullyObservable, observableVP));
+                     prCli.put(SOCNewGameWithOptionsRequest.toCmd("simulation-master", "", "localhost", gameName, gOpts.knownOpts.getAll()));
+                     prCli.put(new StacStartGame(gameName, dontShufflePlayers, load, folderName, noTurns, playerToStart, loadBoard, chatNegotiations, fullyObservable, observableVP, 0));
                  }
                  i++;
              }
@@ -651,17 +652,14 @@ public class Simulation {
 //		} catch (Exception e) {}
 
         //stop the server if no more games are active
-        if (!practiceServer.getGameNames().hasMoreElements()) {
+        if (practiceServer.getGameNames().isEmpty()) {
             System.out.println("Stopping the server.");
             practiceServer.stopServer();
         } else {
             System.out.println("Still games active on the server; keeping it running.");
             System.out.println("Active games: " );
-            Enumeration gameNames = practiceServer.getGameNames();
-            while (gameNames.hasMoreElements()) {
-                String gm = (String) gameNames.nextElement();
+            for (String gm : practiceServer.getGameNames())
                 System.out.println(gm);
-            }
         }
         
         if(dbh!=null && dbh.isConnected())

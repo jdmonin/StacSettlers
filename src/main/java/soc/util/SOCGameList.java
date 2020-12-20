@@ -57,6 +57,8 @@ public class SOCGameList
 {
     /**
      * Maximum permitted game name length, default 30 characters.
+     * Treat as a constant when working with servers/clients over a network;
+     * STAC classes may set this to a larger number while working locally only.
      *<P>
      * Before v1.1.13, the default maximum was 20 characters.<BR>
      * From v1.1.07 through 1.2.00, this field was {@code SOCServer.GAME_NAME_MAX_LENGTH}.
@@ -64,7 +66,7 @@ public class SOCGameList
      * @see soc.server.SOCServer#createOrJoinGameIfUserOK(soc.server.genericServer.Connection, String, String, String, SOCGameOptionSet)
      * @since 1.2.01
      */
-    public static final int GAME_NAME_MAX_LENGTH = 30;
+    public static int GAME_NAME_MAX_LENGTH = 30;
 
     /**
      * Regex pattern to match a string which is entirely digits or punctuation:
@@ -141,15 +143,6 @@ public class SOCGameList
         // D.ebugPrintln("SOCGameList : RELEASE MONITOR");
         inUse = false;
         this.notify();
-    }
-
-    /**
-     * Replaces the old game data.
-     * Intended for continuing the game from a different stage, while keeping the game info.
-     * @param newGame
-     */
-    public synchronized void replaceGame(SOCGame newGame){
-    	gameData.put(newGame.getName(), newGame);
     }
 
     /**

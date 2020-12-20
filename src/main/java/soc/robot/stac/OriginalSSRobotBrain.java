@@ -15,13 +15,14 @@ import soc.disableDebug.D;
 import soc.game.SOCBoard;
 import soc.game.SOCCity;
 import soc.game.SOCDevCardConstants;
-import soc.game.SOCDevCardSet;
 import soc.game.SOCGame;
+import soc.game.SOCInventory;
 import soc.game.SOCPlayer;
 import soc.game.SOCPlayingPiece;
 import soc.game.SOCResourceConstants;
 import soc.game.SOCResourceSet;
 import soc.game.SOCRoad;
+import soc.game.SOCRoutePiece;
 import soc.game.SOCSettlement;
 import soc.game.SOCTradeOffer;
 import soc.message.SOCRobotFlag;
@@ -96,7 +97,7 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
 	
 	protected void rollOrPlayKnightOrExpectDice()
     {
-        expectPLAY = false;
+        expectROLL_OR_CARD = false;
         if ((!waitingForOurTurn) && (ourTurn))
         {
             if (!expectPLAY1 && !expectDISCARD && !expectPLACING_ROBBER && !(expectDICERESULT && (counter < 4000)))
@@ -275,7 +276,7 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
     /**
      * plan and place first settlement
      */
-    @Override
+    // -- merge TODO: move to an OpeningBuildStrategy
     protected void placeFirstSettlement()
     {
     	if(firstSettlement !=-1){
@@ -307,7 +308,7 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
     /**
      * place planned second settlement
      */
-    @Override
+    // -- merge TODO: move to an OpeningBuildStrategy
     protected void placeSecondSettlement()
     {
     	if(secondSettlement !=-1){
@@ -339,7 +340,7 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
     /**
      * place a road attached to the last initial settlement
      */
-    @Override
+    // -- merge TODO: move to an OpeningBuildStrategy
     public void placeInitRoad()
     {
         sendStateToSmartSettlers(S_ROAD1); // does not matter if ROAD1 or ROAD2
@@ -424,7 +425,7 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
         client.put(SOCRobotFlag.toCmd(getGame().getName(), true, getPlayerNumber()));//we are a robot again 
     }
     
-    @Override
+    // -- merge TODO: move to a RobberStrategy
     protected void chooseRobberVictim(boolean[] choices)
     {
     
@@ -497,7 +498,7 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
                 break;
             case A_BUILDSETTLEMENT:
                 coord = translateVertexToJSettlers(bl.action[1]);
-                targetPiece = new SOCPossibleSettlement(getPlayerData(), coord, new Vector());
+                targetPiece = new SOCPossibleSettlement(getPlayerData(), coord, new ArrayList());
                 lastMove = targetPiece;
 
                 waitingForGameState = true;
@@ -511,7 +512,7 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
                 break;
             case A_BUILDCITY:
                 coord = translateVertexToJSettlers(bl.action[1]);
-                targetPiece = new SOCPossibleCity(this, getPlayerData(), coord);
+                targetPiece = new SOCPossibleCity(getPlayerData(), coord, getEstimatorFactory());
                 lastMove = targetPiece;
 
                 waitingForGameState = true;
@@ -533,7 +534,8 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
                 D.ebugPrintlnINFO("CARD bought ");
                 break;
             case A_PLAYCARD_MONOPOLY:
-                decisionMaker.monopolyChoice = translateResToJSettlers(bl.action[1]);
+                // -- merge TODO: move to a MonopolyStrategy
+                // is really: decisionMaker.monopolyChoice = translateResToJSettlers(bl.action[1]);
 
                 expectWAITING_FOR_MONOPOLY = true;
                 waitingForGameState = true;
@@ -595,7 +597,7 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
             case A_ENDTURN:
                 waitingForGameState = true;
                 counter = 0;
-                expectPLAY = true;
+                expectROLL_OR_CARD = true;
                 waitingForOurTurn = true;
 
                 if (robotParameters.getTradeFlag() == 1)
@@ -750,21 +752,21 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
         D.ebugPrintINFO(s);
         int spl = getMemory().getCurrentPlayerNumber();
         SOCPlayer sp = getMemory().getPlayer(spl);
-        SOCDevCardSet ds = sp.getDevCards();
+        SOCInventory ds = sp.getInventory();
         
         s = String.format("--- Card state according to JSettlers:\n"
                 + "pl:%d  cardplayed: %d,  new: %d %d %d %d %d,   old: %d %d %d %d %d \n", 
                 spl,  sp.hasPlayedDevCard() ?1:0,
-                    ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.KNIGHT),
-                    ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.ROADS),
-                    ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.DISC),
-                    ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.MONO),
+                    ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.KNIGHT),
+                    ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.ROADS),
+                    ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.DISC),
+                    ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.MONO),
                     0,
-                    ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.KNIGHT),
-                    ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.ROADS),
-                    ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.DISC),
-                    ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.MONO),
-                    ds.getNumVPCards());
+                    ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.KNIGHT),
+                    ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.ROADS),
+                    ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.DISC),
+                    ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.MONO),
+                    ds.getNumVPItems());
         D.ebugPrintINFO(s);
         
     }
@@ -1058,8 +1060,8 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
                 continue;
             hn = translateHexToSmartSettlers(ho);
             int i = 0;
-            Vector vlist = SOCBoard.getAdjacentNodesToHex(ho);
-            Vector elist = SOCBoard.getAdjacentEdgesToHex(ho);
+            Vector vlist = SOCBoard.getAdjacentNodesToHex_SSettlers(ho);
+            Vector elist = SOCBoard.getAdjacentEdgesToHex_SSettlers(ho);
             for (i = 0; i<6; i++)
             {
             	vo = (Integer) vlist.get(i);
@@ -1122,24 +1124,16 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
             st[OFS_DIE2] = val-6;            
         }
         
-        v = game.getBoard().getSettlements();
-        pEnum = v.elements();
-        while (pEnum.hasMoreElements())
+        for (SOCSettlement p : game.getBoard().getSettlements())
         {
-            SOCSettlement p = (SOCSettlement) pEnum.nextElement();
-            
             //System.out.printf("%X ", p.getCoordinates());
             indn = translateVertexToSmartSettlers(p.getCoordinates());
             val = p.getPlayer().getPlayerNumber();
             st[OFS_VERTICES+indn] = VERTEX_HASSETTLEMENT + val;
         }
         //System.out.println();
-        v = game.getBoard().getCities();
-        pEnum = v.elements();
-        while (pEnum.hasMoreElements())
+        for (SOCCity p : game.getBoard().getCities())
         {
-            SOCCity p = (SOCCity) pEnum.nextElement();
-            
             //System.out.printf("%X ", p.getCoordinates());
             indn = translateVertexToSmartSettlers(p.getCoordinates());
             val = p.getPlayer().getPlayerNumber();
@@ -1164,12 +1158,8 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
                 st[OFS_VERTICES + i] = VERTEX_TOOCLOSE;
         }
 
-        v = game.getBoard().getRoads();
-        pEnum = v.elements();
-        while (pEnum.hasMoreElements())
+        for (SOCRoutePiece p : game.getBoard().getRoadsAndShips())
         {
-            SOCRoad p = (SOCRoad) pEnum.nextElement();
-            
             //System.out.printf("%X ", p.getCoordinates());
             indn = translateEdgeToSmartSettlers(p.getCoordinates());
             val = p.getPlayer().getPlayerNumber();
@@ -1213,26 +1203,26 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
             st[OFS_PLAYERDATA[pl] + OFS_RESOURCES + RES_SHEEP] = rs.getAmount(SOCResourceConstants.SHEEP);
             st[OFS_PLAYERDATA[pl] + OFS_RESOURCES + RES_WHEAT] = rs.getAmount(SOCResourceConstants.WHEAT);
             
-            SOCDevCardSet ds = p.getDevCards();
+            SOCInventory ds = p.getInventory();
             st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + CARD_KNIGHT] = 
-                    ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.KNIGHT);
+                    ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.KNIGHT);
             st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + CARD_FREEROAD] = 
-                    ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.ROADS);
+                    ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.ROADS);
             st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + CARD_FREERESOURCE] = 
-                    ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.DISC);
+                    ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.DISC);
             st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + CARD_MONOPOLY] = 
-                    ds.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.MONO);
+                    ds.getAmount(SOCInventory.NEW, SOCDevCardConstants.MONO);
             st[OFS_PLAYERDATA[pl] + OFS_NEWCARDS + CARD_ONEPOINT] = 0;
 
             st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_KNIGHT] = 
-                    ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.KNIGHT);
+                    ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.KNIGHT);
             st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_FREEROAD] = 
-                    ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.ROADS);
+                    ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.ROADS);
             st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_FREERESOURCE] = 
-                    ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.DISC);
+                    ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.DISC);
             st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_MONOPOLY] = 
-                    ds.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.MONO);
-            st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_ONEPOINT] = ds.getNumVPCards();
+                    ds.getAmount(SOCInventory.OLD, SOCDevCardConstants.MONO);
+            st[OFS_PLAYERDATA[pl] + OFS_OLDCARDS + CARD_ONEPOINT] = ds.getNumVPItems();
             
             st[OFS_PLAYERDATA[pl] + OFS_USEDCARDS + CARD_KNIGHT] = 
                     p.getNumKnights();

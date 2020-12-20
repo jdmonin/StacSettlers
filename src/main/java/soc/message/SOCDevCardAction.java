@@ -136,7 +136,7 @@ public class SOCDevCardAction extends SOCMessage
      * The type of development card, like {@link SOCDevCardConstants#ROADS} or {@link SOCDevCardConstants#UNKNOWN}.
      * If {@link #cardTypes} != {@code null}, this field is not used.
      */
-    private final int cardType;
+    private int cardType;
 
     /**
      * When sending multiple cards, each card's type; otherwise {@code null}, uses {@link #cardType} instead.

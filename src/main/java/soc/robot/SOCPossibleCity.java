@@ -149,6 +149,6 @@ public class SOCPossibleCity extends SOCPossiblePiece
 
     @Override
     public SOCResourceSet getResourceCost() {
-        return SOCGame.CITY_SET;
+        return SOCCity.COST;
     }
 }

@@ -30,6 +30,7 @@ import java.awt.Component;
 import java.awt.Container;
 import java.awt.Cursor;
 import java.awt.EventQueue;
+import java.awt.FileDialog;
 import java.awt.Font;
 import java.awt.Frame;
 import java.awt.GraphicsConfiguration;
@@ -434,7 +435,7 @@ public class SwingMainDisplay extends JPanel implements MainDisplay
      */
     protected JButton ng;  // new game
 
-    protected Button lg;  // load game
+    protected JButton lg;  // load game
 
     /**
      * "Join Channel" button, for channel currently highlighted in {@link #chlist},
@@ -865,7 +866,7 @@ public class SwingMainDisplay extends JPanel implements MainDisplay
         jg = new JButton(strings.get("pcli.main.join.game"));     // "Join Game"
         pg = new JButton(strings.get("pcli.main.practice"));      // "Practice" -- "practice game" text is too wide
         gi = new JButton(strings.get("pcli.main.game.info"));     // "Game Info" -- show game options
-        lg = new Button("Load game");
+        lg = new JButton("Load game");
 
         if (SOCPlayerClient.IS_PLATFORM_WINDOWS && ! isOSColorHighContrast)
         {
@@ -903,7 +904,7 @@ public class SwingMainDisplay extends JPanel implements MainDisplay
 //---MG                boolean notEmpty = (nick.getText().trim().length() > 0);
     	//---MG we only activate the New Game button if the user specified a password in the text field 
     	//or we already have a password stored internally (gotPassword == true)
-        boolean notEmpty = ((nick.getText().trim().length() > 0) && ((pass.getText().length() > 0) || gotPassword)); //---MG we require a password as well as a nickname
+        boolean notEmpty = ((nick.getText().trim().length() > 0) && ((pass.getText().length() > 0) || client.gotPassword)); //---MG we require a password as well as a nickname
 
                 if (notEmpty != ng.isEnabled())
                 {
@@ -925,7 +926,7 @@ public class SwingMainDisplay extends JPanel implements MainDisplay
         };
 
         nick.addActionListener(actionListener);  // hit Enter to go to next field
-        pass.addTextListener(this);    //---MG -- also: Will enable buttons when field is not empty -- we don't allow empty passwords
+        //--- TODO merge: convert to swing:   pass.addTextListener(this);    //---MG -- also: Will enable buttons when field is not empty -- we don't allow empty passwords
         pass.addActionListener(actionListener);
         channel.addActionListener(actionListener);
         chlist.addMouseListener(new MouseAdapter() {
@@ -1822,7 +1823,7 @@ public class SwingMainDisplay extends JPanel implements MainDisplay
 
     protected boolean getShowDialogForTradeReminder()
     {
-    	return showDialogForTradeReminder;
+    	return client.showDialogForTradeReminder;
     }
 
     /**
@@ -1959,7 +1960,7 @@ public class SwingMainDisplay extends JPanel implements MainDisplay
             if ((opts.newGameOpts == null) && (opts.knownOpts != null))
                 opts.newGameOpts = new SOCGameOptionSet(opts.knownOpts, true);
             newGameOptsFrame = NewGameOptionsFrame.createAndShow
-                (null, this, nickname, opts.newGameOpts, forPracticeServer, false);
+                (null, this, client.nickname, opts.newGameOpts, forPracticeServer, false);
 
             return;  // <--- Early return: Show options to user ----
         }
@@ -2533,7 +2534,7 @@ public class SwingMainDisplay extends JPanel implements MainDisplay
         if ((opts.newGameOpts == null) && (opts.knownOpts != null))
             opts.newGameOpts = new SOCGameOptionSet(opts.knownOpts, true);
         newGameOptsFrame = NewGameOptionsFrame.createAndShow
-            (null, SwingMainDisplay.this, nickname, opts.newGameOpts, isPractice, false);
+            (null, SwingMainDisplay.this, client.nickname, opts.newGameOpts, isPractice, false);
     }
 
     public void optionsReceived(ServerGametypeInfo opts, boolean isPractice, boolean isDash, boolean hasAllNow)

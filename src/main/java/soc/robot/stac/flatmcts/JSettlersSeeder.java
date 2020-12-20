@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import soc.disableDebug.D;
 import soc.game.SOCBoard;
@@ -72,16 +73,13 @@ public class JSettlersSeeder implements Seeder{
 		int[] winGameETAs = new int[game.maxPlayers];
 	    for (int i = game.maxPlayers - 1; i >= 0; --i)
 	    	winGameETAs[i] = 100;
-	    Map<Integer, SOCPlayerTracker> playerTrackers = new HashMap<>();
-	    playerTrackers = brain.getPlayerTrackers();
+	    SOCPlayerTracker[] playerTrackers = brain.getPlayerTrackers();
 	     
-	    Iterator trackersIter = playerTrackers.values().iterator();
-	    while (trackersIter.hasNext()){
-	        SOCPlayerTracker tracker = (SOCPlayerTracker) trackersIter.next();
+	    for (int pn = 0; pn < playerTrackers.length; ++pn) {
 	        try{
-	        	winGameETAs[tracker.getPlayer().getPlayerNumber()] = tracker.getWinGameETA();//It should have been stored before saving the game
+	        	winGameETAs[pn] = playerTrackers[pn].getWinGameETA();//It should have been stored before saving the game
 	        }catch (NullPointerException e){
-	             winGameETAs[tracker.getPlayer().getPlayerNumber()] = 500;
+	             winGameETAs[pn] = 500;
 	        }
 	    }
 	    int victimNum = -1;
@@ -113,7 +111,7 @@ public class JSettlersSeeder implements Seeder{
 	    SOCPlayer ourPlayer = game.getPlayer(ourPlayerNumber);
 	    final boolean skipDeserts = game.isGameOptionSet("RD");  // can we move robber to desert?
 	    SOCBoard gboard = (skipDeserts ? game.getBoard() : null);
-	    int[] hexes = game.getBoard().getHexLandCoords();
+	    int[] hexes = game.getBoard().getLandHexCoords();
 	    Map<Integer,Integer> choices = new HashMap<>();
 	    
 	    for (int i = 0; i < hexes.length; i++){
@@ -178,7 +176,7 @@ public class JSettlersSeeder implements Seeder{
     public List<SettlementNode> getLegalSettlements() {
         SOCGame game = brain.getGame();
     	SOCPlayer p = game.getPlayer(brain.getOurPlayerData().getPlayerNumber()); //apparently it doesn't matter which player number
-    	List<Integer> legalSettlements = p.getLegalSettlements();
+    	Set<Integer> legalSettlements = p.getLegalSettlements();
 
     	List<SettlementNode> possibleSettlements = new ArrayList<SettlementNode>(legalSettlements.size());
         for (Integer node : legalSettlements) {

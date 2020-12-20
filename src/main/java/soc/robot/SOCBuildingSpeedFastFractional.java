@@ -1,5 +1,6 @@
 package soc.robot;
 
+import soc.game.ResourceSet;
 import soc.game.SOCBoard;
 import soc.game.SOCPlayerNumbers;
 import soc.game.SOCResourceConstants;
@@ -45,15 +46,16 @@ public class SOCBuildingSpeedFastFractional extends SOCBuildingSpeedEstimate {
     }
 
     @Override
-    public SOCResSetBuildTimePair calculateRollsFast(
-            SOCResourceSet startingResources, SOCResourceSet targetResources,
+    public SOCResSetBuildTimePair calculateRollsAndRsrcFast(
+            ResourceSet startingResources, SOCResourceSet targetResources,
             int cutoff, boolean[] ports) throws CutoffExceededException 
     {
         // No need to copy, since we don't touch the actual resource counts
-        SOCResourceSet ourResources = startingResources;
+        // So, our resources == startingResources
+
         int rolls = 0;
         
-        if (!ourResources.contains(targetResources))
+        if (! startingResources.contains(targetResources))
         {        
             // What is the best ratio we can trade a given resource at?
             double[] tradeRatios = new double[6];
@@ -84,7 +86,7 @@ public class SOCBuildingSpeedFastFractional extends SOCBuildingSpeedEstimate {
 
                 // do we need more of this resource?
                 int target = targetResources.getAmount(i);
-                int current = ourResources.getAmount(i);
+                int current = startingResources.getAmount(i);
                 if (current <= target) {
                     // if so, set needed amount and increase total needed (may be 0 - no problem)
                     needed[i] = target - current;
@@ -102,7 +104,7 @@ public class SOCBuildingSpeedFastFractional extends SOCBuildingSpeedEstimate {
                 }               
             }
             // Track future tradability of UNKNOWN resources
-            totalFutureTradable += ((double)ourResources.getAmount(SOCResourceConstants.UNKNOWN)) / worstTR;
+            totalFutureTradable += ((double)startingResources.getAmount(SOCResourceConstants.UNKNOWN)) / worstTR;
         
             if (totalNeeded > totalTradable) {
                 totalTradable += totalFutureTradable;  
@@ -135,7 +137,7 @@ public class SOCBuildingSpeedFastFractional extends SOCBuildingSpeedEstimate {
             }
         }
 
-        return (new SOCResSetBuildTimePair(ourResources, rolls));
+        return (new SOCResSetBuildTimePair(new SOCResourceSet(startingResources), rolls));
     }
 
 }

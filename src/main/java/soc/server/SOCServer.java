@@ -51,6 +51,7 @@ import soc.robot.stac.StacRobotFactory;
 import soc.robot.stac.StacRobotType;
 import soc.server.database.DBSettingMismatchException;
 import soc.server.database.DBHelper;
+import soc.server.database.DBHelper.AuthPasswordRunnable;
 import soc.server.database.SOCDBHelper;
 import soc.server.database.stac.ExtGameStateRow;
 import soc.server.database.stac.GameActionRow;
@@ -65,6 +66,7 @@ import soc.server.genericServer.StringConnection;
 import soc.server.savegame.SavedGameModel;
 import soc.server.logger.SOCFileLogger;
 import soc.server.logger.SOCLogger;
+import soc.server.logger.SOCNullLogger;
 
 import soc.util.CappedQueue;
 import soc.util.DeepCopy;
@@ -89,17 +91,22 @@ import java.io.Console;
 import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Constructor;
 import java.net.SocketException;
+import java.net.URL;
 import java.sql.SQLException;
 import java.text.DateFormat;
 import java.text.MessageFormat;  // used in javadocs
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -202,21 +209,19 @@ public class SOCServer extends Server
 {	
 	///fields for collecting gameplay in the database, to be used as traces during the offline learning procedure
 	public static boolean COLLECT_FULL_GAMEPLAY = false; //default value do not attempt any collection
-	private StacRobotDummyBrain dummy;
-	public StacDBHelper dbh = new StacDBHelper();
-	private int idCounter = 0; //this is equal to t in the episode
+	/*package*/ StacRobotDummyBrain dummy;
+	public final StacDBHelper dbh = new StacDBHelper();
+	/*package*/ int idCounter = 0; //this is equal to t in the episode
 	
 	/**
 	 * map for linking a game name to its parameters required for loading or starting with a specific configuration
 	 */
-	private Map<String, StacGameParameters> gamesParams = new HashMap<String, StacGameParameters>();
+	/*package*/ final Map<String, StacGameParameters> gamesParams = new HashMap<String, StacGameParameters>();
 	
 	/**
 	 * map for keeping track of negotiations made via the chat for each game.
 	 */
-	private Map<String, StacTradeMessage[]> tradeResponses = new HashMap<String, StacTradeMessage[]>();
-	
-	private final DBHelper db;
+	/*package*/ Map<String, StacTradeMessage[]> tradeResponses = new HashMap<String, StacTradeMessage[]>();
 	
 	/**
 	 * Constant for the directory for soclog files.  
@@ -901,7 +906,7 @@ public class SOCServer extends Server
      * For local simulation games (pipes, not TCP), the name of the pipe.
      * Used to distinguish simulation vs practice vs "real" games.
      * 
-     * @see soc.server.genericServer.LocalStringConnection
+     * @see soc.server.genericServer.StringConnection
      */
     public static String SIMULATION_STRINGPORT = "SIMULATION"; 
     
@@ -909,7 +914,7 @@ public class SOCServer extends Server
      * For local simulation games (pipes, not TCP), the name of the pipe.
      * Used to distinguish simulation vs practice vs "real" games.
      * 
-     * @see soc.server.genericServer.LocalStringConnection
+     * @see soc.server.genericServer.StringConnection
      */
     public static boolean FORCE_END_TURNS = true; 
 
@@ -987,7 +992,7 @@ public class SOCServer extends Server
     /**
      * So we can get random numbers.
      */
-    private Random rand = new Random();
+    /*package*/ Random rand = new Random();
 
     /**
      * Maximum number of connections allowed.
@@ -1040,7 +1045,7 @@ public class SOCServer extends Server
      *
      * @since 2.4.50
      */
-    protected SOCDBHelper db;
+    protected DBHelper db;
 
     /**
      * All the Known Game Options at this server, copied early from {@link #startupKnownOpts} using field initializer.
@@ -1121,7 +1126,7 @@ public class SOCServer extends Server
      * Must not contain the {@code '|'} or {@code ','} characters.
      * @since 1.1.19
      */
-    private String robotCookie;
+    /*package*/ String robotCookie;
 
     /**
      * A list of all robot client {@link Connection}s connected to this server.
@@ -1464,7 +1469,7 @@ public class SOCServer extends Server
 
     /**
      * Timer for delaying auth replies for consistency with {@code BCrypt} timing. Used when
-     * {@code ! hadDelay} in {@link SOCDBHelper.AuthPasswordRunnable#authResult(String, boolean)} callbacks.
+     * {@code ! hadDelay} in {@link DBHelper.AuthPasswordRunnable#authResult(String, boolean)} callbacks.
      * @since 1.2.00
      */
     private Timer replyAuthTimer = new Timer(true);  // use daemon thread
@@ -1551,7 +1556,9 @@ public class SOCServer extends Server
         D.setLevel(D.INFO);
     }
 
-    public SOCServer(int p, int mc, String databaseUserName, String databasePassword, boolean useParser) {
+    public SOCServer(int p, int mc, String databaseUserName, String databasePassword, boolean useParser)
+        throws SocketException, EOFException, SQLException, IllegalStateException
+    {
     	this (p, mc, new SOCDBHelper(), databaseUserName, databasePassword, useParser);
     }
 
@@ -1644,7 +1651,9 @@ public class SOCServer extends Server
         logger = new SOCFileLogger(LOG_DIR);
     }
 
-    public SOCServer(final int p, Properties props) {
+    public SOCServer(final int p, Properties props)
+        throws SocketException, EOFException, SQLException, IllegalArgumentException, IllegalStateException
+    {
     	this(p, new SOCDBHelper(), props);
     }
 
@@ -1667,9 +1676,26 @@ public class SOCServer extends Server
      */
     public SOCServer(String s, int mc, DBHelper db, String databaseUserName, String databasePassword, boolean useParser)
     {
-        this(s, mc, db, databaseUserName, databasePassword, new SOCFileLogger(LOG_DIR), useParser);
+        this(s, db, init_makePropsFromDBConnInfo(mc, databaseUserName, databasePassword), new SOCFileLogger(LOG_DIR), useParser);
     }
-    
+
+    private static Properties init_makePropsFromDBConnInfo
+        (int maxConns, String databaseUserName, String databasePassword)
+    {
+        // avoid null property values
+        if (databaseUserName == null)
+            databaseUserName = "";
+        if (databasePassword == null)
+            databasePassword = "";
+
+        Properties props = new Properties();
+        props.setProperty(PROP_JSETTLERS_CONNECTIONS, Integer.toString(maxConns));
+        props.setProperty(SOCDBHelper.PROP_JSETTLERS_DB_USER, databaseUserName);
+        props.setProperty(SOCDBHelper.PROP_JSETTLERS_DB_PASS, databasePassword);
+
+        return props;
+    }
+
     /**
      * Create a Settlers of Catan server listening on local stringport {@code s}.
      * Most server threads are started here; you must start its main thread yourself.
@@ -1700,7 +1726,7 @@ public class SOCServer extends Server
     public SOCServer(String s, int mc, String databaseUserName, String databasePassword)
         throws SocketException, EOFException, SQLException, IllegalStateException
     {
-        this(s, mc, new SOCDBHelper(), databaseUserName, String databasePassword, false);
+        this(s, mc, new SOCDBHelper(), databaseUserName, databasePassword, false);
     }
 
     /**
@@ -1717,8 +1743,9 @@ public class SOCServer extends Server
      *       and any other desired properties.
      *       <P>
      *       Property names are held in PROP_* and SOCDBHelper.PROP_* constants; see {@link #PROPS_LIST}.
-     * @param logger a class to handle logging
+     * @param logger a class to handle logging; not null, but can be a {@link SOCNullLogger}
      * @param useParser flag specifying whether the server should call the Toulouse parser
+     * @throws IllegalArgumentException if {@code logger} is null: use a {@link SOCNullLogger} instead
      * @throws IllegalStateException  If {@link Version#versionNumber()} returns 0 (packaging error)
      * @see {@link #SOCServer(String, int, String, String)}
      * @since 2.4.50
@@ -1728,17 +1755,23 @@ public class SOCServer extends Server
     {
         super(s, new SOCMessageDispatcher(), props);
         this.db = db;
+        String dbuser = (props != null)
+            ? props.getProperty(SOCDBHelper.PROP_JSETTLERS_DB_USER, "socuser")
+            : null;
+        String dbpass = (props != null)
+            ? props.getProperty(SOCDBHelper.PROP_JSETTLERS_DB_PASS, "socpass")
+            : null;
 
         try
         {
             //allowing the creation of Practice games without a database
-            if(s.equals(PRACTICE_STRINGPORT))
-                initSocServer(null, "", false);
-            else
-                initSocServer(null, "", true);
+            initSocServer(dbuser, dbpass, ! s.equals(PRACTICE_STRINGPORT));
         } catch (SocketException | SQLException | EOFException e) {
             throw new IllegalStateException("Internal error, not expected to encounter " + e.toString(), e);
         }
+
+        if (logger == null)
+            throw new IllegalArgumentException("logger");
 
         this.logger = logger;
         this.useParser = useParser;
@@ -2072,6 +2105,7 @@ public class SOCServer extends Server
             // Note: This hook is not triggered under eclipse debugging.
             //    https://bugs.eclipse.org/bugs/show_bug.cgi?id=38016
             //        "WONTFIX/README" since 2007-07-18; discussed again in 2019 but not solved.
+            if (db instanceof SOCDBHelper)
             try
             {
                 Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -2083,10 +2117,10 @@ public class SOCServer extends Server
                         // Before disconnect, do a final check for unexpected DB settings changes
                         try
                         {
-                            db.checkSettings(true, false);
+                            ((SOCDBHelper) db).checkSettings(true, false);
                         } catch (Exception x) {}
 
-                        db.cleanup(true);
+                        ((SOCDBHelper) db).cleanup(true);
                     }
                 });
             } catch (Throwable th)
@@ -2185,9 +2219,9 @@ public class SOCServer extends Server
             System.err.println("* Config Validation Mode: No problems found.");
         }
 
-        if (test_mode_with_db && db.isInitialized())
+        if (test_mode_with_db && db.isInitialized() && (db instanceof SOCDBHelper))
         {
-            db.testDBHelper();  // failures/errors throw SQLException for our caller to catch
+            ((SOCDBHelper) db).testDBHelper();  // failures/errors throw SQLException for our caller to catch
         }
 
         if (! (test_mode_with_db || validate_config_mode))
@@ -2197,8 +2231,11 @@ public class SOCServer extends Server
                 System.err.print(" Listening on port " + port);
             System.err.println();
 
-            if (db.isInitialized() && db.doesSchemaUpgradeNeedBGTasks())
-                db.startSchemaUpgradeBGTasks();  // includes 5-second sleep before conversions begin
+            if ((db instanceof SOCDBHelper) && db.isInitialized()
+                && ((SOCDBHelper) db).doesSchemaUpgradeNeedBGTasks())
+            {
+                ((SOCDBHelper) db).startSchemaUpgradeBGTasks();  // includes 5-second sleep before conversions begin
+            }
         }
 
         System.err.println();
@@ -2215,7 +2252,7 @@ public class SOCServer extends Server
      *<P>
      * Before v2.2.00 this code was part of {@code initSocServer}.
      *
-     * @param dbUserName  DB username given to {@code initSocServer}, or {@code null}
+     * @param dbUserName  DB username given to {@code initSocServer}, or {@code null} or ""
      * @param dbPassword  DB password given to {@code initSocServer}, or ""
      * @param wants_upg_schema  True if {@link SOCDBHelper#PROP_JSETTLERS_DB_UPGRADE__SCHEMA} flag is set
      * @param accountsRequired  True if {@link #PROP_JSETTLERS_ACCOUNTS_REQUIRED} flag is set
@@ -2226,10 +2263,13 @@ public class SOCServer extends Server
      * @since 2.2.00
      */
     private void initSocServer_DB
-        (final String dbUserName, final String dbPassword,
+        (String dbUserName, final String dbPassword,
          final boolean wants_upg_schema, final boolean accountsRequired, final boolean db_test_bcrypt_mode)
         throws IllegalStateException, SQLException, EOFException
     {
+        if ((dbUserName != null) && dbUserName.isEmpty())
+            dbUserName = null;
+
         boolean db_err_printed = false;
 
         try
@@ -2256,16 +2296,16 @@ public class SOCServer extends Server
             initSocServer_dbParamFields(wants_upg_schema);
 
             // check schema version, upgrade if requested:
-            if (! db.isSchemaLatestVersion())
+            if ((db instanceof SOCDBHelper) && ! ((SOCDBHelper) db).isSchemaLatestVersion())
             {
                 if (wants_upg_schema)
                 {
                     try
                     {
-                        db.upgradeSchema(databaseUserAdmins);
+                        ((SOCDBHelper) db).upgradeSchema(databaseUserAdmins);
 
                         String msg = "DB schema upgrade was successful";
-                        if (db.doesSchemaUpgradeNeedBGTasks())
+                        if (((SOCDBHelper) db).doesSchemaUpgradeNeedBGTasks())
                             msg += "; some upgrade tasks will complete in the background during normal server operation";
                         utilityModeMessage = msg;
 
@@ -2411,8 +2451,8 @@ public class SOCServer extends Server
 
         // No errors; continue normal startup.
 
-        if (db_test_bcrypt_mode)
-            db.testBCryptSpeed();
+        if (db_test_bcrypt_mode && (db instanceof SOCDBHelper))
+            ((SOCDBHelper) db).testBCryptSpeed();
     }
 
     /**
@@ -2648,8 +2688,8 @@ public class SOCServer extends Server
                 // Same reserve logic is used in initSocServer for validate_config_mode
 
             	boolean stacRobots = false;
-            	final int rcountBuiltIn = init_getIntProperty(props, PROP_JSETTLERS_STARTROBOTS, 0),
-            		rcountStac = init_getIntProperty(props, PROP_STAC_ROBOTS, 0),  //TODO: do we need the number of agents or just use config file for that?
+            	final int rcountBuiltIn = getConfigIntProperty(PROP_JSETTLERS_STARTROBOTS, 0),
+            		rcountStac = getConfigIntProperty(PROP_STAC_ROBOTS, 0),  //TODO: do we need the number of agents or just use config file for that?
             		rcount;
             	if (rcountBuiltIn != 0)
             	{
@@ -3350,7 +3390,7 @@ public class SOCServer extends Server
         catch (Exception e)
         {
             if ((e instanceof NoSuchElementException) && (loadedGame != null))
-                throw e;
+                throw (NoSuchElementException) e;
             else
                 D.ebugPrintStackTrace(e, "Exception in createGameAndBroadcast");
         }
@@ -3645,11 +3685,11 @@ public class SOCServer extends Server
 
         boolean gameDestroyed = false;
 
-        if (!gameListLock) {
+        if (! hasGameListLock) {
             gameList.takeMonitorForGame(gm);
         }
         gameList.removeMember(c, gm);
-        if (!gameListLock) {
+        if (! hasGameListLock) {
             gameList.releaseMonitorForGame(gm);
         }
 
@@ -3920,7 +3960,7 @@ public class SOCServer extends Server
                 {
                     ++i;
                     curr3pBotClass = con.getDeclaringClass().getName();
-                    SOCLocalRobotClient.createAndStartRobotClientThread("extrabot " + i, sci, knownOpts, con);
+                    SOCLocalRobotClient.createAndStartRobotClientThread(null, "extrabot " + i, sci, knownOpts, con, null);
                 }
             }
         }
@@ -3978,6 +4018,7 @@ public class SOCServer extends Server
 
 
             // Make some faster ones first.
+            ServerConnectInfo sci = new ServerConnectInfo(strSocketName, robotCookie);
             for (int i = 0; i < numBots; ++i)
             {
 //            	String rname = namePrefix;
@@ -4001,13 +4042,14 @@ public class SOCServer extends Server
 			String status = (deepAgent == null) ? "NULL" : "NOTNULL";
 			System.out.println(">rname="+rname + " status="+status);
 				
-			Thread t = SOCPlayerLocalRobotRunner.createAndStartRobotClientThread(factory, rname, strSocketName, port, deepAgent);
+			Thread t = SOCLocalRobotClient.createAndStartRobotClientThread(factory, rname, sci, knownOpts, null, deepAgent);
 			startedThreads.put(t, this);
 			// includes yield() and sleep(75 ms) this thread.						
             	}        
         }
-        catch (ClassNotFoundException e)
+        catch (Exception e)
         {
+            System.err.println("*** setupLocalRobots: Can't start bot: " + e);
             return false;
         }
         catch (LinkageError e)
@@ -4030,6 +4072,7 @@ public class SOCServer extends Server
      * before calling this method.
      *
      * @param gm  Name of the game to destroy
+     * @param haveMonitor  True if has game list's monitor for game name {@code gm}
      * @see #leaveGame(Connection, SOCGame, String, boolean, boolean, boolean, boolean)
      * @see #destroyGameAndBroadcast(String, String)
      */
@@ -4475,7 +4518,7 @@ public class SOCServer extends Server
             try
             {
                 for (String ga : toDestroy)
-                    destroyGame(ga);
+                    destroyGame(ga, false);
             } finally {
                 gameList.releaseMonitor();
             }
@@ -6815,6 +6858,7 @@ public class SOCServer extends Server
      * Process a debug command, sent by the "debug" client/player.
      * Some debug commands are server-wide, some apply to a specific game.
      * If no server-wide commands match, server will call
+     * {@link #processStacTextCommand(Connection, SOCGame, String, String)} and
      * {@link GameHandler#processDebugCommand(Connection, SOCGame, String, String)}
      * to check for those.
      *<P>
@@ -6914,6 +6958,9 @@ public class SOCServer extends Server
         }
         else
         {
+            if (processStacTextCommand(debugCli, ga, dcmd, dcmdU))
+                return true;
+
             // See if game type's handler finds a debug command
             GameHandler hand = gameList.getGameTypeHandler(gaName);
             if (hand != null)
@@ -6944,6 +6991,339 @@ public class SOCServer extends Server
         (final Connection c, final SOCGame ga, final boolean skipWinLossBefore2)
     {
         srvMsgHandler.processDebugCommand_connStats(c, ga, skipWinLossBefore2);
+    }
+
+    /**
+     * Process Stac-specific text commands, such as those for trading.
+     *<P>
+     * Before v2.4.50 this code was part of {@code handleGAMETEXTMSG(..)}.
+     *
+     * @param c  Client sending the potential text command
+     * @param ga  Game in which the message is sent; not null
+     * @param cmdText   Text message which may be a debug command
+     * @param cmdTextU  {@code cmdText} as uppercase, for efficiency (it's already been uppercased in caller)
+     * @return true if {@code cmdText} is a recognized debug command, false otherwise
+     * @since Stac 2.4.50
+     */
+    boolean processStacTextCommand
+        (final Connection c, final SOCGame ga, final String cmdText, final String cmdTextU)
+    {
+        final String gaName = ga.getName();
+
+ if(StacRobotBrain.isChatNegotiation() && cmdText.startsWith(StacTradeMessage.FAKE_CLARIFICATION)){
+            	//do nothing, the message was already printed
+            }else if (StacRobotBrain.isChatNegotiation() && (cmdText.startsWith(StacTradeMessage.TRADE) || cmdText.startsWith(StacRobotDialogueManager.JMT_TRADE))) {
+				
+            	//if there is a human player in the game process trades slower
+            	SOCPlayer[] players = ga.getPlayers();
+            	boolean humanPresent = false;
+            	for(int i = 0; i < ga.maxPlayers; i++){
+                    if(!players[i].isRobot())
+                        humanPresent = true;
+            	}
+            	if(humanPresent){
+                    try {
+                        long latency = 300 + rand.nextInt(500);
+//                        long latency = 800 + rand.nextInt(500);
+                        Thread.sleep(latency);
+                    } catch (InterruptedException e1) {
+                        e1.printStackTrace();
+                    }
+            	}
+//                System.err.println("Server - Handling trade message from host " + c.host() + " :" + cmdText);
+                // chop off the prefix and try to parse the message as a trade offer- if that works, log it
+//                {
+//                    SOCPlayer player = ga.getPlayer((String) c.getData());
+//                    System.err.println(ga.getTurnCount() + " * " + player.getName() + "(" + player.getPlayerNumber() + ") - Trade event message: " + cmdText);
+//                }                    
+
+            	// Note who the recipient of the message is - in the case of rej/acc/nr, this will indicate what trade they are responding to
+                StacTradeMessage tr = StacTradeMessage.parse(StacRobotDialogueManager.fromMessage(cmdText));
+
+                // HERE !!!!
+                writeTradeMessageToDB(ga, tr);
+                
+                //evaluate the message if it is an offer
+                if (tr.getOffer() != null) {
+                	//if we are in here it can only be a new offer or a counter-offer
+                    StacTradeOffer offer = tr.getOffer();
+                    SOCPlayer player = ga.getPlayer((String) c.getData());
+                    //add this offer to the current offer so we will know not to end the current player's turn too quickly
+                    player.setCurrentOffer(offer);
+                    SOCMakeOffer mes = new SOCMakeOffer(ga.getName(), offer);
+                    if(!usingPersuasion){
+                    	db.logChatTradeOffer(player, tr, ga.getCurrentPlayerNumber(), false);
+                    }
+                    else{
+                    	db.logChatTradeOffer(player, tr, ga.getCurrentPlayerNumber(), false, tr.getPersuasiveMove(), player.getGame().getRoundCount());
+                    }
+                    lastTradeOfferWasForceAccept = tr.isForced();
+                    lastTradeOfferPersuasion = tr.getPersuasiveMove();
+
+                    //add it to the corresponding position in the tradeResponse array for tracking purposes
+                    String sender = Integer.toString(offer.getFrom());
+                    String receivers = StacTradeMessage.getToAsString(offer.getTo());
+                    if(player.getPlayerNumber() == ga.getCurrentPlayerNumber()){
+//newProt                    	//treat counter-offers from the current player as new offers so we can clear the responses from the previous offer
+//                        System.err.println("--- Server: clearing trade response for all players (1)");
+//                    	tradeResponses.put(ga.getName(),new StacTradeMessage[ga.maxPlayers]);
+                    	StacTradeMessage[] responses = tradeResponses.get(ga.getName());
+                    	responses[player.getPlayerNumber()] = new StacTradeMessage(sender, receivers, offer, tr.isForced(), lastTradeOfferPersuasion, tr.getNLChatString());
+                        D.ebugPrintlnINFO("--- Server: Updated trade response (1); Player " + player.getName() + tradeResponsesString(gaName));
+                    }else if(offer.getTo()[ga.getCurrentPlayerNumber()]){
+                    	StacTradeMessage[] responses = tradeResponses.get(ga.getName());
+                    	responses[player.getPlayerNumber()] = new StacTradeMessage(sender, receivers, offer, tr.isForced(), lastTradeOfferPersuasion, tr.getNLChatString());
+                        D.ebugPrintlnINFO("--- Server: Updated trade response (2); Player " + player.getName() + tradeResponsesString(gaName));
+                    }else{
+                    	D.ebugERROR("Offer not from or to the current player");
+                    }
+                }
+                else if (tr.isBlock()) {
+                    String playerName = (String) c.getData();
+                    db.logBlockingAction(playerName, DBHelper.BLOCK);
+                }
+                else if (tr.isBlockComply()) {
+                    String playerName = (String) c.getData();
+                    db.logBlockingAction(playerName, DBHelper.BLOCK_COMPLY);
+                }
+                else{
+                    //accept/rejects/no-responses
+                    int to;
+                    try {
+                        to = Integer.parseInt(tr.getReceivers().substring(0, 1));
+                    } catch (NumberFormatException e) {
+                        e.printStackTrace();
+                        //send the message to game anyway and break out of here
+                        messageToGame(gaName, new SOCGameTextMsg(gaName, (String) c.getData(), cmdText));
+                        return true;
+                    }
+
+                    SOCPlayer player = ga.getPlayer((String) c.getData());//the player that sent this message;
+                    StacTradeMessage[] responses = tradeResponses.get(ga.getName());
+
+                    //first check that this isn't a reply to a null trade offer
+                    if(responses[to]==null){
+                        if(tr.isAccept()){ //accepts shouldn't be missed so print out if this happens;
+                            D.ebugERROR("Cannot accept a null trade message \n msg: " + tr.toString() + " from " + player.getPlayerNumber());
+                            messageToGameWithMon(gaName, new SOCGameTextMsg(gaName, SOCServer.SERVERNAME, "*** " + player.getName() + " sent an invalid ACC message."));
+                            return true; //don't forward an invalid accept to the other players, this will mess up the internal representation of the robots
+                        }
+                        //rejects and no-responses are fine here, but send them to the participants to avoid robots getting stuck waiting for answers
+                        messageToGame(gaName, new SOCGameTextMsg(gaName, (String) c.getData(), cmdText));
+                        return true;
+                    }
+
+                    //link the response to the original offer(NOTE: the offer and the response are in the same StacTradeMessage object, despite not coming from the same player)                	
+                    if(to != ga.getCurrentPlayerNumber() && player.getPlayerNumber() != ga.getCurrentPlayerNumber()){
+                        messageToGame(gaName, new SOCGameTextMsg(gaName, (String) c.getData(), cmdText));
+                        return true;
+                        //ignore responses to other players but the current player as these are the rules of the game. send the message to the game as one of the players may be waiting for it;
+                    }else if(player.getPlayerNumber() == ga.getCurrentPlayerNumber() && tr.isReject()){
+                        //ignore rejects from the current player as this will interfere with the logic below, but again send them to the game
+                        messageToGame(gaName, new SOCGameTextMsg(gaName, (String) c.getData(), cmdText));
+                        return true;
+                    }else{
+                        //it can be a reject/acc or no-response to current player then check who is receiving this answer and combine with the offer in a new trade message
+//newProt                        //be more restrictive: check whether the offer is made to the player
+//ONLY DO THIS FOR ACCETPS - DO UPDATING OF REJ AS BEFORE
+//                        if (recips.matches(Integer.toString(player.getPlayerNumber()))) {
+//                        only do this for ACC
+                        if (tr.isAccept()) {
+                            StacTradeMessage res = new StacTradeMessage(tr.getSender(), tr.getReceivers(), tr.isAccept(), tr.isReject(), tr.isNoResponse(), responses[to].getOffer(), responses[to].isForced(), tr.getNLChatString());
+                            responses[player.getPlayerNumber()] = res;
+                            D.ebugPrintlnINFO("--- Server: Updated trade response (3); Player " + player.getName()
+                                    + "\n  - old message: " + tr.toString()
+                                    + "\n  - new message: " + res.toString()
+                                    + tradeResponsesString(gaName));
+                        } else {
+                            D.ebugPrintlnINFO("--- Server: NOT updating trade response (3); Player " + player.getName()
+                                    + "\n  - old message: " + tr.toString()
+                                    + tradeResponsesString(gaName));
+                        }
+                    }
+
+                    //check if this is a confirmation of an offer i.e. an accept to an accept;
+                    if(tr.isAccept()){
+                        if(responses[to].isAccept()){
+                            //check if the player is the originator of the offer
+                            if(responses[to].getOffer().getFrom() == player.getPlayerNumber()){
+//newProt                                    tradeResponses.put(ga.getName(),new StacTradeMessage[ga.maxPlayers]);//clear the trade responses after a trade was accepted
+//                                System.err.println("--- Server: clearing trade response for player " + to + tradeResponsesString(gaName));
+//                                responses[to] = null;
+                                D.ebugPrintlnINFO("--- Server: NOT clearing trade response for player " + to
+                                        + " immediately before executing the trade"
+                                        + tradeResponsesString(gaName));
+
+                                //all preconditions for executing a trade are met
+                                //but we need a final confirmation from the human players involved in this trade that they wants to make it
+                                final int offeringNumber = player.getPlayerNumber();
+                                final int acceptingNumber = to;
+                                if (!ga.getPlayer(offeringNumber).isRobot() || !ga.getPlayer(acceptingNumber).isRobot()) {
+                                    ArrayList<String> traders = new ArrayList();
+                                    if (!ga.getPlayer(offeringNumber).isRobot())
+                                        traders.add(players[offeringNumber].getName());
+                                    if (!ga.getPlayer(acceptingNumber).isRobot())
+                                        traders.add(players[acceptingNumber].getName());
+                                    HashMap map = new HashMap();
+                                    map.put("players", traders);
+                                    map.put("offeringPlayer", offeringNumber);
+                                    map.put("acceptingPlayer", acceptingNumber);
+                                    pendingTrades.put(gaName, map);
+                                    SOCTradeOffer off = ga.getPlayer(offeringNumber).getCurrentOffer(); //this offer will be exeuted in the end in SOCGame.makeTrade(...)
+                                    String p1 = offeringNumber + ":" + off.getGiveSet().toString();
+                                    String p2 = acceptingNumber + ":" + off.getGetSet().toString();
+                                    p1 = p1.replace(SOCMessage.sep, "~");
+                                    p2 = p2.replace(SOCMessage.sep, "~");
+                                    StacConfirmTradeRequest confirmationRequest = new StacConfirmTradeRequest(gaName, p1, p2);
+                                    messageToGame(gaName, confirmationRequest);
+                                    return true;
+                                }
+                                
+                                //messageToGame(gaName, new SOCGameTextMsg(gaName, (String) c.getData(), cmdText)); //we don't need to tell everyone that another accept was sent as they can see from the trade execution		
+                                //The second accepter is actually the offerer, because it is the initiator of the original offer
+                                ((SOCGameMessageHandler) (handler.getMessageHandler())).executeTrade(ga, player.getPlayerNumber(), to, c);
+
+                                if(COLLECT_FULL_GAMEPLAY)
+                                    writeToDB(ga, GameActionRow.TRADE);
+                                if(COLLECT_VALUE_FUNCTION_APPROX)
+                                    messageToGame(ga.getName(), new SOCCollectData(ga.getName(), ga.getCurrentPlayerNumber()));
+                                return true;
+                            }else{
+                                //this shouldn't happen in the only robots case and for a human player this is restricted on the client side
+                                D.ebugWARNING(" Cannot accept an accept in someone else's place");
+                            }
+                        }
+                            //else do nothing as this is probably a normal accept
+                    }
+
+                	//then check if everyone has responded(by making sure there are no null responses unless its a human player)
+                	boolean everyoneResponded = true;
+                	for(int i = 0; i < ga.maxPlayers; i++){
+                		if(responses[i] == null){//player didn't reply
+                			//need to handle the human special case of not responding to messages that are not intended for him
+                			SOCPlayer pl = ga.getPlayer(i);
+                			if(!pl.isRobot()){
+                				//we have to loop over all the offers and check if this player is a recipient of any offers
+                				for(StacTradeMessage trd : responses){
+                					if(trd != null){
+                						if(trd.getOffer().getTo()[i] && !trd.isAccept() && !trd.isReject() && !trd.isNoResponse()){
+                							everyoneResponded = false;//the human player is a recipient of an offer so there should have been a response from him
+                						}
+                					}
+                				}
+                			}
+                			else
+                				everyoneResponded = false;//a robot has not replied yet
+                		}
+                	}
+                	
+                	if(everyoneResponded){
+                		int nAcc = 0;
+                		int nOff = 0;
+                		for(int i = 0; i < ga.maxPlayers; i++){
+                			if(responses[i]==null){
+                				//ignore the no responses from human players, just handle them to avoid a nullpointer
+                			}else{
+	                			if(responses[i].isAccept()){
+	                				nAcc++;
+	                			}else if(!responses[i].isReject() && !responses[i].isNoResponse()){
+	                				nOff++;
+	                			}else if(responses[i].isReject() || responses[i].isNoResponse()){
+	                				//we don't need to track the rejects/no responses
+	                			}else
+	                				D.ebugERROR(" received a trade message which is not an offer/acc/rej/block/block comply");
+                			}
+                		}
+                		
+                		//make sure no unusual scenarios are encountered and also handle the nobody accepted case.
+                		if(nAcc == 1 && nOff == 1){
+                			//waiting for the confirmation accept;
+                		}else if(nAcc == 0 && nOff == 1){
+                			StacTradeMessage cpResp = responses[ga.getCurrentPlayerNumber()];
+                			if(!cpResp.isNoResponse() && !cpResp.isReject()){
+                    			//the current player made the offer and nobody accepted or counter-offered
+                			}else if(cpResp.isReject()){
+                                //the current player rejected the offer //this doesn't happen anymore because we clean responses every time the current player sends a new offer
+                			}else{
+                                //smth went wrong report an error
+                                D.ebugERROR(" the current player was not involved in the trade; clear responses");
+                			}
+                                D.ebugPrintlnINFO("--- Server: clearing trade response for all players (2)" + tradeResponsesString(gaName));
+                			tradeResponses.put(ga.getName(),new StacTradeMessage[ga.maxPlayers]);//as this is a reject clear the responses
+                		}else if(nOff > 1 && nAcc == 0){
+                			//waiting for the players to decide on a trade
+                		}
+                		else if((nAcc == 1 || nAcc > 1) && (nOff > 1 || nOff == 1)){ //the 1:1 case is covered in the first if clause
+                			//waiting for players to decide on a trade
+                		}else if(nAcc > 1 && nOff == 0){
+                			D.ebugERROR("The offer should have been executed, we shouldn't be here");//this can't really happen but report it just in case
+                		}else
+                			D.ebugERROR(" unknown trading state");//I hope I will never see this one
+                			
+                	}//else do nothing and wait for all the responses
+                	
+                }
+//                System.err.println("SERVER: message to game: " + cmdText);
+                                                
+                //then send the trade message to all participants
+                messageToGame(gaName, new SOCGameTextMsg(gaName, (String) c.getData(), cmdText));
+            }
+            else if (cmdText.startsWith(StacRobotDialogueManager.BP_COMP)) {
+                // Log it, do NOT send the message to the table
+                String p[] = cmdText.split(":");
+                p = p[1].split(",");
+                boolean b[] = new boolean[3];
+                for (int i=0; i<3; i++) {
+                    b[i] = Boolean.parseBoolean(p[i]);
+                }
+                SOCPlayer player = ga.getPlayer((String) c.getData());
+                db.logBPPrediction(player, b[0], b[1], b[2]);
+            }
+            else if (cmdText.startsWith(StacRobotDialogueManager.HR_COMP)) {
+                // Log it, do NOT send the message to the table
+                String p[] = cmdText.split(":");
+                p = p[1].split(",");
+                boolean b[] = new boolean[3];
+                for (int i=0; i<3; i++) {
+                    b[i] = Boolean.parseBoolean(p[i]);
+                }
+                SOCPlayer player = ga.getPlayer((String) c.getData());
+                db.logHasResourcesPrediction(player, b[0], b[1], b[2], ga.hasRolledSeven());
+            }
+            // Logging messages sent from the client directly (not via the dialogue manager)
+            else if (cmdText.startsWith("LOGGING:")) {
+                String player = (String) c.getData();
+                String p[] = cmdText.split(":");
+                if (p[1].equals("BUILD_PLAN")) {
+                    String t[] = p[2].split("=");
+                    int type = Integer.parseInt(t[1]);
+                    db.logBuildPlan(player, type);
+                }
+            }
+            else if (cmdText.startsWith(StacRobotDialogueManager.EMBARGO)) {
+                //message format: EMBARGO:1:INIT:3
+                String p[] = cmdText.split(":");
+                if (p[2].equals(StacRobotDialogueManager.EMBARGO_PROPOSE)) {
+//                    System.err.println(ga.getTurnCount() + " - observing pr opose embargo: " + cmdText);
+                    String playerName = (String) c.getData();
+                    db.logEmbargoAction(playerName, DBHelper.EMBARGO_PROPOSE);
+                }
+                else if (p[2].equals(StacRobotDialogueManager.EMBARGO_COMPLY)) {
+//                    System.err.println(ga.getTurnCount() + " - observing comply with embargo: " + cmdText);
+                    String playerName = (String) c.getData();
+                    db.logEmbargoAction(playerName, DBHelper.EMBARGO_COMPLY);
+                }
+                else if (p[2].equals(StacRobotDialogueManager.EMBARGO_LIFT)) {
+//                    System.err.println(ga.getTurnCount() + " - observing lift embargo: " + cmdText);
+//                    String playerName = (String) c.getData();
+//                    db.logEmbargoAction(playerName, DBHelper.EMBARGO_LIFT);
+                }
+
+                // pass on the message
+                messageToGame(gaName, new SOCGameTextMsg(gaName, (String) c.getData(), cmdText));
+        }
+
+        return false;
     }
 
     /**
@@ -7008,7 +7388,6 @@ public class SOCServer extends Server
         if(COLLECT_FULL_GAMEPLAY)
         	dbh.disconnect();
     	dummy = null;
-    	dbh = null;
 
         super.stopServer();
 
@@ -7019,7 +7398,7 @@ public class SOCServer extends Server
      * Check that the username and password (if any) is okay: Length versus {@link #PLAYER_NAME_MAX_LENGTH}, name
      * in use but not timed out versus takeover, etc. Checks password if using the optional database.
      * Calls {@link #checkNickname(String, Connection, boolean, boolean)} and
-     * {@link SOCDBHelper#authenticateUserPassword(String, String, soc.server.database.SOCDBHelper.AuthPasswordRunnable)}.
+     * {@link SOCDBHelper#authenticateUserPassword(String, String, AuthPasswordRunnable)}.
      *<P>
      * If not okay, sends client a {@link SOCStatusMessage} with an appropriate status code.
      *<P>
@@ -7071,7 +7450,7 @@ public class SOCServer extends Server
      *     {@link #nameConnection(Connection, boolean) nameConnection(c, isTakingOver)}.
      *     <P>
      *     If using the optional user DB, {@code nickname} is queried from the database by case-insensitive search; see
-     *     {@link SOCDBHelper#authenticateUserPassword(String, String, soc.server.database.SOCDBHelper.AuthPasswordRunnable)}.
+     *     {@link SOCDBHelper#authenticateUserPassword(String, String, AuthPasswordRunnable)}.
      *     Otherwise {@code nickname} is {@code msgUser}.
      *     <P>
      *     For the usual connect sequence, callers will want {@code true}.  Some callers might want to check
@@ -7193,7 +7572,7 @@ public class SOCServer extends Server
             final String msgUserName = msgUser;
             final boolean takingOver = isTakingOver;
             db.authenticateUserPassword
-                (msgUser, msgPass, new SOCDBHelper.AuthPasswordRunnable()
+                (msgUser, msgPass, new AuthPasswordRunnable()
                 {
                     public void authResult(final String dbUserName, final boolean hadDelay)
                     {
@@ -7298,7 +7677,7 @@ public class SOCServer extends Server
 //            params = SOCDBHelper.retrieveRobotParams(mes.getNickname());
 //            if (params != null)
 //                D.ebugPrintln("*** Robot Parameters for " + mes.getNickname() + " = " + params);
-            db.updateLastlogin(userName, currentTime.getTime());
+            db.updateLastlogin(authUsername, currentTime.getTime());
         }
         catch (SQLException sqle)
         {
@@ -7308,7 +7687,7 @@ public class SOCServer extends Server
         // Record the login info for this user in the users table
         try
         {
-            db.recordLogin(userName, c.host(), currentTime.getTime());
+            db.recordLogin(authUsername, c.host(), currentTime.getTime());
         }
         catch (SQLException sqle)
         {
@@ -7823,9 +8202,9 @@ public class SOCServer extends Server
 
             //for our specialist experimental setup, sort the robots alphabetically by name so that the server picks 3 robots of the saem type later
             if (useRobotSelectionForExperiment) {
-                Collections.sort(robots, new Comparator<StringConnection>(){
+                Collections.sort(robots, new Comparator<Connection>(){
                                             @Override
-                                            public int compare(final StringConnection a, StringConnection b) {
+                                            public int compare(final Connection a, Connection b) {
                                                 return ((String)a.getData()).compareToIgnoreCase(((String)b.getData()));
                                             }});
             }
@@ -7843,24 +8222,24 @@ public class SOCServer extends Server
     /**
      * Keep track of whether the last trade offer was forced for logging purposes. (So we can say whether a forced offer was accepted or not.)
      */
-    private boolean lastTradeOfferWasForceAccept = false;
+    /*package*/ boolean lastTradeOfferWasForceAccept = false;
 
     
     /** 
      * Equivalent use to {@link lastTradeOfferWasForceAccept} Used to maintain the previous persuasion move
      */
-    private Persuasion lastTradeOfferPersuasion = new Persuasion();
+    /*package*/ Persuasion lastTradeOfferPersuasion = new Persuasion();
     
     /**
      * Set if using persuasion (When set false then it will use force accept)
      */
-    private boolean usingPersuasion = true;
+    /*package*/ boolean usingPersuasion = true;
     
     /**
      * The pending trade for each game to keep track of the confirmation panel.
      * The stored HashMap for each game contains: "players" (ListArray of String), "offeringPlayer" (int), "acceptingPlayer" (int)
      */
-    private HashMap<String, HashMap> pendingTrades;
+    /*package*/ HashMap<String, HashMap> pendingTrades;
     
     /**
      * Remove a connection from the system.
@@ -7915,7 +8294,7 @@ public class SOCServer extends Server
      * @param user  the user for which to query the database
      * @return boolean value whether user must play a training game next
      */
-    private boolean getUserMustDoTrainingGame(String user) {
+    /*package*/ boolean getUserMustDoTrainingGame(String user) {
     	boolean mustDoTrainingGame = false;
 	    try {
 	    	mustDoTrainingGame = db.getUserMustDoTrainingGame(user);
@@ -7933,7 +8312,7 @@ public class SOCServer extends Server
      * @param flag  the value to be set in the database
      * @return boolean value whether user must play a training game next
      */
-    private void updateUserMustDoTrainingGame(String user, boolean flag) {
+    /*package*/ void updateUserMustDoTrainingGame(String user, boolean flag) {
 	    try {
 	    	db.updateUserMustDoTrainingGame(user, flag);
 	    } catch (SQLException sqle) {
@@ -8509,7 +8888,7 @@ public class SOCServer extends Server
             IllegalStateException e = null;
             try
             {
-                invitedBots = readyGameAskRobotsJoin(ga, botsNeeded, null, 0);
+                invitedBots = readyGameAskRobotsJoin(ga, botsNeeded, null, 0, false);
                     // will also send game a text message like "Fetching a robot..."
             } catch (IllegalStateException ex) {
                 e = ex;
@@ -8659,7 +9038,7 @@ public class SOCServer extends Server
                 gaName = newGame.getName();  // in case was changed to avoid duplicate
                 System.out.println("Started bot-only game: " + gaName + desc.toString());
                 newGame.setGameState(SOCGame.READY);
-                if (! readyGameAskRobotsJoin(newGame, null, null, 0))
+                if (! readyGameAskRobotsJoin(newGame, null, null, 0, false))
                 {
                     System.out.println("Bot-only game " + gaName + ": Not enough bots can join, not starting");
                     newGame.setGameState(SOCGame.OVER);
@@ -9778,6 +10157,8 @@ public class SOCServer extends Server
                 willFinishResuming = false;
             }
 
+            GameHandler hand = gameList.getGameTypeHandler(gaName);
+
             if(gamesParams.get(gaName)!=null && !gamesParams.get(gaName).load) //if we are the first player than the params will be null, but we don't need to know any info about ourselves so ignore
             {
             /**
@@ -9785,7 +10166,6 @@ public class SOCServer extends Server
              * (only if we are starting a new game as these are already known if loading and will interfere with the normal progresion of the game)
              * and (if applicable) prompt for discard or other decision
              */
-            GameHandler hand = gameList.getGameTypeHandler(gaName);
             if (hand != null)
                 hand.sitDown_sendPrivateInfo(ga, c, pn, sendLikeRejoin);
             }
@@ -10600,7 +10980,7 @@ public class SOCServer extends Server
      * @param rname the robot's name
      */
     public static void removeClient(String rname){
-    	SOCPlayerLocalRobotRunner.removeClient(rname);
+    	SOCLocalRobotClient.removeClient(rname);
     }
 
     
@@ -10610,7 +10990,7 @@ public class SOCServer extends Server
      * @param gaName the name of the game
      * @return the trade responses as a String or a String specifying that these are not initialised
      */
-    private String tradeResponsesString(String gaName) {
+    /*package*/ String tradeResponsesString(String gaName) {
         String ret = "\n=== Trade responses on the server for game " + gaName;
         if (tradeResponses == null || tradeResponses.size() == 0) {
             return "\n    - Trade responses not initialised";
@@ -10645,7 +11025,7 @@ public class SOCServer extends Server
      * @param ga the game object in which the action was executed
      * @param actionType the type of action that was executed
      */
-    private void writeToDB(SOCGame ga, double actionType) {
+    /*package*/ void writeToDB(SOCGame ga, double actionType) {
         if (COLLECT_FULL_GAMEPLAY) {
             int gameID;
             gameID = StacDBHelper.SIMGAMESSTARTID + Integer.parseInt(ga.getName().split("_")[1]);

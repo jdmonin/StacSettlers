@@ -149,7 +149,7 @@ public class OpeningBuildStrategy {
             final int firstNode = ourPotentialSettlements[i];
             // assert: ourPlayerData.isPotentialSettlement(firstNode)
 
-            if (! player.isLegalSettlement(firstNode))
+            if (! ourPlayerData.isLegalSettlement(firstNode))
                 continue;  // <-- stac checks legal, not potential, coordinates --
 
             final Integer firstNodeInt = Integer.valueOf(firstNode);
@@ -223,7 +223,7 @@ public class OpeningBuildStrategy {
                 if (board.isNodeAdjacentToNode(secondNode, firstNode))
                     continue;  // <-- too close to firstNode to build --
 
-                if (! player.isLegalSettlement(secondNode))
+                if (! ourPlayerData.isLegalSettlement(secondNode))
                     continue;  // <-- stac checks legal, not potential, coordinates --
 
                 log.debug("firstNode = " + board.nodeCoordToString(firstNode));
@@ -438,7 +438,7 @@ public class OpeningBuildStrategy {
             if (board.isNodeAdjacentToNode(secondNode, firstNode))
                 continue;  // <-- too close to firstNode to build --
 
-            if (! player.isLegalSettlement(secondNode))
+            if (! ourPlayerData.isLegalSettlement(secondNode))
                 continue;  // <-- stac checks legal, not potential, coordinates --
 
             /**
@@ -629,7 +629,7 @@ public class OpeningBuildStrategy {
                     while (psi.hasNext())
                     {
                         final Integer node = psi.next();
-                        if (! player.isLegalSettlement(node))
+                        if (! ourPlayerData.isLegalSettlement(node))
                             continue;  // <-- stac checks legal, not potential, coordinates --
 
                         allNodes.put(node, Integer.valueOf(0));
@@ -677,7 +677,7 @@ public class OpeningBuildStrategy {
                 List<Integer> psList = new ArrayList<Integer>();
                 for (Integer node : ourPlayerData.getPotentialSettlements())
                 {
-                    if (player.isLegalSettlement(node))
+                    if (ourPlayerData.isLegalSettlement(node))
                         psList.add(node);
                     // log.debug("- potential settlement at " + Integer.toHexString(node));
                 }

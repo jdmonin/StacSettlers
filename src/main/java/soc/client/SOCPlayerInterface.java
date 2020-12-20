@@ -50,6 +50,7 @@ import soc.game.SOCVillage;
 import soc.message.SOCMessage;
 import soc.message.SOCPlayerElement.PEType;
 import soc.message.SOCBankTrade;     // for reply code constant
+import soc.message.SOCRobotFlag;
 import soc.message.SOCSimpleAction;  // for action type constants
 import soc.message.SOCSimpleRequest;  // for request type constants
 import soc.message.StacConfirmTradeAnswer;
@@ -413,6 +414,9 @@ public class SOCPlayerInterface extends Frame
     /**
      * ---MG
      * Flag indicating whether the queue buttons are shown
+     *<P>
+     * v2.4.50 note: All code involving this field appears to already be commented out;
+     * assuming it's unused and left over from earlier development. -JM
      */
     protected boolean textInputShowRequestBut;
     
@@ -954,8 +958,8 @@ public class SOCPlayerInterface extends Frame
 
         knowsGameState = (game.getGameState() != 0);
         this.layoutVS = layoutVS;
-        clientListener = new ClientBridge(this);
         gameStats = new SOCGameStatistics(game);
+        clientListener = createClientListenerBridge();
         gameIsStarting = false;
         clientHand = null;
         clientHandPlayerNum = -1;
@@ -1181,6 +1185,18 @@ public class SOCPlayerInterface extends Frame
     }
 
     /**
+     * Factory method to create a new {@link ClientBridge}.
+     * Third-party clients can use this to extend SOCPlayerInterface.
+     * Is called during early part of construction, so most PI fields won't be initialized yet.
+     * @return a new {@link ClientBridge} for this PlayerInterface
+     * @since 2.4.50
+     */
+    protected ClientBridge createClientListenerBridge()
+    {
+        return new ClientBridge(this);
+    }
+
+    /**
      * Provide access to the client listener in case this class does not directly implement it.
      */
     public PlayerClientListener getClientListener()
@@ -1395,7 +1411,7 @@ public class SOCPlayerInterface extends Frame
                 // because hands[] is initialized above.
             }
 
-        offer = new SquaresPanel(false);
+        offer = new SquaresPanel(false, displayScale);
         add(offer);
         acceptBut = new Button(ACCEPT);
         acceptBut.setActionCommand(ACCEPT);
@@ -2160,14 +2176,14 @@ public class SOCPlayerInterface extends Frame
         String target = e.getActionCommand();
         if (target.equals(REQUEST_TO_SPEAK_BUT))
         {
-        	client.sendRequestToSpeak(game, false);
+        	client.getGameMessageSender().sendRequestToSpeak(game, false);
         	//System.err.println("request to speak");
         	
         }
         else if (target.equals(WITHDRAW_REQUEST_TO_SPEAK_BUT))
         {
         	//System.err.println("withdraw request to speak");
-        	client.sendRequestToSpeak(game, true);
+        	client.getGameMessageSender().sendRequestToSpeak(game, true);
         } else 
 
         if (e.getSource() == textInput)
@@ -2203,7 +2219,7 @@ public class SOCPlayerInterface extends Frame
         	//---MG
 //        	System.err.println("Pressed enter: " + e + "s value:" + s);
 //            textInputShowRequestBut = true;
-            doLayout();
+//            doLayout();
 
             //add to history here as this is smth we typed
         	chatHistory.add(textInput.getText());
@@ -2282,12 +2298,12 @@ public class SOCPlayerInterface extends Frame
         }
 
         if (e.getSource() == acceptBut) {
-            client.put(StacConfirmTradeAnswer.toCmd(game.getName(), true), game.isPractice);
+            client.getGameMessageSender().put(StacConfirmTradeAnswer.toCmd(game.getName(), true), game.isPractice);
             hideTradeConfirmationPanel();
         }
         
         if (e.getSource() == rejectBut) {
-            client.put(StacConfirmTradeAnswer.toCmd(game.getName(), false), game.isPractice);
+            client.getGameMessageSender().put(StacConfirmTradeAnswer.toCmd(game.getName(), false), game.isPractice);
             hideTradeConfirmationPanel();
         }
     }
@@ -2425,33 +2441,32 @@ public class SOCPlayerInterface extends Frame
             doLocalCommand_botConsiderMode
                 (cmd.substring(10), SOCBoardPanel.CONSIDER_LT_CITY, "clt-city");
             return true;
-        }
         }else if (cmd.contains("\\save"))
         {
-        	int pn = ga.getPlayer(getNickname()).getPlayerNumber();
+        	int pn = game.getPlayer(getClientNickname()).getPlayerNumber();
         	hands[pn].actionPerformed(new ActionEvent(this, 0, SOCHandPanel.SAVE));
             return true;
         }else if (cmd.contains("\\load"))
         {
-        	int pn = ga.getPlayer(getNickname()).getPlayerNumber();
+        	int pn = game.getPlayer(getClientNickname()).getPlayerNumber();
         	hands[pn].actionPerformed(new ActionEvent(this, 0, SOCHandPanel.LOAD));
 
             return true;
         }else if (cmd.contains("\\sim"))
         {
-        	int pn = ga.getPlayer(getNickname()).getPlayerNumber();
+        	int pn = game.getPlayer(getClientNickname()).getPlayerNumber();
         	hands[pn].actionPerformed(new ActionEvent(this, 0, SOCHandPanel.SIMULATE));
             return true;
         }
         else if (cmd.contains("\\roll"))
         {
-        	int pn = ga.getPlayer(getNickname()).getPlayerNumber();
+        	int pn = game.getPlayer(getClientNickname()).getPlayerNumber();
         	hands[pn].actionPerformed(new ActionEvent(this, 0, SOCHandPanel.ROLL));
             return true;
         }
         else if (cmd.contains("\\done"))
         {
-        	int pn = ga.getPlayer(getNickname()).getPlayerNumber();
+        	int pn = game.getPlayer(getClientNickname()).getPlayerNumber();
         	hands[pn].actionPerformed(new ActionEvent(this, 0, SOCHandPanel.DONE));
             return true;
         }
@@ -2538,13 +2553,6 @@ public class SOCPlayerInterface extends Frame
         if (clientHand != null)
             clientHand.removePlayer();  // cleanup, possibly close open non-modal dialogs, etc
         client.getGameMessageSender().leaveGame(game);
-
-      if (textInputListener != null)
-      {
-          textInput.removeKeyListener(textInputListener);
-          textInput.removeTextListener(textInputListener);
-          textInputListener = null;
-      }
 
         dispose();
     }
@@ -2824,8 +2832,9 @@ public class SOCPlayerInterface extends Frame
                 continue;
             }
 
-            if (tk.startsWith(SOCServer.MSG_ILLEGAL_TRADE) || tk.startsWith(SOCServer.MSG_ILLEGAL_OFFER))
-                tk = "* " + tk;
+            // -- merge TODO: look for SOCAcceptOffer(SOCBankTrade.PN_REPLY_CANNOT_MAKE_TRADE) or "confirmation rejected" data message instead
+            ////if (tk.startsWith(SOCServer.MSG_ILLEGAL_TRADE) || tk.startsWith(SOCServer.MSG_ILLEGAL_OFFER))
+            ////    tk = "* " + tk;
             String newStatusText;
             if (tk.startsWith("*") && 
                     (tk.contains("s turn to") || tk.contains("made you") || tk.contains("Please respond") || tk.contains("must choose") || tk.contains("will move")) ||
@@ -2849,7 +2858,7 @@ public class SOCPlayerInterface extends Frame
             chatHistoryTextFieldLabel.setVisible(!newStatusText.equals(""));
             //play the sound but only if it's an action on the player and there's no action displayed at the moment
             if (!newStatusText.equals(currentStatusText) && 
-                    (newStatusText.contains("made you") || newStatusText.contains("Please respond") || newStatusText.contains(client.getNickname() + " will move") || newStatusText.contains("Waiting for response"))) {
+                    (newStatusText.contains("made you") || newStatusText.contains("Please respond") || newStatusText.contains(getClientNickname() + " will move") || newStatusText.contains("Waiting for response"))) {
                 client.playSound("Voltage.wav", clientHand.muteSound.getBoolValue());
             }
         }
@@ -2879,13 +2888,13 @@ public class SOCPlayerInterface extends Frame
     {
         //never print automatic accepts to the chat
     	if (s.equals(SOCPlayerClient.AUTOMATIC_ACCEPT_NL_STRING)) {
-            D.ebugPrintlnINFO("Not printing a automatic accept of player " + client.getNickname());
+            D.ebugPrintlnINFO("Not printing a automatic accept of player " + getClientNickname());
             return;
         }
 
         //don't print implicit rejects
         if (s.endsWith(StacTradeMessage.IMPLICIT_REJECT_NL_STRING)) {
-            D.ebugPrintlnINFO("Not printing implicit reject of player " + client.getNickname());
+            D.ebugPrintlnINFO("Not printing implicit reject of player " + getClientNickname());
             return;
         }
             
@@ -4735,6 +4744,12 @@ public class SOCPlayerInterface extends Frame
 		textInput.setText(text);
 	}
 
+	/**
+	 * Set or clear the "chat needs attention" flag, and print a message if setting it.
+	 * If clearing, also clears {@code gameTextFieldLabel} server status text display.
+	 * @param flag  New value of "chat needs attention" flag
+	 * @param statusMessage  Message to {@link #print(String)} if {@code flag} is true, or ""
+	 */
 	public void setChatNeedsAttention(boolean flag, String statusMessage) {
 //		flashChatTaskTimer();
         if (flag) {
@@ -4758,7 +4773,15 @@ public class SOCPlayerInterface extends Frame
         setChatNeedsAttention(flag, "");
     }
 	
-	protected void showTradeConfirmationPanel(){
+	/**
+	 * Show the trade confirmation panel, optionally setting its offer contents squares.
+	 * If {@code give} and {@code get} are both non-null, calls
+	 * {@link #setOfferSquares(SOCResourceSet, SOCResourceSet)}.
+	 * @see #hideTradeConfirmationPanel()
+	 */
+	protected void showTradeConfirmationPanel(SOCResourceSet weGive, SOCResourceSet weGet) {
+		if ((weGive != null) && (weGet != null))
+			setOfferSquares(weGive, weGet);
 		acceptBut.setVisible(true);
 		rejectBut.setVisible(true);
 	    givableLabel.setVisible(true);
@@ -4767,6 +4790,10 @@ public class SOCPlayerInterface extends Frame
 	    gameTextFieldLabel.setVisible(true);
 	}
 	
+	/**
+	 * Hide the trade confirmation panel.
+	 * @see #showTradeConfirmationPanel(SOCResourceSet, SOCResourceSet)
+	 */
 	protected void hideTradeConfirmationPanel(){
 		acceptBut.setVisible(false);
 		rejectBut.setVisible(false);
@@ -4777,12 +4804,19 @@ public class SOCPlayerInterface extends Frame
         setChatNeedsAttention(false);
 	}
 	
-	protected void setOfferSquares(int[] give, int[] get){
-		offer.setValues(give, get);
+	/**
+	 * Set the trade confirmation panel's give/get squares.
+	 * Calls {@link SquaresPanel#setValues(SOCResourceSet, SOCResourceSet)}:
+	 * see that method for param javadocs.
+	 * @see #showTradeConfirmationPanel(SOCResourceSet, SOCResourceSet)
+	 */	
+	protected void setOfferSquares(SOCResourceSet weGive, SOCResourceSet weGet) {
+		offer.setValues(weGive, weGet);
 	}
 	
+	/** Clear the trade confirmation panel's give/get squares. */
 	private void clearOfferSquares(){
-		offer.setValues(new int[5], new int[5]);
+		offer.setValues((SOCResourceSet) null, (SOCResourceSet) null);
 	}
 
     //========================================================
@@ -4797,7 +4831,7 @@ public class SOCPlayerInterface extends Frame
      * @author paulbilnoski
      * @since 2.0.00
      */
-    private static class ClientBridge implements PlayerClientListener
+    protected static class ClientBridge implements PlayerClientListener
     {
         final SOCPlayerInterface pi;
 
@@ -4808,6 +4842,11 @@ public class SOCPlayerInterface extends Frame
         public ClientBridge(SOCPlayerInterface pi)
         {
             this.pi = pi;
+        }
+
+        public SOCGame getGame()
+        {
+            return pi.getGame();
         }
 
         public int getClientPlayerNumber()
@@ -5214,6 +5253,11 @@ public class SOCPlayerInterface extends Frame
             pi.chatPrint("::: " + msg + " :::");
         }
 
+        public void printText(String txt)
+        {
+            pi.print(txt);
+        }
+
         public void messageReceived(String nickname, String message)
         {
             if (nickname == null)
@@ -5532,6 +5576,7 @@ public class SOCPlayerInterface extends Frame
             //---MG
             //print the offer to the text chat
             //adapted from SOCServer
+            SOCGame ga = pi.game;
             SOCResourceSet offGive = offer.getGiveSet(),
             		       offGet  = offer.getGetSet();
             StringBuffer offMsgText = new StringBuffer();//(String) c.getData());
@@ -5553,7 +5598,7 @@ public class SOCPlayerInterface extends Frame
             	offMsgText.append(ga.getPlayer(3).getName());
             }
             offMsgText.append('.');
-            client.getGameMessageSender().sendText(ga, offMsgText.toString());
+            pi.client.getGameMessageSender().sendText(ga, offMsgText.toString());
                 }
             } else if (fromPN <= SOCBankTrade.PN_REPLY_CANNOT_MAKE_TRADE) {
                 pi.printKeyed("trade.msg.cant.make.offer");  // "You can't make that offer."
@@ -5598,6 +5643,15 @@ public class SOCPlayerInterface extends Frame
             pi.hideHandMessage(pn);
         }
 
+        public void clearTradeOffer(SOCPlayer player, boolean updateSendCheckboxes)
+        {
+            if (player != null)
+                pi.hands[player.getPlayerNumber()].clearOffer(updateSendCheckboxes);
+            else
+                for (SOCHandPanel hp : pi.hands)
+                    hp.clearOffer(updateSendCheckboxes);
+        }
+
         public void requestedDiceRoll(final int pn)
         {
             pi.updateAtRollPrompt(pn);
@@ -5606,6 +5660,109 @@ public class SOCPlayerInterface extends Frame
         public void debugFreePlaceModeToggled(boolean isEnabled)
         {
             pi.setDebugFreePlacementMode(isEnabled);
+        }
+
+        // methods for STAC; overridden in SOCReplayClient and/or StacDBReplayClient
+
+        public boolean isClientCurrentPlayer()
+        {
+            return pi.clientIsCurrentPlayer();
+        }
+
+        public void chatPrintText(String txt)
+        {
+            pi.chatPrint(txt);
+        }
+
+        public void clearTextAndChatDisplays()
+        {
+            pi.clearTextWindow();
+            pi.clearChatWindow();
+        }
+
+        public void clearChatTextInput()
+        {
+            pi.clearChatTextInput();
+        }
+
+        public void setChatNeedsAttention(final boolean flag, final String statusMessage)
+        {
+            pi.setChatNeedsAttention(flag, statusMessage);
+        }
+
+        public void setSaveButtonEnabledIfCurrent(final boolean enable)
+        {
+            final SOCHandPanel clientHand = pi.clientHand;
+            if ((clientHand == null) || (enable && ! pi.clientIsCurrentPlayer()))
+                return;
+
+            clientHand.save.setEnabled(enable);
+        }
+
+        public void tradeConfirmationShow
+            (final SOCResourceSet weGive, final SOCResourceSet weGet, final SOCPlayer tradePartner)
+        {
+            pi.gameTextFieldLabel.setText("Confirm your trade with " + tradePartner.getName());
+            pi.showTradeConfirmationPanel(weGive, weGet);
+        }
+
+        public void tradeConfirmationHide()
+        {
+            pi.hideTradeConfirmationPanel();
+        }
+
+        public void turnCountUpdated(final int forcedCount) {}
+
+        public void playerDevCardCountDisplayUpdate(final int pn, final int newCount)
+        {
+            pi.hands[pn].developmentSq.setIntValue(newCount);
+        }
+
+        public void playerVPDisplayUpdate(final int pn, final int newVP)
+        {
+            pi.hands[pn].updateJustVP(newVP);
+        }
+
+        public void setGame(final SOCGame newGame)
+        {
+            final int cliPN = getClientPlayerNumber();
+
+            pi.game = newGame;
+            pi.boardPanel.setGame(newGame);
+            pi.boardPanel.setBoard(newGame.getBoard());
+            if(! pi.client.getClass().equals(SOCReplayClient.class)) { //avoid if replay client
+                final SOCPlayer cliPl = newGame.getPlayer(cliPN);
+                pi.boardPanel.setPlayer(cliPl);
+                pi.buildingPanel.resetPlayer(cliPl);
+
+                //make sure we are known as a human player, just in case we are replacing a robot
+                pi.client.getGameMessageSender().put(SOCRobotFlag.toCmd(newGame.getName(), false, cliPN), newGame.isPractice);
+                cliPl.setRobotFlagUnsafe(false);
+            }
+
+            //do the same for each hand panel now
+            int n = newGame.maxPlayers;
+            for(int i = 0; i < n; i++)
+            {
+                final SOCPlayer pl = newGame.getPlayer(i);
+                SOCHandPanel hpan = pi.hands[i];
+                hpan.game = newGame;
+                hpan.player = pl;
+                hpan.faceImg.setGame(newGame);
+                hpan.setLArmy(pl.hasLargestArmy());
+                hpan.setLRoad(pl.hasLongestRoad());
+                if(! (pi.client instanceof SOCReplayClient))
+                {
+                    //there are no handPanel buttons during replay
+                    hpan.updateButtonsAtLoad();
+                    hpan.doneBut.setLabel(SOCHandPanel.DONE);
+                    hpan.doneBut.setEnabled(true);
+                }
+
+                hpan.updateAll();
+                hpan.revalidate();
+                hpan.repaint();
+            }
         }
     }
 

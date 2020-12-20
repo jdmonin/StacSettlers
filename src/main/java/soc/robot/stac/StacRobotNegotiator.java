@@ -23,11 +23,15 @@ import simpleDS.util.StringUtil;
 import soc.debug.D;
 import soc.dialogue.StacTradeMessage;
 import soc.game.SOCBoard;
+import soc.game.SOCCity;
+import soc.game.SOCDevCard;
 import soc.game.SOCGame;
 import soc.game.SOCPlayer;
 import soc.game.SOCPlayingPiece;
 import soc.game.SOCResourceConstants;
 import soc.game.SOCResourceSet;
+import soc.game.SOCRoad;
+import soc.game.SOCSettlement;
 import soc.game.SOCTradeOffer;
 import soc.game.StacTradeOffer;
 import soc.robot.SOCBuildPlan;
@@ -745,32 +749,45 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 
 		SOCBoard board = ourPlayerData.getGame().getBoard();
 		int robber_coord = board.getRobberHex();
-		Vector<SOCPlayingPiece> pieces = board.getPieces();
 		int num_opp_set = 0;
 		int num_opp_cit = 0;
-		for ( SOCPlayingPiece piece : pieces ) {
-			if ( piece.getPlayer().getPlayerNumber() != pn ) {
-				int c = piece.getCoordinates();
-				Vector<Integer> adj_hexes = SOCBoard.getAdjacentHexesToNode( c ); 
-				for ( Integer hex : adj_hexes ) {
-					if ( robber_coord != hex ) {
-						int hex_num = board.getNumberOnHexFromCoord( hex );
-						if ( hex_num > 1 && hex_num < 13 ) {
-							int hex_type = board.getHexTypeFromCoord( hex );
-							if ( piece.getType() == SOCPlayingPiece.SETTLEMENT ) {
-								num_opp_set++;
-								// add expected number of resources from dice roll for this settlement
-								board_value_resources[ hex_type - SOCBoard.CLAY_HEX ] += 1 * dice_probs[hex_num-2];
-							} else if ( piece.getType() == SOCPlayingPiece.CITY ) {
-								num_opp_cit++;
-								// add expected number of resources from dice roll for this city
-								board_value_resources[ hex_type - SOCBoard.CLAY_HEX ] += 2 * dice_probs[hex_num-2];
-							}
-						}
-					}
-				}        		
+		for ( SOCSettlement piece : board.getSettlements() ) {
+			if (piece.getPlayerNumber() == pn)
+				continue;
+
+			List<Integer> adj_hexes = board.getAdjacentHexesToNode( piece.getCoordinates() );
+			for ( Integer hex : adj_hexes ) {
+				if ( robber_coord == hex )
+					continue;
+				int hex_num = board.getNumberOnHexFromCoord( hex );
+				if ( hex_num < 2 || hex_num > 12 )
+					continue;
+
+				num_opp_set++;
+				int hex_type = board.getHexTypeFromCoord( hex );
+				// add expected number of resources from dice roll for this settlement
+				board_value_resources[ hex_type - SOCBoard.CLAY_HEX ] += 1 * dice_probs[hex_num-2];
 			}
 		}
+		for ( SOCCity piece : board.getCities() ) {
+			if (piece.getPlayerNumber() == pn)
+				continue;
+
+			List<Integer> adj_hexes = board.getAdjacentHexesToNode( piece.getCoordinates() );
+			for ( Integer hex : adj_hexes ) {
+				if ( robber_coord == hex )
+					continue;
+				int hex_num = board.getNumberOnHexFromCoord( hex );
+				if ( hex_num < 2 || hex_num > 12 )
+					continue;
+
+				num_opp_cit++;
+				int hex_type = board.getHexTypeFromCoord( hex );
+				// add expected number of resources from dice roll for this city
+				board_value_resources[ hex_type - SOCBoard.CLAY_HEX ] += 2 * dice_probs[hex_num-2];
+			}
+		}
+
 		System.out.printf( "expResRoll> %d settls %d cities", num_opp_set, num_opp_cit );
 		for ( int i = 0; i < board_value_resources.length; i++ )
 			System.out.printf( " %d:%.3f", i, board_value_resources[i] );
@@ -811,8 +828,8 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 
 			if ( !brain.getMemory().pastTradeOfferExists(offerToCheck) ) {
 				String numKnights = ""+ourPlayerData.getNumKnights();
-				String numDevCards = ""+ourPlayerData.getDevCards().getTotal();
-				String numRoads = ""+ourPlayerData.getRoads().size();
+				String numDevCards = ""+ourPlayerData.getInventory().getTotal();
+				String numRoads = ""+ourPlayerData.getRoadsAndShips().size();
 				String numSettlements = ""+ourPlayerData.getSettlements().size();
 				String numCities = ""+ourPlayerData.getCities().size();
 				String buildups = "knights="+numKnights + "|devcards="+numDevCards + "|roads="+numRoads + "|settlements="+numSettlements + "|cities="+numCities;
@@ -1347,7 +1364,7 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 								resourcesAfterBankTrade.subtract(tradeRatio, rsTypeForBankPortTrade);
 
 								//is there a piece for which the player is missing 1 resource?
-								SOCResourceSet[] resSets = new SOCResourceSet[]{SOCGame.ROAD_SET, SOCGame.SETTLEMENT_SET, SOCGame.CITY_SET, SOCGame.CARD_SET};
+								SOCResourceSet[] resSets = new SOCResourceSet[]{SOCRoad.COST, SOCSettlement.COST, SOCCity.COST, SOCDevCard.COST};
 								//We want to test these in reverse order, otherwise, for example, Settlements are never suggested, because Roads are a subset
 								for (int resSetCounter = (resSets.length - 1); resSetCounter > -1 ; resSetCounter--) {
 
@@ -1373,7 +1390,7 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 									if (numOfMinusOnes == 1 && !piecesAvailbleBeforeTrade[resSetCounter] && rsDiff.getAmount(rsTypeForBankPortTrade) != -1) {
 
 										//check whether that's a possible move for the opponent
-										SOCPlayerTracker tracker = brain.getPlayerTrackers().get(pn);
+										SOCPlayerTracker tracker = brain.getPlayerTrackers()[pn];
 										//                                        brain.printMess("possible settlements: " + tracker.getPossibleSettlements().toString());
 
 
@@ -1500,21 +1517,7 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 
 		//make sure we have a predicted piece available for our inference
 		if (predictedPiece != null) {
-			SOCResourceSet resourcesForPiece = new SOCResourceSet();
-			switch (predictedPiece.getType()) {
-			case SOCPossiblePiece.ROAD:
-				resourcesForPiece = SOCGame.ROAD_SET;
-				break;
-			case SOCPossiblePiece.SETTLEMENT:
-				resourcesForPiece = SOCGame.SETTLEMENT_SET;
-				break;
-			case SOCPossiblePiece.CITY:
-				resourcesForPiece = SOCGame.CITY_SET;
-				break;
-			case SOCPossiblePiece.CARD:
-				resourcesForPiece = SOCGame.CARD_SET;
-				break;                                    
-			}
+			SOCResourceSet resourcesForPiece = predictedPiece.getResourcesToBuild();
 
 			//determine the resources we believe the offerer will have after the trade
 			SOCResourceSet offererResources = brain.getMemory().getOpponentResources(offer.getFrom());
@@ -1537,7 +1540,7 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 	 */
 	protected boolean[] piecesAvailableToBuildWithResources(SOCResourceSet availableRes) {
 		boolean[] pieces = new boolean[4];
-		SOCResourceSet[] resSets = new SOCResourceSet[]{SOCGame.ROAD_SET, SOCGame.SETTLEMENT_SET, SOCGame.CITY_SET, SOCGame.CARD_SET};
+		SOCResourceSet[] resSets = new SOCResourceSet[]{SOCRoad.COST, SOCSettlement.COST, SOCCity.COST, SOCDevCard.COST};
 		for (int i = 0; i < resSets.length; i++) {
 			pieces[i] = availableRes.contains(resSets[i]);
 		}
@@ -1649,7 +1652,7 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 			return false;
 		}
 
-		int senderWGETA = ((SOCPlayerTracker) playerTrackers.get(pNum)).getWinGameETA();
+		int senderWGETA = playerTrackers[pNum].getWinGameETA();
 
 		// Add VP threshold - the win-game-cutoff seems to be letting silly things through
 		return senderWGETA < WIN_GAME_CUTOFF || game.getPlayer(pNum).getPublicVP() >= 8;
@@ -1984,7 +1987,7 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 		// See what resources we have and what resources the BBP requires.
 		SOCResourceSet currentResources = brain.getMemory().getResources();
 		SOCBuildPlanStack bbp = brain.getMemory().getCurrentBuildPlan();
-		SOCResourceSet resourcesNeededForBBP = bbp.totalResourcesForBuidPlan();
+		SOCResourceSet resourcesNeededForBBP = bbp.getTotalResourcesForBuildPlan();
 
 		// See what resources we have extra, i.e. which resources we can spare (the subtract method takes care that no value is < 0)
 		SOCResourceSet extraResources = currentResources.copy();
@@ -2801,7 +2804,7 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 			{
 				SOCRobotDM simulator;
 				D.ebugPrintlnINFO("**** our building plan is empty ****");
-				simulator = new SOCRobotDMImpl(brain.getRobotParameters(), playerTrackers, ourPlayerTracker, ourPlayerData, ourBuildingPlan, brain.getRobotParameters().getStrategyType());
+				simulator = new SOCRobotDMImpl(brain.getRobotParameters(), brain.getOpeningBuildStrategy(), playerTrackers, ourPlayerTracker, ourPlayerData, ourBuildingPlan, brain.getRobotParameters().getStrategyType());
 				simulator.planStuff();
 			}
 
@@ -4023,13 +4026,13 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 		D.ebugPrintlnINFO("rsrcs from receiver = " + rsrcsOut);
 		D.ebugPrintlnINFO("rsrcs to receiver = " + rsrcsIn);
 
-		SOCPlayerTracker receiverPlayerTracker = (SOCPlayerTracker) playerTrackers.get(Integer.valueOf(receiverNum));
+		SOCPlayerTracker receiverPlayerTracker = playerTrackers[receiverNum];
 		if (receiverPlayerTracker == null) {
 			D.ebugPrintlnINFO("Reject offer; receiverPlayerTracker == null");
 			return REJECT_OFFER;
 		}
 
-		SOCPlayerTracker senderPlayerTracker = (SOCPlayerTracker) playerTrackers.get(Integer.valueOf(senderNum));
+		SOCPlayerTracker senderPlayerTracker = playerTrackers[senderNum];
 		if (senderPlayerTracker == null) {
 			D.ebugPrintlnINFO("Reject offer; senderPlayerTracker == null");
 			return REJECT_OFFER;
@@ -4078,9 +4081,7 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 			boolean inARace = false;
 
 			if ((receiverTargetPiece.getType() == SOCPossiblePiece.SETTLEMENT) || (receiverTargetPiece.getType() == SOCPossiblePiece.ROAD)) {
-				Enumeration threatsEnum = receiverTargetPiece.getThreats().elements();
-				while (threatsEnum.hasMoreElements()) {
-					SOCPossiblePiece threat = (SOCPossiblePiece) threatsEnum.nextElement();
+				for (SOCPossiblePiece threat : receiverTargetPiece.getThreats()) {
 					if ((threat.getType() == senderTargetPiece.getType()) && (threat.getCoordinates() == senderTargetPiece.getCoordinates())) {
 						inARace = true;
 						D.ebugPrintlnINFO("inARace == true (threat from sender)");
@@ -4088,9 +4089,7 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 					}
 				}
 				if (!inARace && receiverTargetPiece.getType() == SOCPossiblePiece.SETTLEMENT) {
-					Enumeration conflictsEnum = ((SOCPossibleSettlement) receiverTargetPiece).getConflicts().elements();
-					while (conflictsEnum.hasMoreElements()) {
-						SOCPossibleSettlement conflict = (SOCPossibleSettlement) conflictsEnum.nextElement();
+					for (SOCPossibleSettlement conflict : ((SOCPossibleSettlement) receiverTargetPiece).getConflicts()) {
 						if ((senderTargetPiece.getType() == SOCPossiblePiece.SETTLEMENT) && (conflict.getCoordinates() == senderTargetPiece.getCoordinates())) {
 							inARace = true;
 							D.ebugPrintlnINFO("inARace == true (conflict with sender)");
@@ -4157,16 +4156,8 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 		ourResourcesCopy.subtract(giveSet);
 		ourResourcesCopy.add(getSet);
 
-		int offerBuildingTime = 1000;
-
-		try
-		{
-			SOCResSetBuildTimePair offerBuildingTimePair = estimate.calculateRollsFast(ourResourcesCopy, targetResources, 1000, player.getPortFlags());
-			offerBuildingTime = offerBuildingTimePair.getRolls();
-		}
-		catch (CutoffExceededException e)
-		{
-		}
+		int offerBuildingTime = estimate.calculateRollsFast
+		    (ourResourcesCopy, targetResources, 1000, player.getPortFlags());
 
 		D.ebugPrintlnINFO("*** offerBuildingTime = " + offerBuildingTime);
 		D.ebugPrintlnINFO("*** ourResourcesCopy = " + ourResourcesCopy);
@@ -4247,7 +4238,7 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 							(! game.isSeatVacant(i)) &&
 							(brain.getMemory().getOpponentResourcesTotal(i) >= getResourceSet.getTotal()))
 					{
-						SOCPlayerTracker tracker = (SOCPlayerTracker) playerTrackers.get(Integer.valueOf(i));
+						SOCPlayerTracker tracker = playerTrackers[i];
 
 						if ((tracker != null) && (tracker.getWinGameETA() >= WIN_GAME_CUTOFF))
 						{
@@ -4273,7 +4264,7 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 				{
 					D.ebugPrintlnINFO("** isSellingResource[" + curpn + "][" + neededResource + "] = " + isSellingResource);
 
-					SOCPlayerTracker tracker = (SOCPlayerTracker) playerTrackers.get(Integer.valueOf(curpn));
+					SOCPlayerTracker tracker = playerTrackers[curpn];
 
 					if ((tracker != null) && (tracker.getWinGameETA() >= WIN_GAME_CUTOFF))
 					{
@@ -4754,7 +4745,7 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 	 */
 	public SOCBuildPlanStack predictBuildPlan(int playerNum) {
 		SOCBuildPlanStack bp  = new SOCBuildPlanStack();
-		SOCPlayerTracker playerTracker = (SOCPlayerTracker) playerTrackers.get(Integer.valueOf(playerNum));
+		SOCPlayerTracker playerTracker = playerTrackers[playerNum];
 		SOCPlayer playerData = game.getPlayer(playerNum);
 
 		// Ensure the player data we are using contains our declarative memory's belief about their resources.
@@ -4781,7 +4772,7 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 			StacRobotDM simulatorDM = new StacRobotDM(opponentBrain, playerTrackers, playerTracker, playerTracker.getPlayer(), bp);
 			simulatorDM.planStuff();
 		} else {
-			SOCRobotDM simulator = new SOCRobotDMImpl(brain.getRobotParameters(), playerTrackers, playerTracker, playerData, bp, brain.getRobotParameters().getStrategyType());
+			SOCRobotDM simulator = new SOCRobotDMImpl(brain.getRobotParameters(), brain.getOpeningBuildStrategy(), playerTrackers, playerTracker, playerData, bp, brain.getRobotParameters().getStrategyType());
 			simulator.planStuff();
 		}
 

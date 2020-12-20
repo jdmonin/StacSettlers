@@ -325,7 +325,7 @@ public class StacRobotBrainInfo implements Serializable{
     	doneTrading = brain.doneTrading;
     	lastMove = brain.lastMove;
     	lastTarget = brain.lastTarget;
-    	monopolyChoice = brain.decisionMaker.monopolyChoice;
+    	monopolyChoice = brain.monopolyStrategy.getMonopolyChoice();
     	numberOfMessagesReceived = brain.numberOfMessagesReceived;
     	oldGameState = brain.oldGameState;
     	ourTurn = brain.ourTurn;
@@ -338,7 +338,7 @@ public class StacRobotBrainInfo implements Serializable{
         expectSTART1B = brain.expectSTART1B;
         expectSTART2A = brain.expectSTART2A;
         expectSTART2B = brain.expectSTART2B;
-        expectPLAY = brain.expectPLAY;
+        expectPLAY = brain.expectROLL_OR_CARD;
         expectPLAY1 = brain.expectPLAY1;
         expectPLACING_ROAD = brain.expectPLACING_ROAD;
         expectPLACING_SETTLEMENT = brain.expectPLACING_SETTLEMENT;        

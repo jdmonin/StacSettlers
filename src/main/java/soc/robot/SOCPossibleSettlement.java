@@ -24,6 +24,7 @@ package soc.robot;
 import soc.game.SOCGame;
 import soc.game.SOCPlayer;
 import soc.game.SOCResourceSet;
+import soc.game.SOCSettlement;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,7 +46,7 @@ public class SOCPossibleSettlement extends SOCPossiblePiece
     private static final long serialVersionUID = 2000L;
 
     protected List<SOCPossibleRoad> necessaryRoads;
-    protected List<SOCPossibleSettlement> conflicts;
+    protected final List<SOCPossibleSettlement> conflicts;
 
     /**
      * Speedup per building type.  Indexed from {@link SOCBuildingSpeedEstimate#MIN}
@@ -89,8 +90,9 @@ public class SOCPossibleSettlement extends SOCPossiblePiece
      * Incomplete constructor.
      * Should only be called from SOCPossiblePiece.parse
      */
-    public SOCPossibleSettlement(SOCPlayer pl, int co, Vector nr)
+    public SOCPossibleSettlement(SOCPlayer pl, int co, List<SOCPossibleRoad> nr)
     {
+        super(SOCPossiblePiece.SETTLEMENT, pl, co);
         if (nr == null)
             throw new IllegalArgumentException("nr null");
 
@@ -100,9 +102,9 @@ public class SOCPossibleSettlement extends SOCPossiblePiece
         coord = co;
         necessaryRoads = nr;
         eta = 0;
-        threats = new Vector();
-        biggestThreats = new Vector();
-        conflicts = new Vector();
+        threats.clear();
+        biggestThreats.clear();
+        conflicts = new ArrayList<>();
         threatUpdatedFlag = false;
         hasBeenExpanded = false;
         numberOfNecessaryRoads = -1;
@@ -313,7 +315,7 @@ public class SOCPossibleSettlement extends SOCPossiblePiece
 
     @Override
     public SOCResourceSet getResourceCost() {
-        return SOCGame.SETTLEMENT_SET;
+        return SOCSettlement.COST;
     }
 
 	public void setBrain(SOCRobotBrain brain) {

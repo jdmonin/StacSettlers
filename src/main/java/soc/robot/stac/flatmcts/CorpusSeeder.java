@@ -5,10 +5,12 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Vector;
 
 import representation.NumericalFVGenerator;
 import representation.SimilarityCalculator;
+import soc.baseclient.ServerConnectInfo;
 import soc.disableDebug.D;
 import soc.game.SOCGame;
 import soc.game.SOCPlayer;
@@ -135,7 +137,7 @@ public class CorpusSeeder implements Seeder{
 		
 		//list of all legal actions from the current state (need to find a way to have the same order during both the expansion and seeding logic)
 		SOCPlayer player = brain.getOurPlayerData();
-    	List<Integer> legalActions = player.getLegalSettlements(); //there is a set of legal actions
+    	Set<Integer> legalActions = player.getLegalSettlements(); //there is a set of legal actions
 		
     	//calculate feature vectors for each legal action
     	Map<Integer, int[]> legalActionsFeatures = new HashMap<Integer, int[]>();
@@ -149,7 +151,7 @@ public class CorpusSeeder implements Seeder{
     		D.ebugPrintlnINFO("copied brain and game");
     		ga.putPiece(new SOCSettlement(ga.getPlayer(copy.getOurPlayerData().getPlayerNumber()),action, ga.getBoard()));
     		D.ebugPrintlnINFO("put piece in game");
-    		copy.handlePUTPIECE_updateTrackers( new SOCPutPiece(ga.getName(), copy.getOurPlayerData().getPlayerNumber(), SOCPlayingPiece.SETTLEMENT, action));
+    		copy.handlePUTPIECE_updateTrackers(copy.getOurPlayerData().getPlayerNumber(), action, SOCPlayingPiece.SETTLEMENT);
     		D.ebugPrintlnINFO("put piece in brain");
     		ObsGameStateRow afterOGSR = ga.turnCurrentStateIntoOGSR();
     		D.ebugPrintlnINFO("turned into ogsr");
@@ -320,15 +322,15 @@ public class CorpusSeeder implements Seeder{
 	 * @return
 	 */
 	private SOCRobotBrain copyBrainInfo(SOCRobotBrain br){
-		SOCRobotBrain copy = new StacRobotDummyBrain(new SOCRobotClient(null, "inexistent", "dummyAgent", "", null),
+		SOCRobotBrain copy = new StacRobotDummyBrain
+				(new SOCRobotClient(null, new ServerConnectInfo("inexistent", ""), "dummyAgent", "", null),
 				new SOCRobotParameters(300, 500, 0f, 0f, 0f, 0f, 0f, SOCRobotDMImpl.FAST_STRATEGY, 0),
 				(SOCGame)DeepCopy.copy(br.getGame()),new CappedQueue(), br.getOurPlayerData().getPlayerNumber());
 		//update trackers
-        HashMap<Integer, SOCPlayerTracker> playerTrackers = new HashMap<>();
-        HashMap<Integer, SOCPlayerTracker> original = br.getPlayerTrackers();
-        for(int i = 0; i< 4; i++){
-	      	 playerTrackers.put(i, (SOCPlayerTracker)DeepCopy.copy(original.get(i)));
-	    }
+        SOCPlayerTracker[] original = br.getPlayerTrackers();
+        SOCPlayerTracker[] playerTrackers = new SOCPlayerTracker[original.length];
+        for(int i = 0; i< original.length; i++)
+            playerTrackers[i] = (SOCPlayerTracker) DeepCopy.copy(original[i]);
         
         SOCGame g = copy.getGame();
         //recreate the links exactly as in client, but do not update, just replace the nonexistent trackers
@@ -338,28 +340,29 @@ public class CorpusSeeder implements Seeder{
 			p.setGame(g); //restore reference to this game in the player objects
 		}
         for(int i = 0; i < n; i++){
-			SOCPlayerTracker pti = playerTrackers.get(i);
+			SOCPlayer p = g.getPlayer(i);
+			SOCPlayerTracker pti = playerTrackers[i];
 			pti.setBrain(copy);
+			pti.setPlayer(p);
 			//update the reference to the correct brain in PossibleCities and PossibleSettlements objects
 			Iterator posCitiesIter = pti.getPossibleCities().values().iterator();
 			while (posCitiesIter.hasNext())
 	        {
 	            SOCPossibleCity posCity = (SOCPossibleCity) posCitiesIter.next();
-	            posCity.setBrain(copy);
+	            // -- merge TODO: call upstream posCity.setTransientsAtLoad(p, pti);
 	        }
 			Iterator posSettlIter = pti.getPossibleSettlements().values().iterator();
 			while (posSettlIter.hasNext())
 	        {
 	            SOCPossibleSettlement posSettl = (SOCPossibleSettlement) posSettlIter.next();
-	            posSettl.setBrain(copy);
+	            // -- merge TODO: call upstream posSettl.setTransientsAtLoad(p, pti);
 	        }
-			pti.setPlayer(g.getPlayer(i));
 		}
         ((StacRobotDummyBrain)copy).setPlayerTrackers(playerTrackers);
         
         //should also add our player tracker and our player data
         ((StacRobotDummyBrain)copy).setOurPlayerData(g.getPlayer(br.getOurPlayerData().getPlayerNumber()));
-        ((StacRobotDummyBrain)copy).setOurPlayerTracker(playerTrackers.get(br.getOurPlayerData().getPlayerNumber()));
+        ((StacRobotDummyBrain)copy).setOurPlayerTracker(playerTrackers[br.getOurPlayerData().getPlayerNumber()]);
 		
 		return copy;
 		
@@ -367,7 +370,7 @@ public class CorpusSeeder implements Seeder{
 	
 	public List<SettlementNode> getLegalSettlements() {
 		SOCPlayer player = brain.getOurPlayerData();
-    	List<Integer> legalSettlements = player.getLegalSettlements(); //there is a set of legal actions
+    	Set<Integer> legalSettlements = player.getLegalSettlements(); //there is a set of legal action locations
 
     	List<SettlementNode> possibleSettlements = new ArrayList<SettlementNode>(legalSettlements.size());
         for (Integer node : legalSettlements) {

@@ -3,7 +3,7 @@ package soc.robot.stac.negotiationlearning;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Vector;
+import java.util.List;
 
 import soc.game.SOCGame;
 import soc.game.SOCPlayer;
@@ -18,7 +18,7 @@ import soc.robot.SOCPossiblePiece;
 public class BoardGameState {
 
 	public static String getBasicRepresentation(SOCPlayer ourPlayerData) {
-		int numDevCards = ourPlayerData.getDevCards().getTotal();
+		int numDevCards = ourPlayerData.getInventory().getTotal();
 		//int numRoads = ourPlayerData.getRoads().size();
 		int numSettlements = ourPlayerData.getSettlements().size();
 		int numCities = ourPlayerData.getCities().size();
@@ -181,7 +181,7 @@ public class BoardGameState {
 	}
 
 	private static String getHexesState(SOCGame game) {
-		int[] landCoords = game.getBoard().getHexLandCoords();
+		int[] landCoords = game.getBoard().getLandHexCoords();
 		ArrayList<String> coords = new ArrayList<String>();
 		for (int i=0; i<landCoords.length; i++) {
 			int coord = landCoords[i];
@@ -211,7 +211,7 @@ public class BoardGameState {
 
 		// get nodes
 		ArrayList<String> nodes = new ArrayList<String>();
-		for (Object node : game.getBoard().nodesOnBoard.keySet()) {
+		for (Object node : game.getBoard().nodesOnLand) {
 			int nodeID = ((Integer) node).intValue();
 			nodes.add(""+nodeID);
 		}
@@ -237,17 +237,17 @@ public class BoardGameState {
 
 	private static String getEdgesState(SOCGame game, SOCPlayer ourPlayerData) {
 		// get roads
-		HashMap<String,Integer> myRoads = getMapOfResources(game.getBoard().getRoads());
-		HashMap<String,Integer> myOwnRoads = getMapOfResources(ourPlayerData.getRoads());
+		HashMap<String,Integer> myRoads = getMapOfResources(game.getBoard().getRoadsAndShips());
+		HashMap<String,Integer> myOwnRoads = getMapOfResources(ourPlayerData.getRoadsAndShips());
 		//System.out.println("myRoads="+myRoads + " myOwnRoads="+myOwnRoads);
 
 		// get edges
 		ArrayList<String> edges = new ArrayList<String>();
-		for (Object node : game.getBoard().nodesOnBoard.keySet()) {
+		for (Object node : game.getBoard().nodesOnLand) {
 			int nodeID = ((Integer) node).intValue();
-			Vector list = game.getBoard().getAdjacentNodesToNode(nodeID);
+			List<Integer> list = game.getBoard().getAdjacentNodesToNode(nodeID);
 			for (int j=0; j<list.size(); j++) {
-				int nodeID2 = ((Integer) list.get(j)).intValue();
+				int nodeID2 = list.get(j).intValue();
 				if (nodeID == nodeID2) continue;
 				int edgeNum = game.getBoard().getEdgeBetweenAdjacentNodes(nodeID, nodeID2);
 				if (!edges.contains(""+edgeNum)) {
@@ -285,13 +285,12 @@ public class BoardGameState {
 		return robber;
 	}
 
-	private static HashMap<String,Integer> getMapOfResources(Vector vector) {
+	private static HashMap<String,Integer> getMapOfResources(List<? extends SOCPlayingPiece> pieces) {
 		HashMap<String,Integer> map = new HashMap<String,Integer>();
-		for (int i=0; i<vector.size(); i++) {
-			SOCPlayingPiece piece = (SOCPlayingPiece) vector.get(i);
+		for (SOCPlayingPiece piece : pieces) {
 			int id = piece.getCoordinates();
 			int type = piece.getType();
-			map.put(""+id, new Integer(type));
+			map.put(""+id, Integer.valueOf(type));
 		}
 		//IOUtil.printHashMap(map, "map");
 		return map;

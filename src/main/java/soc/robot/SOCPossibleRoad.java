@@ -25,6 +25,7 @@ import soc.game.SOCGame;
 import soc.game.SOCPlayer;
 import soc.game.SOCPlayingPiece;
 import soc.game.SOCResourceSet;
+import soc.game.SOCRoad;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -207,6 +208,6 @@ public class SOCPossibleRoad extends SOCPossiblePiece
 
     @Override
     public SOCResourceSet getResourceCost() {
-        return SOCGame.ROAD_SET;
+        return SOCRoad.COST;
     }
 }

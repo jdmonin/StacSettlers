@@ -38,7 +38,7 @@ public class StacRobotDummyBrain extends SOCRobotBrainImpl{
 		// default constructor// do we need all this info??
 		//the only thing that we would need is to create the trackers
 		ourPlayerNum = ourPN; //we need to have a player number due to the way the game logic handles update trackers
-		playerTrackers = new HashMap<Integer, SOCPlayerTracker>();
+		playerTrackers = new SOCPlayerTracker[ga.maxPlayers];
 		//we need our player data/tracker here
 		ourPlayerData = ga.getPlayer(ourPlayerNum);
         ourPlayerTracker = new SOCPlayerTracker(game.getPlayer(ourPlayerNum), this);
@@ -47,7 +47,7 @@ public class StacRobotDummyBrain extends SOCRobotBrainImpl{
 	        if (! game.isSeatVacant(pn))
 	        {
 	            SOCPlayerTracker tracker = new SOCPlayerTracker(game.getPlayer(pn), this);
-	            playerTrackers.put(Integer.valueOf(pn), tracker);
+	            playerTrackers[pn] = tracker;
 	        }
 	    }
 	}
@@ -95,13 +95,9 @@ public class StacRobotDummyBrain extends SOCRobotBrainImpl{
 	 */
 	public void setGame(SOCGame game) {
 		this.game = game;
-        Iterator trackersIter = playerTrackers.values().iterator();
         //we need to update the player object in the trackers as we are not modifying the game object in this class, but only replacing it
-        while (trackersIter.hasNext())
-        {
-            SOCPlayerTracker tracker = (SOCPlayerTracker) trackersIter.next();
-            tracker.setPlayer(game.getPlayer(tracker.getPlayer().getPlayerNumber()));
-        }
+        for (int pn = 0; pn < playerTrackers.length; ++pn)
+            playerTrackers[pn].setPlayer(game.getPlayer(pn));
         ourPlayerData = game.getPlayer(ourPlayerNum);
 	}
 	
@@ -128,9 +124,9 @@ public class StacRobotDummyBrain extends SOCRobotBrainImpl{
 	
 	/**
 	 * 
-	 * @param playerTrackers all SOCPlayerTrackers objects in a hashmap linking them to the player numbers of each player
+	 * @param playerTrackers all SOCPlayerTrackers objects in an array by player number
 	 */
-    public void setPlayerTrackers(HashMap<Integer, SOCPlayerTracker> playerTrackers) {
+    public void setPlayerTrackers(SOCPlayerTracker[] playerTrackers) {
 		this.playerTrackers = playerTrackers;
 	}
 	

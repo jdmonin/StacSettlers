@@ -1,19 +1,27 @@
 package soc.robot;
 
 import java.text.DecimalFormat;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Stack;
 import java.util.Vector;
 
 import soc.disableDebug.D;
 import soc.game.SOCBoard;
+import soc.game.SOCBoardLarge;
 import soc.game.SOCCity;
+import soc.game.SOCDevCard;
 import soc.game.SOCDevCardConstants;
 import soc.game.SOCDevCardSet;
+import soc.game.SOCFortress;
 import soc.game.SOCGame;
+import soc.game.SOCGameOptionSet;
+import soc.game.SOCInventory;
 import soc.game.SOCLRPathData;
 import soc.game.SOCPlayer;
 import soc.game.SOCPlayerNumbers;
@@ -21,7 +29,10 @@ import soc.game.SOCPlayingPiece;
 import soc.game.SOCResourceConstants;
 import soc.game.SOCResourceSet;
 import soc.game.SOCRoad;
+import soc.game.SOCRoutePiece;
 import soc.game.SOCSettlement;
+import soc.game.SOCShip;
+import soc.game.SOCSpecialItem;
 import soc.util.CutoffExceededException;
 import soc.util.NodeLenVis;
 import soc.util.Pair;
@@ -51,43 +62,20 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
     protected int[] resourceEstimates;
 
     /**
-     * constructor
+     * Constructor for setting DM fields from a robot brain.
      *
      * @param br  the robot brain
      */
     public SOCRobotDMImpl(SOCRobotBrain<?, ?, SOCBuildPlanStack> br, int strategyType, SOCBuildPlanStack plan)
     {
-        super();
-        this.strategy=strategyType;
+        super(br, strategyType, plan);
         brain = br;
-        playerTrackers = brain.getPlayerTrackers();
-        ourPlayerTracker = brain.getOurPlayerTracker();
-        player = brain.getOurPlayerData();
-        ourPlayerNumber = ourPlayerData.getPlayerNumber();
-        buildingPlan = plan;
-        openingBuildStrategy = brain.openingBuildStrategy;
-        bseFactory = brain.getEstimatorFactory();
         game = brain.getGame();
-
-        threatenedRoads = new ArrayList<SOCPossibleRoad>();
-        goodRoads = new ArrayList<SOCPossibleRoad>();
-        threatenedSettlements = new ArrayList<SOCPossibleSettlement>();
-        goodSettlements = new ArrayList<SOCPossibleSettlement>();
-        SOCRobotParameters params = brain.getRobotParameters();
-        maxGameLength = params.getMaxGameLength();
-        maxETA = params.getMaxETA();
-        etaBonusFactor = params.getETABonusFactor();
-        adversarialFactor = params.getAdversarialFactor();
-        leaderAdversarialFactor = params.getLeaderAdversarialFactor();
-        devCardMultiplier = params.getDevCardMultiplier();
-        threatMultiplier = params.getThreatMultiplier();
     }
 
 
     /**
-     * constructor
-     * 
-     * this is if you don't want to use a brain
+     * Constructor for specifying DM fields instead of using a Brain.
      *
      * @param params  the robot parameters
      * @param obs  a robot brain's current {@link OpeningBuildStrategy}, or {@code null} to create one here,
@@ -104,30 +92,9 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
             SOCPlayer opd,
             SOCBuildPlanStack bp,
             int strategyType) {
-        super();
-        this.strategy = strategyType;
+        super(params, obs, new SOCBuildingSpeedEstimateFactory(null), pt, opt, opd, bp, strategyType);
         brain = null;
-        playerTrackers = pt;
-        ourPlayerTracker = opt;
-        player = opd;
-        ourPlayerNumber = opd.getPlayerNumber();
-        buildingPlan = bp;
-        bseFactory = new SOCBuildingSpeedEstimateFactory(null);
         game = player.getGame();
-        openingBuildStrategy = (obs != null) ? obs : new OpeningBuildStrategy(game, opd, null);
-
-        maxGameLength = params.getMaxGameLength();
-        maxETA = params.getMaxETA();
-        etaBonusFactor = params.getETABonusFactor();
-        adversarialFactor = params.getAdversarialFactor();
-        leaderAdversarialFactor = params.getLeaderAdversarialFactor();
-        devCardMultiplier = params.getDevCardMultiplier();
-        threatMultiplier = params.getThreatMultiplier();
-
-        threatenedRoads = new ArrayList<SOCPossibleRoad>();
-        goodRoads = new ArrayList<SOCPossibleRoad>();
-        threatenedSettlements = new ArrayList<SOCPossibleSettlement>();
-        goodSettlements = new ArrayList<SOCPossibleSettlement>();
     }
 
 
@@ -636,7 +603,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
                         if (roadPath!= null)
                         {
                             brain.getDRecorder().record("Path:");
-                            Iterator rpIter = roadPath.iterator();
+                            Iterator<SOCPossibleRoad> rpIter = roadPath.iterator();
                             while (rpIter.hasNext()) {
                                 SOCPossibleRoad posRoad = rpIter.next();
                                 brain.getDRecorder().record("Road at "+game.getBoard().edgeCoordToString(posRoad.getCoordinates()));
@@ -914,9 +881,9 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
         final SOCRoutePiece tmpRS;
         if ((favoriteRoad instanceof SOCPossibleShip)
             && ! ((SOCPossibleShip) favoriteRoad).isCoastalRoadAndShip )
-            tmpRS = new SOCShip(ourPlayerData, favoriteRoad.getCoordinates(), null);
+            tmpRS = new SOCShip(player, favoriteRoad.getCoordinates(), null);
         else
-            tmpRS = new SOCRoad(ourPlayerData, favoriteRoad.getCoordinates(), null);
+            tmpRS = new SOCRoad(player, favoriteRoad.getCoordinates(), null);
 
         SOCPlayerTracker[] trackersCopy = SOCPlayerTracker.tryPutPiece(tmpRS, game, playerTrackers);
         SOCPlayerTracker.updateWinGameETAs(trackersCopy);
@@ -1055,7 +1022,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
      * Combined implementation for use by SOCRobotDM and {@link SOCPlayerTracker}.
      *
      * @param pl            Calculate this player's longest road;
-     *             typically SOCRobotDM.ourPlayerData or SOCPlayerTracker.player
+     *             typically SOCRobotDM.player or SOCPlayerTracker.player
      * @param wantsStack    If true, return the Stack; otherwise, return numRoads.
      * @param startNode     the path endpoint, such as from
      *             {@link SOCPlayer#getLRPaths()}.(i){@link SOCLRPathData#getBeginning() .getBeginning()}
@@ -1335,9 +1302,9 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
 
         /*
 	    boolean goingToPlayRB = false;
-	    if (!ourPlayerData.hasPlayedDevCard() &&
-		ourPlayerData.getNumPieces(SOCPlayingPiece.ROAD) >= 2 &&
-		ourPlayerData.getInventory().getAmount(SOCInventory.OLD, SOCDevCardConstants.ROADS) > 0) {
+	    if (!player.hasPlayedDevCard() &&
+		player.getNumPieces(SOCPlayingPiece.ROAD) >= 2 &&
+		player.getInventory().getAmount(SOCInventory.OLD, SOCDevCardConstants.ROADS) > 0) {
 	      goingToPlayRB = true;
 	    }
          */
@@ -1375,7 +1342,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
         /// and collect ships we can build now
         /// (if the pirate is adjacent, can't build there right now)
         ///
-        if (ourPlayerData.getNumPieces(SOCPlayingPiece.SHIP) > 0)
+        if (player.getNumPieces(SOCPlayingPiece.SHIP) > 0)
         {
             final SOCBoard board = game.getBoard();
             final int pirateHex =
@@ -1427,7 +1394,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
 	      SOCPossibleSettlement threatenedSet = (SOCPossibleSettlement)threatenedSetEnum.nextElement();
 	      D.ebugPrintlnINFO("*** threatened settlement at "+Integer.toHexString(threatenedSet.getCoordinates())+" has a score of "+threatenedSet.getScore());
 	      if (threatenedSet.getNecessaryRoads().isEmpty() &&
-		  ! ourPlayerData.isPotentialSettlement(threatenedSet.getCoordinates())) {
+		  ! player.isPotentialSettlement(threatenedSet.getCoordinates())) {
 		D.ebugPrintlnINFO("POTENTIAL SETTLEMENT ERROR");
 		//System.exit(0);
 	      } 
@@ -1437,7 +1404,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
 	      SOCPossibleSettlement goodSet = (SOCPossibleSettlement)goodSetEnum.nextElement();
 	      D.ebugPrintlnINFO("*** good settlement at "+Integer.toHexString(goodSet.getCoordinates())+" has a score of "+goodSet.getScore());
 	      if (goodSet.getNecessaryRoads().isEmpty() &&
-		  ! ourPlayerData.isPotentialSettlement(goodSet.getCoordinates())) {
+		  ! player.isPotentialSettlement(goodSet.getCoordinates())) {
 		D.ebugPrintlnINFO("POTENTIAL SETTLEMENT ERROR");
 		//System.exit(0);
 	      } 
@@ -1447,7 +1414,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
 	      SOCPossibleRoad threatenedRoad = (SOCPossibleRoad)threatenedRoadEnum.nextElement();
 	      D.ebugPrintlnINFO("*** threatened road at "+Integer.toHexString(threatenedRoad.getCoordinates())+" has a score of "+threatenedRoad.getScore());
 	      if (threatenedRoad.getNecessaryRoads().isEmpty() &&
-		  ! ourPlayerData.isPotentialRoad(threatenedRoad.getCoordinates())) {
+		  ! player.isPotentialRoad(threatenedRoad.getCoordinates())) {
 		D.ebugPrintlnINFO("POTENTIAL ROAD ERROR");
 		//System.exit(0);
 	      }
@@ -1457,7 +1424,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
 	      SOCPossibleRoad goodRoad = (SOCPossibleRoad)goodRoadEnum.nextElement();
 	      D.ebugPrintlnINFO("*** good road at "+Integer.toHexString(goodRoad.getCoordinates())+" has a score of "+goodRoad.getScore());
 	      if (goodRoad.getNecessaryRoads().isEmpty() &&
-		  ! ourPlayerData.isPotentialRoad(goodRoad.getCoordinates())) {
+		  ! player.isPotentialRoad(goodRoad.getCoordinates())) {
 		D.ebugPrintlnINFO("POTENTIAL ROAD ERROR");
 		//System.exit(0);
 	      }
@@ -1817,7 +1784,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
         {
             if (scenarioGameStrategyPlan
                 (pickScore, devCardScore, true, (pick == SOCPlayingPiece.MAXPLUSONE),
-                 getEstimator(ourPlayerData.getNumbers()),
+                 getEstimator(player.getNumbers()),
                  leadersCurrentWGETA, forSpecialBuildingPhase))
               return;  // <--- Early return: Scenario-specific buildingPlan was pushed ---
         }
@@ -1905,24 +1872,24 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
        final boolean forSpecialBuildingPhase)
       throws IllegalArgumentException
   {
-    final int ourVP = ourPlayerData.getTotalVP();
+    final int ourVP = player.getTotalVP();
     if (ourVP < 4)
     {
       return false;  // <--- Early return: We don't have 4 VP, don't use resources to build out to sea yet ---
     }
 
-    final int ourNumWarships = ourPlayerData.getNumWarships();
+    final int ourNumWarships = player.getNumWarships();
 
     // evaluate game status (current VP, etc); calc scenario-specific options and scores
     //    If bestPlanIsDevCard, don't recalc cardScoreOrETA for buying a warship card
 
     float shipScoreOrETA;
     int shipETA;
-    int shipsBuilt = SOCPlayer.SHIP_COUNT - ourPlayerData.getNumPieces(SOCPlayingPiece.SHIP);
+    int shipsBuilt = SOCPlayer.SHIP_COUNT - player.getNumPieces(SOCPlayingPiece.SHIP);
 
     boolean mightBuildShip = false;
     if ((shipsBuilt >= 6)
-        && ((ourVP < 6) || (ourNumWarships < 2) || (ourPlayerData.getFortress() == null)))
+        && ((ourVP < 6) || (ourNumWarships < 2) || (player.getFortress() == null)))
     {
         // During early game: Enough ships already built to upgrade for defense (since max dice is 6).
         // Later in game (6+ VP, 2+ warships): need more ships to build out to pirate fortress;
@@ -1935,7 +1902,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
         // Calculate ETA to buy and build another ship
         mightBuildShip = true;
         shipETA = ourBSE.calculateRollsFast
-          (ourPlayerData.getResources(), SOCShip.COST, 100, ourPlayerData.getPortFlags());
+          (player.getResources(), SOCShip.COST, 100, player.getPortFlags());
         if (! isScoreNotETA)
         {
             shipScoreOrETA = shipETA;
@@ -1947,7 +1914,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
 
     boolean mightBuyWarshipCard = false;
     final int warshipCardsInHand =
-        ourPlayerData.getInventory().getAmount(SOCDevCardConstants.KNIGHT);
+        player.getInventory().getAmount(SOCDevCardConstants.KNIGHT);
 
     if (warshipCardsInHand > 0)
     {
@@ -1965,7 +1932,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
         if (game.getNumDevCards() > 0)
         {
             cardScoreOrETA = ourBSE.calculateRollsFast
-              (ourPlayerData.getResources(), SOCDevCard.COST, 100, ourPlayerData.getPortFlags());
+              (player.getResources(), SOCDevCard.COST, 100, player.getPortFlags());
         } else {
             cardScoreOrETA = 100;
         }
@@ -2023,7 +1990,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
     {
         if (mightBuyWarshipCard && ! betterScoreIsBuildShip)
         {
-            buildingPlan.push(new SOCPossibleCard(ourPlayerData, 1));
+            buildingPlan.push(new SOCPossibleCard(player, 1));
             return true;
         } else {
             // plan to build it if possible, else fall through.
@@ -2034,7 +2001,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
 
     if (mightBuyWarshipCard)
     {
-        buildingPlan.push(new SOCPossibleCard(ourPlayerData, 1));
+        buildingPlan.push(new SOCPossibleCard(player, 1));
         return true;
     }
 
@@ -2051,13 +2018,13 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
    */
   private final boolean scenarioGameStrategyPlan_SC_PIRI_buildNextShip()
   {
-    SOCShip prevShip = ourPlayerData.getMostRecentShip();
+    SOCShip prevShip = player.getMostRecentShip();
     if (prevShip == null)
         return false;  // player starts with 1 ship, so should never be null
 
     final int fortressNode;
     {
-        final SOCFortress fo = ourPlayerData.getFortress();
+        final SOCFortress fo = player.getFortress();
         if (fo == null)
             return false;  // already defeated it
 
@@ -2097,7 +2064,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
 
     // Get the player's ship path towards fortressNode from prevShip.
     // We need to head west, possibly north or south.
-    final HashSet<Integer> lse = ourPlayerData.getRestrictedLegalShips();
+    final HashSet<Integer> lse = player.getRestrictedLegalShips();
     if (lse == null)
         return false;  // null lse should not occur in _SC_PIRI
 
@@ -2145,7 +2112,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
     else
         newEdge = edge2;
 
-    buildingPlan.add(new SOCPossibleShip(ourPlayerData, newEdge, false, null));
+    buildingPlan.add(new SOCPossibleShip(player, newEdge, false, null));
     // System.err.println("L2112 ** " + ourPlayerData.getName()
     //     + ": Planned possible ship at 0x" + Integer.toHexString(newEdge) + " towards fortress");
 
@@ -2163,7 +2130,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
        final boolean forSpecialBuildingPhase)
       throws IllegalArgumentException
   {
-    final int ourVP = ourPlayerData.getTotalVP();
+    final int ourVP = player.getTotalVP();
     if (ourVP < 4)
     {
       return false;  // <--- Early return: We don't have 4 VP, don't use resources to build wonders yet ---
@@ -2180,7 +2147,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
     // Once building it, calc score/BSE to add a level when possible if another player's wonder level is close,
     // until we have 2 more levels than any other player.
 
-    SOCSpecialItem bestWond = ourPlayerData.getSpecialItem(SOCGameOptionSet.K_SC_WOND, 0);
+    SOCSpecialItem bestWond = player.getSpecialItem(SOCGameOptionSet.K_SC_WOND, 0);
     int bestETA;
     float bestWondScoreOrETA;
     int gi = -1;  // wonder's "game index" in Special Item interface
@@ -2196,7 +2163,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
         // Calc score or ETA to continue building pWond
 
         bestETA = ourBSE.calculateRollsFast
-            (ourPlayerData.getResources(), bestWond.getCost(), 100, ourPlayerData.getPortFlags());
+            (player.getResources(), bestWond.getCost(), 100, player.getPortFlags());
         if (isScoreNotETA)
         {
             bestWondScoreOrETA = (100.0f / game.maxPlayers);
@@ -2219,11 +2186,11 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
 
             if (wond.getPlayer() != null)
                 continue;  // already claimed
-            if (! wond.checkRequirements(ourPlayerData, false))
+            if (! wond.checkRequirements(player, false))
                 continue;  // TODO potentially could plan how to reach requirements (build a settlement or city, etc)
 
             int eta = ourBSE.calculateRollsFast
-                (ourPlayerData.getResources(), wond.getCost(), 100, ourPlayerData.getPortFlags());
+                (player.getResources(), wond.getCost(), 100, player.getPortFlags());
             float scoreOrETA;
             if (isScoreNotETA)
             {
@@ -2274,7 +2241,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
 
     // System.err.println("L2297 -> add to buildingPlan: gi=" + gi);
     buildingPlan.add(new SOCPossiblePickSpecialItem
-        (ourPlayerData, SOCGameOptionSet.K_SC_WOND, gi, 0, bestETA, bestWond.getCost()));
+        (player, SOCGameOptionSet.K_SC_WOND, gi, 0, bestETA, bestWond.getCost()));
 
     return true;
   }
@@ -2629,7 +2596,6 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
         return bonus;
     }
 
-
     /**
      * Calc dev card score bonus for {@link #SMART_STRATEGY} based on improvements to Win Game ETA (WGETA)
      * from buying knights or +1 VP cards, weighted by their distribution, tunable {@link #devCardMultiplier},
@@ -2839,11 +2805,9 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
             oldScore = ((Integer) nodes.get(node)).intValue();
 
             int score = 0;
-            Enumeration hexesEnum = SOCBoard.getAdjacentHexesToNode(node.intValue()).elements();
 
-            while (hexesEnum.hasMoreElements())
+            for (final int hex : board.getAdjacentHexesToNode(node))
             {
-                final int hex = ((Integer) hexesEnum.nextElement()).intValue();
                 final int number = board.getNumberOnHexFromCoord(hex);
                 score += numRating[number];
 
@@ -2940,7 +2904,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
                 larmySize = laPlayer.getNumKnights() + 1;
             }
 
-            if (((player.getNumKnights() + player.getDevCards().getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.KNIGHT) + player.getDevCards().getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.KNIGHT)) >= larmySize))
+            if (((player.getNumKnights() + player.getInventory().getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.KNIGHT) + player.getInventory().getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.KNIGHT)) >= larmySize))
             {
                 ret = true;
             }
@@ -3007,11 +2971,9 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
             oldScore = ((Integer) nodes.get(node)).intValue();
 
             int score = 0;
-            Enumeration hexesEnum = SOCBoard.getAdjacentHexesToNode(node.intValue()).elements();
 
-            while (hexesEnum.hasMoreElements())
+            for (int hex : board.getAdjacentHexesToNode(node))
             {
-                int hex = ((Integer) hexesEnum.nextElement()).intValue();
                 score += numRating[board.getNumberOnHexFromCoord(hex)];
 
                 //D.ebugPrintln(" -- -- Adding "+numRating[board.getNumberOnHexFromCoord(hex)]);

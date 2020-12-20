@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * This file Copyright (C) 2008,2010-2012,2014 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2008,2010-2012,2014,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -176,7 +176,8 @@ public abstract class SOCMessageTemplate1i extends SOCMessage
      * @return string with an XML representation of the message
      */
     public String toXML() {
-        return "<" + getClassNameShort() + "><game>" + game + "</game><param>" + p1 + "</param></" + getClassNameShort() + ">";
+	String clname = getClass().getSimpleName();
+        return "<" + clname + "><game>" + game + "</game><param>" + p1 + "</param></" + clname + ">";
 //        String result = null;
 //        
 //        DocumentBuilderFactory icFactory = DocumentBuilderFactory.newInstance();

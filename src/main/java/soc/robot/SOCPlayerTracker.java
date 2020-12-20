@@ -45,6 +45,7 @@ import soc.game.SOCShip;
 import soc.util.Pair;
 import soc.util.Queue;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
@@ -108,7 +109,7 @@ public class SOCPlayerTracker implements Serializable
     static protected int LR_CALC_LEVEL = 2;
 
     /** The robot brain using this tracker */
-    transient protected final SOCRobotBrain brain;
+    transient protected SOCRobotBrain brain;
 
     /**
      * The game where {@link #player} is being tracked
@@ -120,7 +121,7 @@ public class SOCPlayerTracker implements Serializable
      * The player being tracked
      * @see #game
      */
-    transient private final SOCPlayer player;
+    transient SOCPlayer player;
 
     /** Seat number of the player being tracked; {@link #player}{@link SOCPlayer#getPlayerNumber() .getPlayerNumber()} */
     private final int playerNumber;
@@ -688,7 +689,7 @@ public class SOCPlayerTracker implements Serializable
      * @param expandLevel  how far out we should expand roads/ships;
      *            passed to {@link #expandRoadOrShip(SOCPossibleRoad, SOCPlayer, SOCPlayer, SOCPlayerTracker[], int)}
      */
-    private void addOurNewRoadOrShip
+    public void addOurNewRoadOrShip
         (final SOCRoutePiece rs, final SOCPlayerTracker[] trackers, final int expandLevel)
     {
         //D.ebugPrintln("$$$ addOurNewRoad : "+road);

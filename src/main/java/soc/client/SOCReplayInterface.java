@@ -1,5 +1,6 @@
 package soc.client;
 
+import soc.client.SOCPlayerInterface.ClientBridge;
 import soc.game.SOCGame;
 
 /**
@@ -19,13 +20,19 @@ public class SOCReplayInterface extends SOCPlayerInterface {
 	protected SOCReplayClient rcl;
 	
 	public SOCReplayInterface(String title, SOCReplayClient cl, SOCGame ga) {
-		super(title, cl, ga);
+		super(title, cl.getMainDisplay(), ga, null, null);
 		rcl = cl;
 	}
+
+	@Override
+	protected ClientBridge createClientListenerBridge()
+	{
+		return new ReplayClientBridge(this);
+	}
 	
-	protected void initInterfaceElements(boolean firstCall)
+	protected void initUIElements(boolean firstCall)
     {
-		super.initInterfaceElements(firstCall);
+		super.initUIElements(firstCall);
 		remove(buildingPanel);
 		// Now add the new panel
 		replayPanel = new SOCReplayPanel(this, client);
@@ -37,7 +44,7 @@ public class SOCReplayInterface extends SOCPlayerInterface {
 	public void addPlayer(String n, int pn)
     {
 		// Fake that we are this client to ensure it's added in the proper mode
-		String oldName = rcl.getNickname();
+		String oldName = rcl.getNickname(false);
 		rcl.setNickname(n);
 		super.addPlayer(n, pn);
 		hands[pn].passiveMode();
@@ -57,4 +64,21 @@ public class SOCReplayInterface extends SOCPlayerInterface {
 		replayPanel.setBounds(buildingPanel.getBounds());
 		repaint();
     }
+
+    protected class ReplayClientBridge extends ClientBridge
+    {
+        public ReplayClientBridge(SOCReplayInterface pi)
+        {
+            super(pi);
+        }
+
+        @Override
+        public void turnCountUpdated(final int forcedCount)
+        {
+            int count = (forcedCount == -1) ? game.getTurnCount() : forcedCount;
+            ((SOCReplayInterface) pi).replayPanel.setTurnLabel(count);
+        }
+
+    }
+
 }

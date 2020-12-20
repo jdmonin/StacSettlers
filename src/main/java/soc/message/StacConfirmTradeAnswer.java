@@ -92,7 +92,7 @@ public class StacConfirmTradeAnswer extends SOCMessage implements SOCMessageForG
      */
     @Override
     public String toString() {
-        return getClassNameShort() + ":game=" + game + "|param=" + Boolean.toString(answer);
+        return "StacConfirmTradeAnswer:game=" + game + "|param=" + Boolean.toString(answer);
     }
 
 }

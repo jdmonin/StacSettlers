@@ -64,30 +64,6 @@ public class SOCBoard4p extends SOCBoard
         { 5, 2, 6, 3, 8, 10, 9, 12, 11, 4, 8, 10, 9, 4, 5, 6, 3, 11 };
 
     /**
-     * largest coordinate value for an edge, in the v1 encoding.
-     * Named <tt>MAXEDGE</tt> before v1.1.11 ; the name change is a
-     * reminder that {@link SOCBoard6p#MAXEDGE_V2} represents a different encoding.
-     * @since 1.1.11
-     */
-    protected static final int MAXEDGE_V1 = 0xCC;
-
-    /**
-     * smallest coordinate value for an edge, in the v1 encoding.
-     * Named <tt>MINEDGE</tt> before v1.1.11 ; the name change is a
-     * reminder that {@link SOCBoard6p#MINEDGE_V2} has a different value.
-     * @since 1.1.11
-     */
-    protected static final int MINEDGE_V1 = 0x22;
-
-    /**
-     * smallest coordinate value for a node on land, in the v1 encoding.
-     * Named <tt>MINNODE</tt> before v1.1.11 ; the name change is a
-     * reminder that {@link SOCBoard6p#MINNODE_V2} has a different value.
-     * @since 1.1.11
-     */
-    protected static final int MINNODE_V1 = 0x23;
-
-    /**
      * Each port's type, such as {@link #SHEEP_PORT}, on classic board.
      * Same order as {@link #PORTS_FACING_V1}. {@link #MISC_PORT} is 0.
      * @since 1.1.08

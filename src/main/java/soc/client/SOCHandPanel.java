@@ -460,9 +460,9 @@ import javax.swing.UIManager;
      */
     private JLabel wonderLab;
 
-    protected Button save; //--- MD button for asking everyone to clone their SOCGame and other required instances
-    protected Button load; //--- MD button for asking everyone to load the saved
-    protected Button sim; //--- MD button for running simulations 
+    protected JButton save; //--- MD button for asking everyone to clone their SOCGame and other required instances
+    protected JButton load; //--- MD button for asking everyone to load the saved
+    protected JButton sim; //--- MD button for running simulations
 
     // Trading interface
 
@@ -471,19 +471,19 @@ import javax.swing.UIManager;
      * Button for hiding and enabling the trading area so that 
      * the trade agreed to verbally is registered with the system
      */
-    protected Button registerTradeBut;
+    protected JButton registerTradeBut;
 
     /**
      * ---MG
      * Button for hiding and enabling the trading area for trading with the bank or a port 
      */
-    protected Button bankTradeBut;
+    protected JButton bankTradeBut;
 
     /**
      * ---MG
      * Button for cancelling a trade interaction after it has begun. 
      */
-    protected Button cancelTradeBut;
+    protected JButton cancelTradeBut;
 
     /**
      * ---MG
@@ -597,7 +597,7 @@ import javax.swing.UIManager;
     protected final SOCPlayerInterface playerInterface;
     protected final SOCPlayerClient client;
     private final GameMessageSender messageSender;
-    protected final SOCGame game;
+    protected SOCGame game;
 
     /**
      * Our player; should use only when {@link #inPlay} and {@link SOCPlayer#getName()} is not null.
@@ -606,7 +606,7 @@ import javax.swing.UIManager;
      * @see #playerIsClient
      * @see #playerIsCurrent
      */
-    protected final SOCPlayer player;
+    protected SOCPlayer player;
 
     /**
      * Our player number.  Set in constructor
@@ -908,7 +908,7 @@ import javax.swing.UIManager;
         speakingQueueLab = new Label("Speaking Queue: ");
         add(speakingQueueLab);
         speakingQueueSq = new ColorSquare(ColorSquare.GREY, 0);
-        speakingQueueSq.setTooltipText("Position in the queue to speak");
+        speakingQueueSq.setToolTipText("Position in the queue to speak");
 //        if (SOCGame.VP_WINNER <= 12)
 //        {
 //            vpSq.setTooltipHighWarningLevel("Close to winning", SOCGame.VP_WINNER - 2);  // (win checked in SOCGame.checkForWinner)
@@ -1135,19 +1135,19 @@ import javax.swing.UIManager;
             bankUndoBut.setToolTipText(strings.get("hpan.trade.undo.tip"));  // "Undo the most recent Bank Trade"
 
         //---MG
-        registerTradeBut = new Button(REGISTER_TRADE_BUT );
+        registerTradeBut = new JButton(REGISTER_TRADE_BUT );
         registerTradeBut.addActionListener(this);
         registerTradeBut.setEnabled(interactive);
         //registerTradeBut.setFont(new Font("SansSerif", Font.BOLD, 10));
         add(registerTradeBut);
         registerTradeBut.setVisible(false);
-        bankTradeBut = new Button(BANK_TRADE_BUT );
+        bankTradeBut = new JButton(BANK_TRADE_BUT );
         bankTradeBut.addActionListener(this);
         bankTradeBut.setEnabled(interactive);
         //bankTradeBut.setFont(new Font("SansSerif", Font.BOLD, 10));
         add(bankTradeBut);
     	bankTradeBut.setVisible(false);
-        cancelTradeBut = new Button(CANCEL_TRADE_BUT);
+        cancelTradeBut = new JButton(CANCEL_TRADE_BUT);
         cancelTradeBut.addActionListener(this);
         cancelTradeBut.setEnabled(interactive);
         //cancelTradeButTradeBut.setFont(new Font("SansSerif", Font.BOLD, 10));
@@ -1185,17 +1185,17 @@ import javax.swing.UIManager;
         rollPromptInUse = false;   // Nothing yet (no game in progress)
         autoRollTimerTask = null;  // Nothing yet
 
-        save = new Button(SAVE);
+        save = new JButton(SAVE);
         save.addActionListener(this);
         save.setEnabled(false);  //don't allow human saving until their turn and after their roll
         add(save);
         
-        load = new Button(LOAD);
+        load = new JButton(LOAD);
         load.addActionListener(this);
         load.setEnabled(false);  //don't allow human saving until their turn and after their roll
         add(load);
         
-        sim = new Button(SIMULATE);
+        sim = new JButton(SIMULATE);
         sim.addActionListener(this);
         sim.setEnabled(false);  //don't allow human simulating until their turn and after their roll
         add(sim);
@@ -1244,8 +1244,8 @@ import javax.swing.UIManager;
                 (colors != null) ? colors[2] : null; /* SwingMainDisplay.DIALOG_BG_GOLDENROD */
 
             offerPanel = new TradePanel
-                (new String[]{ strings.get("trade.accept"), strings.get("trade.reject"), strings.get("trade.counter") },
-                    // "Accept", "Reject", "Counter"
+                (new String[]{ "Confirm", strings.get("trade.reject"), strings.get("trade.counter") },
+                    // "Accept" -> ---MG "Confirm", "Reject", "Counter"
                  new String[]{  strings.get("trade.gives.you"), strings.get("trade.they.get"),
                     strings.get("trade.opponent.gives"), strings.get("trade.you.give") },
                     // "Gives You:", "They Get:", tooltips "Opponent gives to you", "You give to opponent"
@@ -1451,9 +1451,8 @@ import javax.swing.UIManager;
         }
         else if (target == CLEAR)
         {
-            if (playerIsCurrent)
-            	save.setEnabled(true);//if an offer was cleared allow saving again
             clearOffer(true);    // Zero the square panel numbers, unless board-reset vote in progress
+                // if player is current, will allow saving again
             if (game.getGameState() == SOCGame.PLAY1)
             {
                 messageSender.clearOffer(game);
@@ -1625,7 +1624,7 @@ import javax.swing.UIManager;
 //
 //        	if (playerHasAgreedOnAtLeastOneTrade == true) {
 	        	hideRegisterTradeButs(REGISTER_TRADE);
-	        	client.put(SOCPlayerStartsTrading.toCmd(game.getName(), player.getName()), game.isPractice);
+	        	messageSender.put(SOCPlayerStartsTrading.toCmd(game.getName(), player.getName()), game.isPractice);
 //        	}
         }
         //---MG
@@ -1645,7 +1644,7 @@ import javax.swing.UIManager;
         		return;
         	//Sending Save request to server 
         	//create a new panel with a field and a button for adding a name to the folder containing the save
-        	client.put(SOCGameCopy.toCmd(this.getGame().getName(), "", -1), this.getGame().isPractice); //request copy game;
+        	messageSender.put(SOCGameCopy.toCmd(this.getGame().getName(), "", -1), this.getGame().isPractice); //request copy game;
         }
         else if (target == LOAD){
         	//Sending Load request to server
@@ -1654,7 +1653,7 @@ import javax.swing.UIManager;
             fd.setVisible(true);
             if(fd.getDirectory()!=null)//check if the person has canceled the loading
             {
-            	client.put(SOCLoadGame.toCmd(this.getGame().getName(), fd.getDirectory()), this.getGame().isPractice); //request load game;
+            	messageSender.put(SOCLoadGame.toCmd(this.getGame().getName(), fd.getDirectory()), this.getGame().isPractice); //request load game;
             	doneBut.setLabel(DONE);
         	}
         }        
@@ -3007,7 +3006,7 @@ import javax.swing.UIManager;
      */
     public void updateButtonsAtLoad(){
     	//check if we were the current player in the saved game
-    	if(game.getPlayer(client.getNickname()).getPlayerNumber() == game.getCurrentPlayerNumber())
+    	if(game.getPlayer(playerInterface.getClientNickname()).getPlayerNumber() == game.getCurrentPlayerNumber())
     		playerIsCurrent = true;
     	updateButtonsAtAdd();
     }
@@ -3714,6 +3713,7 @@ import javax.swing.UIManager;
     /**
      * Clear the current offer.
      * If player is client, clear the numbers in the resource "offer" squares,
+     * enable the STAC "save" button if current player,
      * and disable the "offer" and "clear" buttons (since no resources are selected).
      * Otherwise just hide the last-displayed offer.
      *
@@ -3740,11 +3740,12 @@ import javax.swing.UIManager;
             // clear the squares panel
             sqPanel.setValues(zero, zero);
 
+            final int pcurr = game.getCurrentPlayerNumber();  // current player number
+            final boolean pIsCurr = (pcurr == playerNumber);  // are we current?
+
             // reset the send squares (checkboxes)
             if (updateSendCheckboxes && ! playerTradingDisabled)
             {
-                final int pcurr = game.getCurrentPlayerNumber();  // current player number
-                final boolean pIsCurr = (pcurr == playerNumber);  // are we current?
                 for (int i = 0; i < game.maxPlayers - 1; i++)
                 {
                     boolean canSend, wantSend;
@@ -3769,6 +3770,10 @@ import javax.swing.UIManager;
                 offerBut.setEnabled(false);
                 offerBut.setToolTipText(OFFERBUTTIP_DIS);
             }
+
+            if (pIsCurr)
+                save.setEnabled(true);
+
         }
         else if (offerHidesControls)
         {
@@ -4319,7 +4324,7 @@ import javax.swing.UIManager;
      */
     public void updateAll(){
     	updateResourcesVP();
-    	updateDevCards();
+    	updateDevCards(true);  // unsure if added an immediately playable card or not, so be optimistic in case client wants to play it
     }
     
     /**
@@ -5194,7 +5199,7 @@ import javax.swing.UIManager;
     // Hide all buttons on the interface, for use by replay client
     public void passiveMode() {    	
     	for (Component comp : getComponents()) {    	
-    		if (comp instanceof Button) {
+    		if (comp instanceof JButton) {
     			// Remove from the visual interface - it is still stored as a class variable to avoid NPE
     			remove(comp);     			
     		}    		

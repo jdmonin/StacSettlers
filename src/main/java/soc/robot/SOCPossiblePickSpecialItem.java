@@ -72,4 +72,9 @@ public class SOCPossiblePickSpecialItem extends SOCPossiblePiece
         hasBeenExpanded = false;
     }
 
+    public SOCResourceSet getResourceCost()
+    {
+        return cost;
+    }
+
 }

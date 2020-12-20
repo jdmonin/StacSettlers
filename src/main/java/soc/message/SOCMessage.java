@@ -484,6 +484,12 @@ public abstract class SOCMessage implements Serializable, Cloneable
     public static final int CONFIRMTRADETREQUEST = 2010;
     public static final int CONFIRMTRADEANSWER = 2011;
 
+    /**
+     * {@link StacStartGame}; earlier versions used {@link SOCStartGame} with extra flags.
+     * @since 2.4.50
+     */
+    public static final int STACSTARTGAME = 2012;  // Stac-specific start flags, 20201222, v2.4.50
+
     /////////////////////////////////////////
     // REQUEST FOR FUTURE MESSAGE NUMBERS: //
     /////////////////////////////////////////
@@ -1108,6 +1114,9 @@ public abstract class SOCMessage implements Serializable, Cloneable
             case CONFIRMTRADEANSWER: //SOCPlayerClient sends the requested answer to the request for confirmation
                 return StacConfirmTradeAnswer.parseDataStr(data);
 
+            case STACSTARTGAME:  // Stac-specific start flags, 20201222, v2.4.50
+                return StacStartGame.parseDataStr(data);
+
             // gametype-specific messages:
 
             case REVEALFOGHEX:      // fog hexes, 20121108, v2.0.00
@@ -1389,7 +1398,7 @@ public abstract class SOCMessage implements Serializable, Cloneable
      * @return string with an XML representation of the message
      */
     public String toXML() {
-        return "<" +  this.getClassNameShort() + "/>";
+        return "<" +  this.getClass().getSimpleName() + "/>";
         
 //        String result = null;
 //        

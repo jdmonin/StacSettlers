@@ -627,10 +627,17 @@ public class SOCDisplaylessPlayerClient implements Runnable
                 break;
 
             /**
-             * message that the game is starting
+             * message that a general game is starting
              */
             case SOCMessage.STARTGAME:
                 handleSTARTGAME(games, (SOCStartGame) mes);
+                break;
+
+            /**
+             * message that a stac game is starting
+             */
+            case SOCMessage.STACSTARTGAME:
+                handleSTACSTARTGAME(games, (StacStartGame) mes);
                 break;
 
             /**
@@ -1389,11 +1396,26 @@ public class SOCDisplaylessPlayerClient implements Runnable
     }
 
     /**
-     * handle the "start game" message
+     * handle the general "start game" message
      * @param games  The hashtable of client's {@link SOCGame}s; key = game name
      * @param mes  the message
      */
     protected static void handleSTARTGAME(Hashtable<String, SOCGame> games, SOCStartGame mes)
+    {
+        final SOCGame ga = games.get(mes.getGame());
+        if (ga == null)
+            return;
+
+        handleGAMESTATE(ga, mes.getGameState());
+        handleSTARTGAME_checkIsBotsOnly(ga);
+    }
+
+    /**
+     * handle the stac "start game" message
+     * @param games  The hashtable of client's {@link SOCGame}s; key = game name
+     * @param mes  the message
+     */
+    protected static void handleSTACSTARTGAME(Hashtable<String, SOCGame> games, StacStartGame mes)
     {
         final SOCGame ga = games.get(mes.getGame());
         if (ga == null)
@@ -3086,7 +3108,7 @@ public class SOCDisplaylessPlayerClient implements Runnable
      */
     public void startGame(SOCGame ga)
     {
-        put(SOCStartGame.toCmd(ga.getName(),false,false,"",0,-1, false, false, false, false, 0));
+        put(StacStartGame.toCmd(ga.getName(),false,false,"",0,-1, false, false, false, false, 0));
     }
 
     /**

@@ -22,6 +22,8 @@ package soctest.server;
 
 import soc.server.SOCServer;
 import soc.util.SOCFeatureSet;
+import soc.server.database.SOCDBHelper;
+import soc.server.logger.SOCNullLogger;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -44,7 +46,7 @@ public class TestSOCServerMisc
         {
             public SOCServerWithCheck()
             {
-                super("test", null);
+                super("test", (SOCDBHelper) null, null, new SOCNullLogger(), false);
             }
 
             public SOCFeatureSet checkDisallows

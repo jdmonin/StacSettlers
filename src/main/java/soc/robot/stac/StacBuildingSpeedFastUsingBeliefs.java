@@ -1,5 +1,6 @@
 package soc.robot.stac;
 
+import soc.game.ResourceSet;
 import soc.game.SOCBoard;
 import soc.game.SOCGame;
 import soc.game.SOCPlayer;
@@ -54,11 +55,13 @@ public class StacBuildingSpeedFastUsingBeliefs extends SOCBuildingSpeedEstimate 
     }
 
     @Override
-    public SOCResSetBuildTimePair calculateRollsFast(SOCResourceSet startingResources, SOCResourceSet targetResources, int cutoff, boolean[] ports) throws CutoffExceededException {
+    public SOCResSetBuildTimePair calculateRollsAndRsrcFast
+        (ResourceSet startingResources, SOCResourceSet targetResources, int cutoff, boolean[] ports)
+        throws CutoffExceededException {
         //D.ebugPrintln("calculateRolls");
         //D.ebugPrintln("  start: "+startingResources);
         //D.ebugPrintln("  target: "+targetResources);
-        SOCResourceSet ourResources = startingResources.copy();
+        SOCResourceSet ourResources = new SOCResourceSet(startingResources);
         int rolls = 0;
 
         if (!ourResources.contains(targetResources)) {
@@ -265,21 +268,9 @@ public class StacBuildingSpeedFastUsingBeliefs extends SOCBuildingSpeedEstimate 
             }
 //222            System.err.println("Player: " + p + " - target BP: " + opponentTargetPiece);
 
-            SOCResourceSet resourcesNeedeByOpponentForBP = new SOCResourceSet();
-            switch (opponentTargetPiece.getType()) {
-                case SOCPossiblePiece.ROAD:
-                    resourcesNeedeByOpponentForBP = SOCGame.ROAD_SET;
-                    break;
-                case SOCPossiblePiece.SETTLEMENT:
-                    resourcesNeedeByOpponentForBP = SOCGame.SETTLEMENT_SET;
-                    break;
-                case SOCPossiblePiece.CITY:
-                    resourcesNeedeByOpponentForBP = SOCGame.CITY_SET;
-                    break;
-                case SOCPossiblePiece.CARD:
-                    resourcesNeedeByOpponentForBP = SOCGame.CARD_SET;
-                    break;
-            }
+            SOCResourceSet resourcesNeedeByOpponentForBP = opponentTargetPiece.getResourcesToBuild();
+            if (resourcesNeedeByOpponentForBP == null)
+                resourcesNeedeByOpponentForBP = new SOCResourceSet();
 
             //get the opponent's resources & spare resources
             SOCResourceSet opponentResources = brain.getMemory().getOpponentResources(p);

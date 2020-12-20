@@ -123,7 +123,6 @@ import soc.server.genericServer.Connection;
         //  cleanup
         //
         robotConnections = null;
-        ping = null;
     }
 
     /**

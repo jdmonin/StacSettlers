@@ -104,7 +104,7 @@ public class SOCClearGameHistory extends SOCMessageTemplate0
      */
     public String toString()
     {
-        return getClassNameShort() + ":game=" + game + "|playerNumber=" + playerNumber;
+        return getClass().getSimpleName() + ":game=" + game + "|playerNumber=" + playerNumber;
     }
 
 }

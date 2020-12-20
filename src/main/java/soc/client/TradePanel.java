@@ -526,14 +526,20 @@ public class TradePanel extends ShadowedBox
         {
             if (offerList[cnt] && ! ga.isSeatVacant(cnt))
             {
-                names.append(", ");
-                names.append(ga.getPlayer(cnt).getName());
+                //names.append(", ");
+                //names.append(ga.getPlayer(cnt).getName());
+                // STAC trades prompt for confirmation, apparently offered to 1 player,
+                // instead of showing a list of offered-to names
+                names.setLength(0);
+                names.append(ga.getPlayer(cnt).getName()).append(", ");
             }
         }
 
         final int maxChars = ((ga.maxPlayers > 4) || ga.hasSeaBoard) ? 30 : 25;
-        String names1 = strings.get("trade.offered.to", names);  // "Offered to: p1, p2, p3"
-        String names2 = null;
+        //---MG
+        //String names1 = strings.get("trade.offered.to", names);  // "Offered to: p1, p2, p3"
+        String names1 = null;
+        String names2 = "please confirm our trade!";
         if (names1.length() > maxChars)
         {
             // wrap into names2
