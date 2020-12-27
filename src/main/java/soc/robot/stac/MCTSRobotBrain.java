@@ -84,25 +84,10 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 	private MCTS mcts;
 	private GameFactory gameFactory;
     /**
-     * location of the last initial placed settlement, required for planning the free initial roads
+     * location of the last initial placed settlement, required for planning the free initial roads.
+     * Passed to MCTS in {@link #generateGame(int, int[])}.
      */
     public int lastSettlement;
-    /**
-     * used in planning from whom to steal
-     */
-	private int robberVictim = -1;
-    /**
-     * used in planning where to put our first settlement
-     */
-    private int firstSettlement = -1;
-    /**
-     * used in planning where to put our second settlement
-     */
-    private int secondSettlement = -1;
-    /**
-     * used in remembering where to place the robber after planning knight card
-     */
-    private int robberHexFromKnight = -1;
 	/**
 	 * The list of trades that have a higher value than any actions that can be executed with the available resources
 	 */
@@ -308,6 +293,13 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 	    catch (IOException e) { e.printStackTrace(); }
 	}
 	
+	@Override
+	protected void setStrategyFields() {
+		super.setStrategyFields();
+		openingBuildStrategy = new MCTSOpeningBuildStrategy(game, ourPlayerData, this, mcts);
+		robberStrategy = new MCTSRobberStrategy(game, ourPlayerData, this, mcts, rand);
+	}
+
 	////////////////////////////METHODS FOR SAVE/LOAD UTILITY/////////////////////
 	
 	/**
@@ -637,7 +629,8 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
     	return false;
     }
     
-    
+
+	@Override
 	protected void rollOrPlayKnightOrExpectDice() {
 		expectROLL_OR_CARD = false;
 		if ((!waitingForOurTurn) && (ourTurn)) {
@@ -652,6 +645,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 		}
 	}
 	
+	@Override
 	protected void placeIfExpectPlacing() {
 		if (waitingForGameState)
 			return;
@@ -778,37 +772,16 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 	 * for this player
 	 */
 	protected void placeInitialSettlement(int state) {
-		//try to avoid replanning if possible
-		if ((firstSettlement != -1 && state == S_SETTLEMENT1) || (secondSettlement != -1 && state == S_SETTLEMENT2)) {
-			D.ebugERROR("Player " + getPlayerNumber() + "was asked to place initial settlement multiple times in state " + state);
-			client.putPiece(game, new SOCSettlement(ourPlayerData, lastSettlement, null));
-			return;
-		}
 		// make the server believe we are a human player so we won't get
 		// interrupted by the force end turn thread
 		client.put(SOCRobotFlag.toCmd(getGame().getName(), false, getPlayerNumber()));
-		Game g = generateGame(state,null);
-		mcts.newTree(g);
-		Timer t = new Timer();
-		SearchListener listener = mcts.search();
-    	listener.waitForFinish();
-    	int[] action = g.listPossiblities(false).getOptions().get(mcts.getNextActionIndex());
-    	
-		String s = String.format("Player " + getPlayerNumber() + " chose initial settlement action: [%d %d %d %d %d]", action[0], action[1], action[2],
-				action[3], action[4]);
-		D.ebugPrintlnINFO(s);
-		lastSettlement = translateVertexToJSettlers(action[1]);
+
+		lastSettlement = ((MCTSOpeningBuildStrategy) openingBuildStrategy).planInitialSettlement(state);
 
 		D.ebugPrintlnINFO("Player " + getPlayerNumber() + " BUILD REQUEST FOR FIRST SETTLEMENT AT " + Integer.toHexString(lastSettlement));
 		pause(2);
 		client.putPiece(game, new SOCSettlement(ourPlayerData, lastSettlement, null));
 		pause(1);
-		//NOTE: JSettlers contains a bug which may result in a plannign agent being asked twice to place the initial settlement;
-		if(state == S_SETTLEMENT1){
-			firstSettlement = lastSettlement;
-		}else{
-			secondSettlement = lastSettlement;
-		}
 		
 		// we are a robot again
 		client.put(SOCRobotFlag.toCmd(getGame().getName(), true, getPlayerNumber()));
@@ -823,94 +796,44 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 		// make the server believe we are a human player so we won't get
 		// interrupted by the force end turn thread
 		client.put(SOCRobotFlag.toCmd(getGame().getName(), false, getPlayerNumber()));
-		Game g = generateGame(state,null);
-		mcts.newTree(g);
-		SearchListener listener = mcts.search();
-		listener.waitForFinish();
-		int[] action = g.listPossiblities(false).getOptions().get(mcts.getNextActionIndex());
-		String s = String.format("Player " + getPlayerNumber() + " chose first road action: [%d %d %d %d %d]", action[0], action[1], action[2], action[3],
-				action[4]);
-		D.ebugPrintlnINFO(s);
-		int road = translateEdgeToJSettlers(action[1]);
+
+		int road = openingBuildStrategy.planInitRoad();
 
 		D.ebugPrintlnINFO("Player " + getPlayerNumber() + " PUTTING INIT ROAD at " + Integer.toHexString(road));
 		pause(2);
 		client.putPiece(game, new SOCRoad(ourPlayerData, road, null));
-		lastSettlement = -1;
 		pause(1);
 		// we are a robot again
 		client.put(SOCRobotFlag.toCmd(getGame().getName(), true, getPlayerNumber()));
 
 	}
-	
+
 	@Override
 	protected void moveRobber() {
 		D.ebugPrintINFO("Player " + getPlayerNumber() + " call to moveRobber method");
 		
 		// if the choice was made when planning to play the knight card
-		if (robberHexFromKnight != -1) {
+		if (((MCTSRobberStrategy) robberStrategy).robberHexFromKnight != -1) {
 			D.ebugPrintINFO("Player " + getPlayerNumber() + " moving robber after planning with knight card");
-			client.moveRobber(game, ourPlayerData, robberHexFromKnight);
-			robberHexFromKnight = -1; // reset the flag for any future calls to move robber
+			client.moveRobber(game, ourPlayerData, ((MCTSRobberStrategy) robberStrategy).robberHexFromKnight);
+			((MCTSRobberStrategy) robberStrategy).robberHexFromKnight = -1; // reset the flag for any future calls to move robber
 			return;
 		}
+
 		D.ebugPrintINFO("Player " + getPlayerNumber() + " planning move robber");
 		// make the server believe we are a human player so we won't get
 		// interrupted by the force end turn thread
 		client.put(SOCRobotFlag.toCmd(getGame().getName(), false, getPlayerNumber()));
-		boolean illegal = true;
-		int[] action = null;
-		while (illegal) {
-			illegal = false;
-			Game g = generateGame(S_ROBBERAT7,null);
-			mcts.newTree(g);
-			SearchListener listener = mcts.search();
-			listener.waitForFinish();
-			action = g.listPossiblities(false).getOptions().get(mcts.getNextActionIndex());
 
-			String s = String.format("Player " + getPlayerNumber() + " chose robber action: [%d %d %d %d %d]", action[0], action[1], action[2], action[3],
-					action[4]);
-			D.ebugPrintlnINFO(s);
+		int robberHex = robberStrategy.getBestRobberHex();  // MCTSRobberStrategy calls mcts.search()
 
-			// Check if it is legal; the only illegal actions are if the robber
-			// is moved outside of the land or on the same location or no plan
-			// was made
-			int tempHex = translateHexToJSettlers(action[1], Catan.board);
-			if (tempHex == -1) {
-				illegal = true;
-				D.ebugERROR("Illegal attempt to place the robber - no plan; Player " + getPlayerNumber());
-			} else if (tempHex == game.getBoard().getRobberHex()) {
-				illegal = true;
-				D.ebugERROR("Illegal attempt to place the robber - placing back in the same location; Player"
-						+ getPlayerNumber());
-			} else if (! game.getBoard().isHexOnLand(tempHex)) {
-				illegal = true;
-				D.ebugERROR("Illegal attempt to place the robber - no land hex; Player" + getPlayerNumber());
-			}
-		}
-
-		int robberHex = translateHexToJSettlers(action[1], Catan.board);
-		robberVictim = action[2];
 		D.ebugPrintlnINFO("Player " + getPlayerNumber() + " MOVING ROBBER ");
 		client.moveRobber(game, ourPlayerData, robberHex);
-		int xn = (int) Catan.board.hextiles[action[1]].pos.x;
-		int yn = (int) Catan.board.hextiles[action[1]].pos.y;
-
-		D.ebugPrintlnINFO("Player " + getPlayerNumber() + " MOVE robber to hex " + robberHex + "( hex " + action[1] + ", coord: " + xn + "," + yn
-				+ "), steal from" + robberVictim);
 		pause(2);
 		//we are a robot again
 		client.put(SOCRobotFlag.toCmd(getGame().getName(), true, getPlayerNumber()));
 	}
-	
-	// -- merge TODO: move to a RobberStrategy
-	protected void chooseRobberVictim(boolean[] choices) {
-		D.ebugPrintINFO("Player " + getPlayerNumber() + " choosing victim " + robberVictim);
-		pause(1);
-		client.choosePlayer(game, robberVictim);
-		pause(1);
-	}
-	
+
     // -- merge TODO: move to a DiscardStrategy
     protected void discard(int numDiscards) {
     	SOCResourceSet discards = new SOCResourceSet();
@@ -1431,8 +1354,8 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 		case A_PLAYCARD_KNIGHT:
 			// remember where we want to play the robber and who to steal from,
 			// otherwise JSettlers will ask us again
-			robberHexFromKnight = translateHexToJSettlers(action[1],Catan.board);
-			robberVictim = action[2];
+			((MCTSRobberStrategy) robberStrategy).robberHexFromKnight = translateHexToJSettlers(action[1],Catan.board);
+			((MCTSRobberStrategy) robberStrategy).robberVictim = action[2];
 
 			expectPLACING_ROBBER = true;
 			waitingForGameState = true;
@@ -1659,7 +1582,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
      * @return 
      * @throws IllegalStateException if an item cannot be generated (via CloneNotSupportedException); this is unlikely
      */
-    private Game generateGame(int GAMESTATE, int[] currentOffer)
+    /*package*/ Game generateGame(int GAMESTATE, int[] currentOffer)
         throws IllegalStateException
     {
     	//hacky but the whole of JSettlers is hacky...this should be set in the constructor but there is no player number at that point
@@ -2126,7 +2049,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 		return bl.hexatcoord[xn][yn];
 	}
     
-	private int translateHexToJSettlers(int indn, Board bl) {
+	/*package*/ static int translateHexToJSettlers(int indn, Board bl) {
 		if (indn == -1)
 			return -1;
 
@@ -2154,11 +2077,11 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 		return edgeToSS[indo];
 	}
 
-	private int translateVertexToJSettlers(int indo) {
+	/*package*/ int translateVertexToJSettlers(int indo) {
 		return vertexToJS[indo];
 	}
 
-	private int translateEdgeToJSettlers(int indo) {
+	/*package*/ int translateEdgeToJSettlers(int indo) {
 		return edgeToJS[indo];
 	}
     

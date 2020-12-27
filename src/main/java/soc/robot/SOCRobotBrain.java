@@ -2406,6 +2406,8 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      *<P>
      * Third-party bots may instead choose to override this entire method.
      * NOTE: method required for SmartSettlers agent to override
+     *<P>
+     * In StacSettlers v1, this mthod was {@code getActionForPLAY1()}.
      */
     protected void planAndDoActionForPLAY1()
     {

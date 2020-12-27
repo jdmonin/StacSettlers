@@ -1,7 +1,8 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * Portions of this file Copyright (C) 2007-2011 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2017-2018 Strategic Conversation (STAC Project) https://www.irit.fr/STAC/
+ * Portions of this file Copyright (C) 2007-2011,2020 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -252,6 +253,13 @@ public class StacRobotBrain extends SOCRobotBrain<StacRobotDM, PersuasionStacRob
         this.dialogueManager = brain.dialogueManager;
         
         this.nOfPossibleBuildPlanToTry = brain.nOfPossibleBuildPlanToTry;
+    }
+
+    @Override
+    protected void setStrategyFields() {
+        super.setStrategyFields();
+        openingBuildStrategy = new StacOpeningBuildStrategy(game, ourPlayerData, this);
+        robberStrategy = new StacRobberStrategy(game, ourPlayerData, this, rand);
     }
 
     public void initialiseDDataStructures(HashMap<String,ArrayList<String>> tradePreferences) {

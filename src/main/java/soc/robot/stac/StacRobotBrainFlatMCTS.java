@@ -4,9 +4,11 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Random;
 
 import soc.disableDebug.D;
 import soc.game.SOCGame;
+import soc.game.SOCPlayer;
 import soc.message.SOCChoosePlayer;
 import soc.message.SOCDiceResult;
 import soc.message.SOCGameCopy;
@@ -73,6 +75,13 @@ public class StacRobotBrainFlatMCTS extends StacRobotBrain {
 	}
 	
     @Override
+    protected void setStrategyFields() {
+        super.setStrategyFields();
+        openingBuildStrategy = new StacOBSFlatMCTS(game, ourPlayerData, this);
+        robberStrategy = new StacRobberStrategyFlatMCTS(game, ourPlayerData, this, rand);
+    }
+
+    @Override
     protected StacRobotDMFlatMCTS createDM() {
         return new StacRobotDMFlatMCTS(this, buildingPlan);
     }
@@ -87,137 +96,28 @@ public class StacRobotBrainFlatMCTS extends StacRobotBrain {
     	super.handleDICERESULT(mes);
     	if(mes.getResult() == 7){
     		//reset the past decision of robbing before making a new one
-    		((StacRobotDMFlatMCTS)decisionMaker).robberLocation = -1; 
-    		((StacRobotDMFlatMCTS)decisionMaker).playerToRob = -1;
+    		((StacRobberStrategyFlatMCTS) robberStrategy).robberLocation = -1;
+    		((StacRobberStrategyFlatMCTS) robberStrategy).playerToRob = -1;
     	}
     }
-	
-	public static class StacRobotDMFlatMCTS extends StacRobotDM {
-		FlatMCTS mcts;
-		
-        /*a bug forces us to plan stuff twice as msgs are not processed by the server so it prevents us from doing the normal MCTS logic
-         * as a result memorise the locations decided upon during the first search and the second time only resend the msg*/
-        protected int robberLocation = -1;
-        protected int playerToRob = -1;
-        protected int secondSettlementLocation = -1;
-        protected int firstSettlementLocation = -1;
-		
-		public StacRobotDMFlatMCTS(StacRobotBrain br, SOCBuildPlanStack plan) {
-			super(br, plan);
-			this.mcts = ((StacRobotBrainFlatMCTS) br).mcts;
-		}
-		
-        // -- merge TODO: move to a RobberStrategy
-        public int selectMoveRobber(int robberHex) {
-        	//change the type to the correct next action
-        	FlatMctsType mType = mcts.getType();
-        	mType.addType(FlatMctsType.GAME_ACTION, "MOVE_ROBBER");
-        	mcts.setType(mType);
-        	
-//        	if(robberLocation != -1){
-//        		System.out.println("Remind decision to move robber to " + robberLocation); //debug
-//        		return robberLocation;
-//        	}
-//        	
-//        	saveAndSearch();
-//        	
-//        	if(!mcts.hasFailedSimulations()){
-//        		CappedQueue q = mcts.selectPlay();  //get best move and will automatically remember second move if any
-//        		SOCMoveRobber msg = (SOCMoveRobber) q.get();
-//        		System.out.println("Decided to move the robber at " + msg.getCoordinates());//debug
-//        		return msg.getCoordinates();
-//        	}else{//parent decision logic
-//        		q.clear();//clear the queue so no further actions from MCTS will be taken (might need to rethink this, when extending to other actions of the game)
-        		return super.selectMoveRobber(robberHex);
-//        	}
-        }
-        
-        // -- merge TODO: move to a RobberStrategy
-        public int choosePlayerToRob(){
-//        	if(playerToRob != -1){
-//        		System.out.println("Remind choose player to rob: " + playerToRob + " for player "+ brain.getPlayerNumber()); //debug
-//        		return playerToRob;
-//        	}
-//        	//in here just take the next message in the queue and execute if any exists; else just do parent logic
-//        	CappedQueue q = mcts.getQueue();
-//        	if(!q.empty()){ //check if there is a choice to make if there are more than 1 possible victims
-//        		SOCChoosePlayer msg = (SOCChoosePlayer) q.get();
-//        		System.out.println("Decided to rob player " + msg.getChoice());//debug
-//        		return msg.getChoice();
-//        	}else
-        		return -1; // is really: return super.choosePlayerToRob();
-        }
-        
-        // -- merge TODO: move to an OpeningBuildStrategy
-        public void planInitialSettlements() {
-        	//change the type to the correct next action
-        	FlatMctsType mType = mcts.getType();
-        	mType.addType(FlatMctsType.GAME_ACTION, "INITIAL_SETTLEMENT");
-        	mcts.setType(mType);
-        	
-        	//if we have planned before do not plan again, just remind the server which location we decided on
-//        	if(firstSettlementLocation!= -1){
-//        		firstSettlement = firstSettlementLocation;
-//        		System.out.println("Remind decision to place first settlement at " + firstSettlementLocation);//debug
-//        		return;
-//        	}
-//        	saveAndSearch();
-//        	
-//        	if(!mcts.hasFailedSimulations()){
-//        		CappedQueue q = mcts.selectPlay();  //get best move and will automatically remember second move if any
-//        		SOCPutPiece msg = (SOCPutPiece) q.get();
-//        		firstSettlement = msg.getCoordinates();
-//        		firstSettlementLocation = msg.getCoordinates();
-//        		System.out.println("Decided to place first settlement at " + msg.getCoordinates());//debug
-//        	}else{//parent decision logic
-        		super.planInitialSettlements();
-//        	}
-        }
 
-        // -- merge TODO: move to an OpeningBuildStrategy
-        public void planSecondSettlement() {
-        	//change the type to the correct next action
-        	FlatMctsType mType = mcts.getType();
-        	mType.addType(FlatMctsType.GAME_ACTION, "SECOND_SETTLEMENT");
-        	mcts.setType(mType);
-        	
-        	//if we have planned before do not plan again, just remind the server which location we decided on
-        	if(secondSettlementLocation!= -1){
-        		// is really: secondSettlement = secondSettlementLocation;
-//        		System.out.println("Remind to place second settlement at " + secondSettlementLocation);//debug
-        		return;
-        	}
-        	saveAndSearch();
-        	
-        	if(!mcts.hasFailedSimulations()){
-        		mcts.getQueue().empty();//empty before adding any moves
-        		CappedQueue q = mcts.selectPlay();  
-        		SOCPutPiece msg = (SOCPutPiece) q.get();
-        		// is really: secondSettlementLocation = msg.getCoordinates();
-        		// is really: secondSettlement = msg.getCoordinates();
-//        		System.out.println("Decided to place second settlement at " + msg.getCoordinates());//debug
-        	}else{//parent decision logic
-        		super.planSecondSettlement();
-        	}
-        }
-        
         /**
          * This method takes care of saving the game and running the MCTS search. In the meantime it forces the server not to end its turn
          * by telling it its not a robot and resets the flag after the search. It also suspends the debug and cleans after itself by deleting the saved info.
          */
         private void saveAndSearch(){
-        	SOCRobotClient cl = brain.getClient();
+        	SOCRobotClient cl = getClient();
         	//lie to the server that we are not a robot so it won't end my turn
-        	cl.put(SOCRobotFlag.toCmd(brain.getGame().getName(), false, brain.getPlayerNumber()));
-        	//send the request 
-        	cl.put(SOCGameCopy.toCmd(brain.getGame().getName(), "robot", brain.getPlayerNumber()));
+        	cl.put(SOCRobotFlag.toCmd(getGame().getName(), false, getPlayerNumber()));
+        	//send the request
+        	cl.put(SOCGameCopy.toCmd(getGame().getName(), "robot", getPlayerNumber()));
         	//create necessary directories
         	File dir = new File("saves/robot");
         	if(!dir.exists())
         		dir.mkdirs();
         	//execute the saving procedure for this robot
-        	cl.unsynckedGameCopy(new SOCGameCopy(brain.getGame().getName(), "saves/robot", -1));
-        	
+        	cl.unsynckedGameCopy(new SOCGameCopy(getGame().getName(), "saves/robot", -1));
+
         	//check that all save procedures have been finished by checking that the files containing SOCGame exist as these are the last to be created 
         	String name = "soc.game.SOCGame.dat";
         	String prefix = "saves/robot/";
@@ -236,7 +136,7 @@ public class StacRobotBrainFlatMCTS extends StacRobotBrain {
     			} catch (InterruptedException e) {
     			}
         	}
-        	
+
         	final boolean debug = D.ebugIsEnabled();
         	if(debug)
         		D.ebug_disable();
@@ -248,12 +148,158 @@ public class StacRobotBrainFlatMCTS extends StacRobotBrain {
         	File[] files = dir.listFiles();
         	for(File f : files)
         		f.delete();
-        	
+
         	//remind the server that we are a robot so the game won't get stuck later //this doesn't always seem to work
-        	cl.put(SOCRobotFlag.toCmd(brain.getGame().getName(), true, brain.getPlayerNumber()));
+        	cl.put(SOCRobotFlag.toCmd(getGame().getName(), true, getPlayerNumber()));
         }
+
+	public static class StacRobotDMFlatMCTS extends StacRobotDM {
+		FlatMCTS mcts;
+
+		public StacRobotDMFlatMCTS(StacRobotBrainFlatMCTS br, SOCBuildPlanStack plan) {
+			super(br, plan);
+			this.mcts = br.mcts;
+		}
+
+		// All methods which were here in StacSettlers v1 have moved
+		// in v2.4.50 to the OpeningBuildStrategy or RobberStrategy.
 	}
 	
+	/**
+	 * The {@link OpeningBuildStrategy} for {@link StacRobotBrainFlatMCTS}.
+	 * In STACSettlers v1 this code was part of {@code StacRobotDMFlatMCTS}.
+	 * @since 2.4.50
+	 */
+	protected static class StacOBSFlatMCTS extends StacOpeningBuildStrategy {
+
+		final FlatMCTS mcts;
+
+		public StacOBSFlatMCTS(SOCGame ga, SOCPlayer pl, StacRobotBrainFlatMCTS br) {
+			super(ga, pl, br);
+			mcts = br.mcts;
+		}
+
+        @Override
+        public int planInitialSettlements() {
+        	//change the type to the correct next action
+        	FlatMctsType mType = mcts.getType();
+        	mType.addType(FlatMctsType.GAME_ACTION, "INITIAL_SETTLEMENT");
+        	mcts.setType(mType);
+
+        	//if we have planned before do not plan again, just remind the server which location we decided on
+//        	if(firstSettlement != -1){
+//        		System.out.println("Remind decision to place first settlement at " + firstSettlement);//debug
+//        		return firstSettlement;
+//        	}
+//        	brain.saveAndSearch();
+//
+//        	if(! mcts.hasFailedSimulations()){
+//        		CappedQueue q = mcts.selectPlay();  //get best move and will automatically remember second move if any
+//        		SOCPutPiece msg = (SOCPutPiece) q.get();
+//        		firstSettlement = msg.getCoordinates();
+//        		System.out.println("Decided to place first settlement at " + msg.getCoordinates());//debug
+//        	}else{//parent decision logic
+        		firstSettlement = super.planInitialSettlements();
+//        	}
+
+		return firstSettlement;
+        }
+
+        @Override
+        public int planSecondSettlement() {
+        	//change the type to the correct next action
+        	FlatMctsType mType = mcts.getType();
+        	mType.addType(FlatMctsType.GAME_ACTION, "SECOND_SETTLEMENT");
+        	mcts.setType(mType);
+
+        	//if we have planned before do not plan again, just remind the server which location we decided on
+        	if(secondSettlement != -1){
+//        		System.out.println("Remind to place second settlement at " + secondSettlement);//debug
+        		return secondSettlement;
+        	}
+        	((StacRobotBrainFlatMCTS) brain).saveAndSearch();
+
+        	if(! mcts.hasFailedSimulations()){
+        		mcts.getQueue().empty();//empty before adding any moves
+        		CappedQueue q = mcts.selectPlay();
+        		SOCPutPiece msg = (SOCPutPiece) q.get();
+        		secondSettlement = msg.getCoordinates();
+//        		System.out.println("Decided to place second settlement at " + msg.getCoordinates());//debug
+        	}else{//parent decision logic
+        		secondSettlement = super.planSecondSettlement();
+        	}
+
+        	return secondSettlement;
+        }
+
+
+        }
+
+	/**
+	 * The {@link RobberStrategy} for {@link StacRobotBrainFlatMCTS}.
+	 * In STACSettlers v1 this code was part of {@code StacRobotDMFlatMCTS}.
+	 * @since 2.4.50
+	 */
+	protected static class StacRobberStrategyFlatMCTS extends StacRobberStrategy {
+
+		final FlatMCTS mcts;
+
+		/*a bug forces us to plan stuff twice as msgs are not processed by the server so it prevents us from doing the normal MCTS logic
+		 * as a result memorise the locations decided upon during the first search and the second time only resend the msg*/
+		/** Currently unused; was set in {@link #getBestRobberHex()}, or -1 if not yet planned */
+		protected int robberLocation = -1;
+
+		/** Currently unused; was set in {@link #chooseRobberVictim(boolean[], boolean)}, or -1 if not yet planned */
+		protected int playerToRob = -1;
+
+		public StacRobberStrategyFlatMCTS(SOCGame ga, SOCPlayer pl, StacRobotBrainFlatMCTS br, Random rand) {
+			super(ga, pl, br, rand);
+			mcts = br.mcts;
+		}
+
+        @Override
+        public int getBestRobberHex() {
+        	//change the type to the correct next action
+        	FlatMctsType mType = mcts.getType();
+        	mType.addType(FlatMctsType.GAME_ACTION, "MOVE_ROBBER");
+        	mcts.setType(mType);
+
+//        	if(robberLocation != -1){
+//        		System.out.println("Remind decision to move robber to " + robberLocation); //debug
+//        		return robberLocation;
+//        	}
+//
+//        	brain.saveAndSearch();
+//
+//        	if(!mcts.hasFailedSimulations()){
+//        		CappedQueue q = mcts.selectPlay();  //get best move and will automatically remember second move if any
+//        		SOCMoveRobber msg = (SOCMoveRobber) q.get();
+//        		System.out.println("Decided to move the robber at " + msg.getCoordinates());//debug
+//        		return msg.getCoordinates();
+//        	}else{//parent decision logic
+//        		q.clear();//clear the queue so no further actions from MCTS will be taken (might need to rethink this, when extending to other actions of the game)
+        		return super.getBestRobberHex();
+//        	}
+        }
+
+        @Override
+        public int chooseRobberVictim(final boolean[] isVictim, final boolean canChooseNone){
+//        	if(playerToRob != -1){
+//        		System.out.println("Remind choose player to rob: " + playerToRob + " for player "+ brain.getPlayerNumber()); //debug
+//        		return playerToRob;
+//        	}
+//        	//in here just take the next message in the queue and execute if any exists; else just do parent logic
+//        	CappedQueue q = mcts.getQueue();
+//        	if(!q.empty()){ //check if there is a choice to make if there are more than 1 possible victims
+//        		SOCChoosePlayer msg = (SOCChoosePlayer) q.get();
+//        		System.out.println("Decided to rob player " + msg.getChoice());//debug
+//        		return msg.getChoice();
+//        	}else
+        		return super.chooseRobberVictim(isVictim, canChooseNone);
+        }
+
+	}
+
 	public static class StacRobotFlatMCTSFactory  implements SOCRobotFactory {
         private final StacRobotType robotType;
 		

@@ -9,6 +9,7 @@ import java.util.Random;
 import java.util.Set;
 
 import soc.game.SOCGame;
+import soc.game.SOCPlayer;
 import soc.game.SOCPlayingPiece;
 import soc.message.SOCChoosePlayer;
 import soc.message.SOCDiceResult;
@@ -63,6 +64,20 @@ public class StacRobotBrainRandom extends StacRobotBrain {
     private FlatMctsRewards results;
     
     /**
+     * Random build plan or not, set in {@link #randomOrNot()}.
+     * In StacSettlers v1 this was {@code SOCRobotDMRandom.randomBuildPlan}.
+     */
+    private boolean randomBuildPlanOrNot;
+
+    /**
+     * Random build plan or not, set in {@link #randomOrNot()}.
+     * In StacSettlers v1 this was {@code SOCRobotDMRandom.randomInitial}.
+     */
+    private boolean randomInitialOrNot;
+
+    private static final Random RAND = new Random(new Date().getTime());
+
+    /**
      * 
      * @param rc
      * @param params
@@ -79,7 +94,9 @@ public class StacRobotBrainRandom extends StacRobotBrain {
             SOCGame ga, CappedQueue mq, boolean randomBuildPlan, boolean randomInitial,int randomPercentage, StacRobotType robotType, CappedQueue cq, FlatMctsRewards results) {
         super(rc, params, ga, mq, false, robotType, new HashMap<String,ArrayList<String>>() );
         this.randomBuildPlan = randomBuildPlan;
+        randomBuildPlanOrNot = randomBuildPlan;
         this.randomInitial = randomInitial;
+        randomInitialOrNot = randomInitial;
         this.randomPercentage = randomPercentage;
         controllingQueue = cq; 
         this.results = results;
@@ -113,10 +130,17 @@ public class StacRobotBrainRandom extends StacRobotBrain {
     public CappedQueue getQueue(){
     	return controllingQueue;
     }
+
+    @Override
+    protected void setStrategyFields() {
+        super.setStrategyFields();
+        openingBuildStrategy = new StacOBSRandom(game, ourPlayerData, this);
+        robberStrategy = new StacRobberStrategyRandom(game, ourPlayerData, this, rand);
+    }
     
     @Override
     protected StacRobotDM createDM() {
-        return new SOCRobotDMRandom(this, randomBuildPlan, randomInitial, randomPercentage, buildingPlan);
+        return new SOCRobotDMRandom(this, buildingPlan);
     }
     
     @Override
@@ -162,8 +186,8 @@ public class StacRobotBrainRandom extends StacRobotBrain {
     	super.handleDICERESULT(mes);
     	if(mes.getResult() == 7){
     		//reset the past decision of robbing before making a new one
-    		((SOCRobotDMRandom)decisionMaker).robberLocation = -1; 
-    		((SOCRobotDMRandom)decisionMaker).playerToRob = -1;
+    		((StacRobberStrategyRandom) robberStrategy).robberLocation = -1;
+    		((StacRobberStrategyRandom) robberStrategy).playerToRob = -1;
     	}
     	if(results != null && results.countRss && game.getBoard().getRobberHex() != -1){ //this is sometimes called once before the robber is moved, so we want to avoid that scenario
     		//instead of getting the total rss blocked, get rss blocked for each player
@@ -175,44 +199,40 @@ public class StacRobotBrainRandom extends StacRobotBrain {
     	}
     }
 
-	public static class SOCRobotDMRandom extends StacRobotDM {     
-        private boolean randomBuildPlan;
-        private boolean randomInitial;
         /**
-         * Percent of the time the robot will play random. If == 100, then the robot is completely random.
+         * Choose whether we should play a random or planned next move. Based on the random percentage selected.
          */
-        private final int randomPercentage;
-        /*a bug forces us to plan stuff twice as msgs are not processed by the server so it prevents us from doing the normal MCTS logic
-         * as a result memorise the locations decided upon during the first search and the second time only resend the msg*/
-        protected int robberLocation = -1;
-        protected int playerToRob = -1;
-        protected int secondSettlementLocation = -1;
-        protected int firstSettlementLocation = -1;
+        private void randomOrNot(){
+        	if(randomPercentage > 0){ //if it is negative or 0, just use the initial flags for initial and buildPlan
+	        	if(RAND.nextInt(100) < randomPercentage){
+	        		randomBuildPlanOrNot = true;
+	        		randomInitialOrNot = true;
+	        	}else{
+	        		randomBuildPlanOrNot = false;
+	        		randomInitialOrNot = false;
+	        	}
+        	}
+        }
+
+	public static class SOCRobotDMRandom extends StacRobotDM {     
+
         /**
          * 
          * @param br
-         * @param randomBuildPlan
-         * @param randomInitial
-         * @param randomPercentage
          */
-        public SOCRobotDMRandom(StacRobotBrain br, boolean randomBuildPlan, boolean randomInitial, int randomPercentage, SOCBuildPlanStack plan) {
+        public SOCRobotDMRandom(StacRobotBrain br, SOCBuildPlanStack plan) {
             super(br, plan);
-            this.randomBuildPlan = randomBuildPlan;
-            this.randomInitial = randomInitial;
-            this.randomPercentage = randomPercentage;
         }
         
         private static final Integer ROAD = Integer.valueOf(1);
         private static final Integer SETTLEMENT = Integer.valueOf(2);
         private static final Integer CITY = Integer.valueOf(3);
         private static final Integer DEV = Integer.valueOf(4);
-
-        private static final Random RAND = new Random(new Date().getTime());
         
         @Override
         public void planStuff() {
-        	randomOrNot();
-        	if (randomBuildPlan) {
+        	((StacRobotBrainRandom) brain).randomOrNot();
+        	if (((StacRobotBrainRandom) brain).randomBuildPlanOrNot) {
                 List<Integer> options = new ArrayList<Integer>(); // list of legal build types, using the build type constants 
                 
                 // Lists of legal build instances
@@ -303,104 +323,127 @@ public class StacRobotBrainRandom extends StacRobotBrain {
             }
         }
 
-        // -- merge TODO: move to an OpeningBuildStrategy
-        public void planInitialSettlements() {
-        	if(firstSettlementLocation!= -1){
-        		// is really: firstSettlement = firstSettlementLocation;
-//        		System.out.println("Remind the second settlement location at " + firstSettlementLocation + " for player "+ brain.getPlayerNumber());
-        	}else if (!((StacRobotBrainRandom)brain).getQueue().empty()) {
-        		CappedQueue q = ((StacRobotBrainRandom)brain).getQueue();
-        		SOCPutPiece msg = (SOCPutPiece) q.get();
-        		firstSettlementLocation = msg.getCoordinates();
-//        		System.out.println("Player " + brain.getPlayerNumber() + " placing second Settlement at " + msg.getCoordinates()); //debug
-        		// is really: firstSettlement = msg.getCoordinates();
-        	}else{
-//        		System.out.println("Normal planning initial settlement for player " + brain.getPlayerNumber());
-	        	randomOrNot();
-	        	if (randomInitial) {
-	                // is really: firstSettlement = getRandomLegalSettlement();
-	            }
-	            else {
-	                super.planInitialSettlements();
-	            }
-        	}
+    }
+
+    /**
+     * The {@link OpeningBuildStrategy} for {@link StacRobotBrainRandom}.
+     * In STACSettlers v1 this code was part of {@code SOCRobotDMRandom}.
+     * @since 2.4.50
+     */
+    protected static class StacOBSRandom extends StacOpeningBuildStrategy {
+
+        public StacOBSRandom(SOCGame ga, SOCPlayer pl, StacRobotBrainRandom br) {
+            super(ga, pl, br);
+            firstSettlement = -1;
+            secondSettlement = -1;
         }
 
-        // -- merge TODO: move to an OpeningBuildStrategy
-        public void planSecondSettlement() {
-        	if(secondSettlementLocation!= -1){
-        		// is really: secondSettlement = secondSettlementLocation;
-//        		System.out.println("Remind the second settlement location at " + secondSettlementLocation + " for player "+ brain.getPlayerNumber());
-        	}else if (!((StacRobotBrainRandom)brain).getQueue().empty()) {
-        		CappedQueue q = ((StacRobotBrainRandom)brain).getQueue();
+        @Override
+        public int planInitialSettlements() {
+        	if(firstSettlement != -1){
+//        		System.out.println("Remind the second settlement location at " + firstSettlement + " for player "+ brain.getPlayerNumber());
+        		return firstSettlement;
+        	}else if (! ((StacRobotBrainRandom) brain).getQueue().empty()) {
+        		CappedQueue q = ((StacRobotBrainRandom) brain).getQueue();
         		SOCPutPiece msg = (SOCPutPiece) q.get();
-        		secondSettlementLocation = msg.getCoordinates();
 //        		System.out.println("Player " + brain.getPlayerNumber() + " placing second Settlement at " + msg.getCoordinates()); //debug
-        		// is really: secondSettlement = msg.getCoordinates();
+        		firstSettlement = msg.getCoordinates();
+        	}else{
+//        		System.out.println("Normal planning initial settlement for player " + brain.getPlayerNumber());
+	        	((StacRobotBrainRandom) brain).randomOrNot();
+	        	if (((StacRobotBrainRandom) brain).randomInitialOrNot)
+                            firstSettlement = getRandomLegalSettlement();
+	        	else
+                            firstSettlement = super.planInitialSettlements();
+        	}
+
+        	return firstSettlement;
+        }
+
+        @Override
+        public int planSecondSettlement() {
+        	if(secondSettlement != -1){
+//        		System.out.println("Remind the second settlement location at " + secondSettlement + " for player "+ brain.getPlayerNumber());
+        		return secondSettlement;
+        	}else if (! ((StacRobotBrainRandom) brain).getQueue().empty()) {
+        		CappedQueue q = ((StacRobotBrainRandom) brain).getQueue();
+        		SOCPutPiece msg = (SOCPutPiece) q.get();
+        		secondSettlement = msg.getCoordinates();
+//        		System.out.println("Player " + brain.getPlayerNumber() + " placing second Settlement at " + msg.getCoordinates()); //debug
         	}else{
 //	        	System.out.println("Normal planning second settlement for player " + brain.getPlayerNumber());
-	        	randomOrNot();
-	        	if (randomInitial) {
-	                // is really: secondSettlement = getRandomLegalSettlement();
-	            }
-	            else {
-	                super.planSecondSettlement();
-	            }
+	        	((StacRobotBrainRandom) brain).randomOrNot();
+	        	if (((StacRobotBrainRandom) brain).randomInitialOrNot)
+                            secondSettlement = getRandomLegalSettlement();
+	        	else
+                            secondSettlement = super.planSecondSettlement();
         	}
+
+        	return secondSettlement;
         }
-        
+
         // TODO: Consider adding restrictions (ie don't build unless it's 3 hexes, or 2 hexes + port)
         private int getRandomLegalSettlement() {
-            Set<Integer> legalSettlements = player.getLegalSettlements();
-            int irand = RAND.nextInt(legalSettlements.size());
+            final Set<Integer> legalSettlements = ourPlayerData.getLegalSettlements();
+            int irand = ((StacRobotBrainRandom) brain).RAND.nextInt(legalSettlements.size());
             Iterator<Integer> iter = legalSettlements.iterator();
             for (int i = 0; i < irand; ++i)
                 iter.next();
+
             return iter.next().intValue();
         }
 
-        /**
-         * Choose whether we should play a random or planned next move. Based on the random percentage selected.
-         */
-        private void randomOrNot(){
-        	if(randomPercentage > 0){ //if it is negative or 0, just use the initial flags for initial and buildPlan
-	        	if(RAND.nextInt(100) < randomPercentage){
-	        		randomBuildPlan = true;
-	        		randomInitial = true;
-	        	}else{
-	        		randomBuildPlan = false;
-	        		randomInitial = false;
-	        	}
-        	}
-        }
-
-        // -- merge TODO: move to an OpeningBuildStrategy
-        public int[] planInitRoad(int settlementNode) {
-            randomOrNot();
-        	if (randomInitial) {                
+        @Override
+        public int planInitRoad() {
+            final int settlementNode = ourPlayerData.getLastSettlementCoord();
+            ((StacRobotBrainRandom) brain).randomOrNot();
+            if (((StacRobotBrainRandom) brain).randomInitialOrNot) {
                 List<Integer> roads = brain.getGame().getBoard().getAdjacentEdgesToNode(settlementNode);
                 boolean found = false;
                 int road = -1;
                 while (!found) {
                     int i = RAND.nextInt(roads.size());
                     road = ((Integer)roads.get(i)).intValue();
-                    if (player.isLegalRoad(road))  {
+                    if (ourPlayerData.isLegalRoad(road)) {
                         found = true;
                     }
                 }
-                return new int[] {road, -1};                        
+
+                plannedRoadDestinationNode = -1;
+                return road;
             }
             else {
-                return super.planInitRoad(settlementNode);
-            }            
+                return super.planInitRoad();
+            }
         }
-        
-        // -- merge TODO: move to a RobberStrategy
-        public int selectMoveRobber(int robberHex) {
+
+    }
+
+    /**
+     * The {@link RobberStrategy} for {@link StacRobotBrainRandom}.
+     * In STACSettlers v1 this code was part of {@code SOCRobotDMRandom}.
+     * @since 2.4.50
+     */
+    protected static class StacRobberStrategyRandom extends StacRobberStrategy {
+
+        /*a bug forces us to plan stuff twice as msgs are not processed by the server so it prevents us from doing the normal MCTS logic
+         * as a result memorise the locations decided upon during the first search and the second time only resend the msg*/
+        /** Robber location, set in {@link #getBestRobberHex()}, or -1 if not yet planned */
+        protected int robberLocation = -1;
+
+        /** Player to rob, set in {@link #chooseRobberVictim(boolean[], boolean)}, or -1 if not yet planned */
+        protected int playerToRob = -1;
+
+        public StacRobberStrategyRandom(SOCGame ga, SOCPlayer pl, StacRobotBrainRandom br, Random rand) {
+            super(ga, pl, br, rand);
+        }
+
+        @Override
+        public int getBestRobberHex() {
         	if(robberLocation != -1){
 //        		System.out.println("Remind move robber to " + robberLocation + " for player "+ brain.getPlayerNumber()); //debug
         		return robberLocation;
-        	}else if (!((StacRobotBrainRandom)brain).getQueue().empty()) {//check if we are the robot controlled by MCTS
+        	}else if (! ((StacRobotBrainRandom)brain).getQueue().empty()) {//check if we are the robot controlled by MCTS
         		CappedQueue q = ((StacRobotBrainRandom)brain).getQueue();
         		SOCMoveRobber msg = (SOCMoveRobber) q.get();
         		robberLocation = msg.getCoordinates();
@@ -408,16 +451,16 @@ public class StacRobotBrainRandom extends StacRobotBrain {
         		return msg.getCoordinates();
         	}
             else {
-                return super.selectMoveRobber(robberHex); //if playing by the old logic
+                return super.getBestRobberHex(); //if playing by the old logic
             }
         }
-        
-        // -- merge TODO: move to a RobberStrategy
-        public int choosePlayerToRob(){
+
+        @Override
+        public int chooseRobberVictim(final boolean[] isVictim, final boolean canChooseNone) {
         	if(playerToRob != -1){
 //        		System.out.println("Remind choose player to rob: " + playerToRob + " for player "+ brain.getPlayerNumber()); //debug
         		return playerToRob;
-        	}else if (!((StacRobotBrainRandom)brain).getQueue().empty()) { //check if we are the robot controlled by MCTS
+        	}else if (! ((StacRobotBrainRandom)brain).getQueue().empty()) { //check if we are the robot controlled by MCTS
         		CappedQueue q = ((StacRobotBrainRandom)brain).getQueue();
         		SOCChoosePlayer msg = (SOCChoosePlayer) q.get();
         		playerToRob = msg.getChoice();
@@ -425,12 +468,12 @@ public class StacRobotBrainRandom extends StacRobotBrain {
         		return msg.getChoice();
         	}
             else {
-                return -1; // is really: return super.choosePlayerToRob(); //if playing by the old logic
+                return super.chooseRobberVictim(isVictim, canChooseNone); //if playing by the old logic
             }
         }
-        
+
     }
-    
+
     public static class SOCRobotRandomFactory  implements SOCRobotFactory {
         private final boolean randomBuildPlan;
         private final boolean randomInitial;

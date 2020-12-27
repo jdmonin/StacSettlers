@@ -43,6 +43,7 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
 	 * The board layout in SmartSettlers format. Also contains all the utilities for performing simulations etc
 	 */
     public BoardLayout bl;
+
     //NOTE: this is only used for debugging and it doesn't affect performance. Removed to be able to perform simulations on the cluster
 //    /**
 //     * The object that initialises and contains the above boardLayout object
@@ -52,20 +53,6 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
      * location of the last placed settlement, required when sending the state over to SS
      */
     public int lastSettlement;
-    /**
-     * used in planning from whom to steal
-     */
-	int robberVictim = -1;
-    /**
-     * used in planning where to put our first settlement
-     */
-    protected int firstSettlement = -1;
-    /**
-     * used in planning where to put our second settlement
-     */
-    protected int secondSettlement = -1;
-
-   
 	
 	public OriginalSSRobotBrain(SOCRobotClient rc, SOCRobotParameters params,
             SOCGame ga, CappedQueue mq, boolean fullPlan, StacRobotType robotType, BoardLayout bl, HashMap<String,ArrayList<String>> tradePreferences) {
@@ -75,6 +62,13 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
         this.bl = bl;
     }
 		
+	@Override
+	protected void setStrategyFields() {
+		super.setStrategyFields();
+		openingBuildStrategy = new OriginalSSOpeningBuildStrategy(game, ourPlayerData, this);
+		robberStrategy = new OriginalSSRobberStrategy(game, ourPlayerData, this, rand);
+	}
+
 	////////////////////////////SOC MODIFIED METHODS/////////////////////
 	
 	@Override
@@ -276,28 +270,13 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
     /**
      * plan and place first settlement
      */
-    // -- merge TODO: move to an OpeningBuildStrategy
     protected void placeFirstSettlement()
     {
-    	if(firstSettlement !=-1){
-    		System.err.println("Robot " + getPlayerNumber() + " asked to place first settlement twice");
-    		client.putPiece(game, new SOCSettlement(ourPlayerData, firstSettlement, null));
-    		return; 
-    	}
     	//fool the server into believing we are a human player so we won't get interrupted by the force end turn thread
     	client.put(SOCRobotFlag.toCmd(getGame().getName(), false, getPlayerNumber()));
     	
-        sendStateToSmartSettlers(S_SETTLEMENT1);
-        Player p = bl.player[getPlayerNumber()];
-        bl.possibilities.Clear();
-        p.listInitSettlementPossibilities(bl.state);
-        p.selectAction(bl.state, bl.action);
-        p.performAction(bl.state, bl.action);
-        String s = String.format("Performing action: [%d %d %d %d %d]", bl.action[0], bl.action[1], bl.action[2], bl.action[3], bl.action[4]);
-        D.ebugPrintlnINFO(s);        
-        firstSettlement = translateVertexToJSettlers(bl.action[1]);
+        int firstSettlement = openingBuildStrategy.planInitialSettlements();
 
-        D.ebugPrintlnINFO("BUILD REQUEST FOR FIRST SETTLEMENT AT "+Integer.toHexString(firstSettlement));
         pause(2);
         client.putPiece(game, new SOCSettlement(ourPlayerData, firstSettlement, null));
         pause(1);
@@ -308,27 +287,13 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
     /**
      * place planned second settlement
      */
-    // -- merge TODO: move to an OpeningBuildStrategy
     protected void placeSecondSettlement()
     {
-    	if(secondSettlement !=-1){
-    		System.err.println("Robot " + getPlayerNumber() + " asked to place second settlement twice");;
-    		client.putPiece(game, new SOCSettlement(ourPlayerData, secondSettlement, null));
-    		return; 
-    	}
     	//fool the server into believing we are a human player so we won't get interrupted by the force end turn thread
     	client.put(SOCRobotFlag.toCmd(getGame().getName(), false, getPlayerNumber()));
-        sendStateToSmartSettlers(S_SETTLEMENT2);
-        Player p = bl.player[getPlayerNumber()];
-        bl.possibilities.Clear();
-        p.listInitSettlementPossibilities(bl.state);
-        p.selectAction(bl.state, bl.action);
-        p.performAction(bl.state, bl.action);
-        String s = String.format("Performing action: [%d %d %d %d %d]", bl.action[0], bl.action[1], bl.action[2], bl.action[3], bl.action[4]);
-        D.ebugPrintlnINFO(s);        
-        secondSettlement = translateVertexToJSettlers(bl.action[1]);
- 
-        D.ebugPrintlnINFO("BUILD REQUEST FOR SECOND SETTLEMENT AT "+Integer.toHexString(secondSettlement));
+
+        int secondSettlement = openingBuildStrategy.planSecondSettlement();
+
         pause(2);
         client.putPiece(game, new SOCSettlement(ourPlayerData, secondSettlement, null));
         pause(1);
@@ -340,27 +305,13 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
     /**
      * place a road attached to the last initial settlement
      */
-    // -- merge TODO: move to an OpeningBuildStrategy
     public void placeInitRoad()
     {
-        sendStateToSmartSettlers(S_ROAD1); // does not matter if ROAD1 or ROAD2
-        Player p = bl.player[game.getCurrentPlayerNumber()];
-        bl.possibilities.Clear();
-        p.listInitRoadPossibilities(bl.state);
-        p.selectAction(bl.state, bl.action);
-        p.performAction(bl.state, bl.action);
-        
-        String s = String.format("Performing action: [%d %d %d %d %d]", bl.action[0], bl.action[1], bl.action[2], bl.action[3], bl.action[4]);
-        D.ebugPrintlnINFO(s);         
-        int roadEdge = translateEdgeToJSettlers(bl.action[1]);
+        int roadEdge = openingBuildStrategy.planInitRoad();
 
-        D.ebugPrintlnINFO("!!! PUTTING INIT ROAD !!!");
         pause(2);
-        D.ebugPrintlnINFO("Trying to build first road at "+Integer.toHexString(roadEdge));
         client.putPiece(game, new SOCRoad(ourPlayerData, roadEdge, null));
         pause(1);
-
-        //dummy.destroyPlayer();
     }
     
     
@@ -371,70 +322,14 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
     	client.put(SOCRobotFlag.toCmd(getGame().getName(), false, getPlayerNumber()));
         pause(1);
         
-    	boolean unhandled = false;
-    	try {
-    		sendStateToSmartSettlers(S_ROBBERAT7); 
-        	Player p = bl.player[getPlayerNumber()];
-        	bl.possibilities.Clear();
-        	p.listRobberPossibilities(bl.state,A_PLACEROBBER);
-        	p.selectAction(bl.state, bl.action);
-        	p.performAction(bl.state, bl.action);
-		} catch (Exception e) {
-			System.err.println("Unhandled exception");
-			unhandled = true;
-		}
-         
-    	//any exceptions thrown or illegal nothing action result in a random move instead
-    	if(unhandled){
-    		sendStateToSmartSettlers(S_ROBBERAT7); 
-        	Player p = bl.player[getPlayerNumber()];
-        	bl.possibilities.Clear();
-        	p.listRobberPossibilities(bl.state,A_PLACEROBBER);
-        	Random r = new Random();
-        	int aind = r.nextInt(bl.action.length);
-            for (int i=0; i<bl.action.length; i++)
-                bl.action[i] = bl.possibilities.action[aind][i];
-            p.performAction(bl.state, bl.action);
-    	}
-        if(bl.action[0]==A_NOTHING){
-        	//illegal action do a random one instead
-    		sendStateToSmartSettlers(S_ROBBERAT7); 
-        	Player p = bl.player[getPlayerNumber()];
-        	bl.possibilities.Clear();
-        	p.listRobberPossibilities(bl.state,A_PLACEROBBER);
-        	Random r = new Random();
-        	int aind = r.nextInt(bl.action.length);
-            for (int i=0; i<bl.action.length; i++)
-                bl.action[i] = bl.possibilities.action[aind][i];
-            p.performAction(bl.state, bl.action);
-        }
-        
-        String s = String.format("Performing action: [%d %d %d %d %d]", bl.action[0], bl.action[1], bl.action[2], bl.action[3], bl.action[4]);
-        D.ebugPrintlnINFO(s);  
-        
-        int robberHex = translateHexToJSettlers(bl.action[1]);
-        robberVictim = bl.action[2];
-        D.ebugPrintlnINFO("!!! MOVING ROBBER !!!");
+        int robberHex = robberStrategy.getBestRobberHex();
+
         client.moveRobber(game, ourPlayerData, robberHex);
-        int xn = (int) bl.hextiles[bl.action[1]].pos.x;
-        int yn = (int) bl.hextiles[bl.action[1]].pos.y;
-        
-        D.ebugPrintlnINFO("MOVE robber to hex " + robberHex +"( hex " + bl.action[1] + ", coord: " + xn + "," + yn + "), steal from" + robberVictim);
         pause(2);
         
         client.put(SOCRobotFlag.toCmd(getGame().getName(), true, getPlayerNumber()));//we are a robot again 
     }
-    
-    // -- merge TODO: move to a RobberStrategy
-    protected void chooseRobberVictim(boolean[] choices)
-    {
-    
-    	pause(1);
-        client.choosePlayer(game, robberVictim);
-        pause(1);
         
-    }
-    
     protected void getActionForPLAY1()    
     {
     	//fool the server into believing we are a human player so we won't get interrupted by the force end turn thread
