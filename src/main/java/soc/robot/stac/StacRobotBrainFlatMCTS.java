@@ -246,10 +246,10 @@ public class StacRobotBrainFlatMCTS extends StacRobotBrain {
 
 		/*a bug forces us to plan stuff twice as msgs are not processed by the server so it prevents us from doing the normal MCTS logic
 		 * as a result memorise the locations decided upon during the first search and the second time only resend the msg*/
-		/** Currently unused; was set in {@link #getBestRobberHex()}, or -1 if not yet planned */
+		/** Currently unused; used to be set in {@link #getBestRobberHex()}, or -1 if not yet planned */
 		protected int robberLocation = -1;
 
-		/** Currently unused; was set in {@link #chooseRobberVictim(boolean[], boolean)}, or -1 if not yet planned */
+		/** Currently unused; used to be set in {@link #chooseRobberVictim(boolean[], boolean)}, or -1 if not yet planned */
 		protected int playerToRob = -1;
 
 		public StacRobberStrategyFlatMCTS(SOCGame ga, SOCPlayer pl, StacRobotBrainFlatMCTS br, Random rand) {

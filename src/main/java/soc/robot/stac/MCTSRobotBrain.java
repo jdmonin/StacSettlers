@@ -296,6 +296,8 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 	@Override
 	protected void setStrategyFields() {
 		super.setStrategyFields();
+		discardStrategy = new MCTSDiscardStrategy(game, ourPlayerData, this, mcts, rand);
+		monopolyStrategy = new MCTSMonopolyStrategy(game, ourPlayerData, this, mcts);
 		openingBuildStrategy = new MCTSOpeningBuildStrategy(game, ourPlayerData, this, mcts);
 		robberStrategy = new MCTSRobberStrategy(game, ourPlayerData, this, mcts, rand);
 	}
@@ -834,7 +836,9 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 		client.put(SOCRobotFlag.toCmd(getGame().getName(), true, getPlayerNumber()));
 	}
 
-    // -- merge TODO: move to a DiscardStrategy
+    /**
+     * Discard. Tries calling {@link MCTSDiscardStrategy}, falls back to {@code SOCGame.discardOrGainPickRandom} if needed.
+     */
     protected void discard(int numDiscards) {
     	SOCResourceSet discards = new SOCResourceSet();
     	if(numDiscards >= ((CatanConfig) gameFactory.getConfig()).N_MAX_DISCARD){//it would take too long if we have to compute all combinations over this
@@ -854,39 +858,40 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
         		}
         		
     			illegal = false;
-    	        pause(1);
-    	        Game g = generateGame(S_PAYTAX,null);
-    			mcts.newTree(g);
-    			SearchListener listener = mcts.search();
-    			listener.waitForFinish();
-    			int[] action = g.listPossiblities(false).getOptions().get(mcts.getNextActionIndex());
-    	        String s = String.format("Player " + getPlayerNumber() + " chose discard action: [%d %d %d %d %d %d]", action[0], action[1], action[2], action[3], action[4], action[5]);
-    	        D.ebugPrintlnINFO(s);      
-    	        
-        		for(int i=1; i < 6; i++){//jump the action description and only look at the first 6
-        			discards.add(action[i], translateResToJSettlers(i-1));//position is type, contents is amount
-        		}
+	    	        pause(1);
+
+    		        discards = discardStrategy.discard(numDiscards, buildingPlan);
         		
         		//check if its legal
         		if(discards.getTotal() != numDiscards){
-    	        	D.ebugERROR("Player " + getPlayerNumber() + " planned to discard a different ammount ");
-    	        	illegal = true;
-    	        	continue;
+    	        		D.ebugERROR("Player " + getPlayerNumber() + " planned to discard a different ammount ");
+	    	        	illegal = true;
+    		        	continue;
         		}
-        		if(!ourPlayerData.getResources().contains(discards)){
-    	        	D.ebugERROR("Player " + getPlayerNumber() + " planned to discard a set of resources it doesn't have");
-    	        	illegal = true;
-    	        	continue;
+        		if(! ourPlayerData.getResources().contains(discards)){
+    	        		D.ebugERROR("Player " + getPlayerNumber() + " planned to discard a set of resources it doesn't have");
+	    	        	illegal = true;
+    		        	continue;
         		}
     		}
+
     		client.put(SOCRobotFlag.toCmd(getGame().getName(), true, getPlayerNumber()));
     	}
+
     	client.discard(game, discards);
     }
 	
-    protected void getActionForPLAY1()    
+    /**
+     * Plan what to do during {@code PLAY1} game state and do that planned action, or end turn.
+     * In {@code MCTSRobotBrain} this bypasses all the strategy/decision methods called in SOCRobotBrain.planAndDoActionForPLAY1:
+     * buildOrGetResourceByTradeOrCard, planBuilding, playKnightCardIfShould, considerScenarioTurnFinalActions, endTurnActions.
+     *<P>
+     * In StacSettlers v1, this method was {@code getActionForPLAY1()}.
+     */
+    @Override
+    protected void planAndDoActionForPLAY1()
     {
-    	D.ebugPrintlnINFO("Player " + getPlayerNumber() + " call to getActionForPLAY1 method");
+    	D.ebugPrintlnINFO("Player " + getPlayerNumber() + " call to planAndDoActionForPLAY1 method");
     	if(waitingForTradeResponse || isWaiting() || waitingForTradeMsg || getMemory().getMyOffer() != null){
     		D.ebugERROR("Player " + getPlayerNumber() + " being asked to plan for PLAY1 while still waiting for a trade response");
     		return;
@@ -987,8 +992,8 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 	                
 	                break;
 	            case A_PLAYCARD_MONOPOLY:
-	                // -- merge TODO: move to a MonopolyStrategy
-	                // is really: decisionMaker.monopolyChoice = translateResToJSettlers(action[1]);
+	                // to help our MonopolyStrategy, remember MCTS choice
+	                monopolyStrategy.setMonopolyChoice(translateResToJSettlers(action[1]));
 	                expectWAITING_FOR_MONOPOLY = true;
 	                waitingForGameState = true;
 	                counter = 0;
@@ -2085,7 +2090,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 		return edgeToJS[indo];
 	}
     
-	private int translateResToJSettlers(int ind) {
+	/*package*/ static int translateResToJSettlers(int ind) {
 		switch (ind) {
 		case RES_WOOD:
 			return SOCResourceConstants.WOOD;

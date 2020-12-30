@@ -65,6 +65,7 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
 	@Override
 	protected void setStrategyFields() {
 		super.setStrategyFields();
+		monopolyStrategy = new OriginalSSMonopolyStrategy(game, ourPlayerData, this);
 		openingBuildStrategy = new OriginalSSOpeningBuildStrategy(game, ourPlayerData, this);
 		robberStrategy = new OriginalSSRobberStrategy(game, ourPlayerData, this, rand);
 	}
@@ -330,7 +331,15 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
         client.put(SOCRobotFlag.toCmd(getGame().getName(), true, getPlayerNumber()));//we are a robot again 
     }
         
-    protected void getActionForPLAY1()    
+    /**
+     * Plan what to do during {@code PLAY1} game state and do that planned action, or end turn.
+     * In {@code OriginalSSRobotBrain} this bypasses all the strategy/decision methods called in SOCRobotBrain.planAndDoActionForPLAY1:
+     * buildOrGetResourceByTradeOrCard, planBuilding, playKnightCardIfShould, considerScenarioTurnFinalActions, endTurnActions.
+     *<P>
+     * In StacSettlers v1, this method was {@code getActionForPLAY1()}.
+     */
+    @Override
+    protected void planAndDoActionForPLAY1()
     {
     	//fool the server into believing we are a human player so we won't get interrupted by the force end turn thread
     	client.put(SOCRobotFlag.toCmd(getGame().getName(), false, getPlayerNumber()));
@@ -429,9 +438,8 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
                 D.ebugPrintlnINFO("CARD bought ");
                 break;
             case A_PLAYCARD_MONOPOLY:
-                // -- merge TODO: move to a MonopolyStrategy
-                // is really: decisionMaker.monopolyChoice = translateResToJSettlers(bl.action[1]);
-
+                // to help our MonopolyStrategy, remember StacSettlers choice
+                monopolyStrategy.setMonopolyChoice(translateResToJSettlers(bl.action[1]));
                 expectWAITING_FOR_MONOPOLY = true;
                 waitingForGameState = true;
                 counter = 0;
@@ -569,7 +577,8 @@ public class OriginalSSRobotBrain extends StacRobotBrain implements GameStateCon
             // !!! TODO: to permit these, have to remember last state (PLAY or PLAY1?)
             // !!! oldState is not enough: for free roads, have to revert to a stae 2 steps back
 //            case A_PLAYCARD_MONOPOLY:
-//                monopolyChoice = rc.translateResToJSettlers(rc.bl.action[1]);
+//                // to help our MonopolyStrategy, remember StacSettlers choice
+//                monopolyStrategy.setMonopolyChoice(translateResToJSettlers(rc.bl.action[1]));
 //
 //                expectWAITING_FOR_MONOPOLY = true;
 //                waitingForGameState = true;

@@ -77,6 +77,22 @@ public class MonopolyStrategy
     }
 
     /**
+     * Directly set our monopoly choice.
+     * For example, a third-party bot's architecture might have code which determines
+     * the best action is monopoly and the resource type to monopolize,
+     * instead of using {@link #decidePlayMonopoly()}.
+     * @param rtype  Resource type to monopolize,
+     *    such as {@link SOCResourceConstants#CLAY}
+     *    or {@link SOCResourceConstants#SHEEP}.
+     *    Not checked for validity.
+     * @since 2.4.50
+     */
+    public void setMonopolyChoice(final int rtype)
+    {
+        monopolyChoice = rtype;
+    }
+
+    /**
      * Decide whether we should play a monopoly card,
      * and set {@link #getMonopolyChoice()} if so.
      *<P>
