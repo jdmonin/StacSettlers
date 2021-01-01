@@ -2,7 +2,7 @@
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * This file copyright (C) 2019 Colin Werner
  * Extracted in 2019 from SOCPlayerClient.java, so:
- * Portions of this file Copyright (C) 2007-2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2007-2021 Jeremy D Monin <jeremy@nand.net>
  * Portions of this file Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
  * Portions of this file Copyright (C) 2012-2013 Paul Bilnoski <paul@bilnoski.net>
  *
@@ -74,20 +74,30 @@ import soc.util.Version;
  * @author paulbilnoski
  * @since 2.0.00
  */
-/*package*/ final class MessageHandler
+public class MessageHandler
 {
-    private final SOCPlayerClient client;
-    private final GameMessageSender gms;
+    private SOCPlayerClient client;
+    private GameMessageSender gms;
 
-    MessageHandler(SOCPlayerClient client)
+    public MessageHandler()
     {
-        if (client == null)
-            throw new IllegalArgumentException("client is null");
-        this.client = client;
-        gms = client.getGameMessageSender();
+    }
 
+    public void init(final SOCPlayerClient cli)
+        throws IllegalArgumentException
+    {
+        if (cli == null)
+            throw new IllegalArgumentException("client is null");
+
+        this.client = cli;
+        gms = cli.getGameMessageSender();
         if (gms == null)
             throw new IllegalArgumentException("client GameMessageSender is null");
+    }
+
+    public SOCPlayerClient getClient()
+    {
+        return client;
     }
 
     /**

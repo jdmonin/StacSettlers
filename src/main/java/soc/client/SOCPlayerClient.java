@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * Portions of this file Copyright (C) 2007-2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2007-2021 Jeremy D Monin <jeremy@nand.net>
  * Portions of this file Copyright (C) 2012-2013 Paul Bilnoski <paul@bilnoski.net>
  *     - UI layer refactoring, GameStatistics, nested class refactoring, parameterize types
  *
@@ -531,6 +531,22 @@ public class SOCPlayerClient
      */
     public SOCPlayerClient()
     {
+        this(new MessageHandler());
+    }
+
+    /**
+     * Create a SOCPlayerClient with the specified {@link MessageHandler}.
+     * See {@link #SOCPlayerClient()} for all other details.
+     * @param mh  MessageHandler to use; not null
+     * @throws IllegalArgumentException if {@code mh} is null
+     * @since 2.4.50
+     */
+    protected SOCPlayerClient(final MessageHandler mh)
+        throws IllegalArgumentException
+    {
+        if (mh == null)
+            throw new IllegalArgumentException("mh");
+
     	//Search the config file for development mode option
     	BufferedReader config = null;
     	URL url = Resources.class.getResource(Resources.configName);
@@ -611,7 +627,7 @@ public class SOCPlayerClient
 
         net = new ClientNetwork(this);
         gameMessageSender = new GameMessageSender(this, clientListeners);
-        messageHandler = new MessageHandler(this);
+        messageHandler = mh;
 
         logger = new StacChatLogger();
     }

@@ -131,10 +131,12 @@ public class SOCReplayClient extends SOCPlayerClient implements ActionListener {
      */
     protected static final String OBSERVER_DEFAULT_NAME = "Observer";
 
-	public SOCReplayClient() {}
+	public SOCReplayClient() {
+		super(new RCMessageHandler());
+	}
 
 	public SOCReplayClient(boolean withConnectOrPractice) {
-		super();  // withConnectOrPractice unused in v2.x
+		this();  // withConnectOrPractice unused in v2.x
 	}
     
 	// don't bother with server connection - we're faking it.
@@ -253,60 +255,6 @@ public class SOCReplayClient extends SOCPlayerClient implements ActionListener {
 	//  given player and force the hand panel to be in "Player" mode.
 	public void setNickname(String name) {
 		nickname = name;
-	}
-	
-	// Handle dev card - use special handling to ensure the card is removed from the list,
-	//  since every player is actively shown
-	// -- merge TODO: move to a MessageHandler
-	protected void handleDEVCARDACTION(SOCDevCardAction mes)
-    {
-		//make sure the second draw message contains Unknown dev card type so we can handle the fully observable game just as a normal one
-		if(repeatedDevCardMessage){
-			repeatedDevCardMessage = false;
-			mes.setCardType(SOCDevCardConstants.UNKNOWN);
-		}else if(mes.getAction() == SOCDevCardAction.DRAW) {
-			repeatedDevCardMessage = true; 
-		}
-		
-		// -- merge TODO: call MessageHandler parent
-		////super.handleDEVCARDACTION(mes);
-
-		final int pn = mes.getPlayerNumber();
-		PlayerClientListener pcl = getClientListener(mes.getGame());
-		final SOCPlayer pl = pcl.getGame().getPlayer(pn);
-        pcl.playerDevCardsUpdated(pl, (mes.getAction() == SOCDevCardAction.ADD_OLD));
-        pcl.playerElementUpdated(pl, PlayerClientListener.UpdateType.VictoryPoints, false, false);
-
-        //We're only updating our own dev cards, so they are fully known and we must subtract the UNKNOWN cards.
-        //However, the server sends two SOCDevCard messages, one for the affected player, on to the other players (where the card type is UNKNOWN).
-        //It seems the replay client updates the SOCInventory objects for known as well as unkonwn values, causing a doubling of the cards in the player's hand.
-        //The solution is to subtract the unknown value from the total.
-        final SOCInventory inv = pl.getInventory();
-        int totalDCs = inv.getTotal();
-        int unknownDCs = inv.getAmount(SOCDevCardConstants.UNKNOWN);
-        totalDCs -= unknownDCs;
-        pcl.playerDevCardCountDisplayUpdate(pn, totalDCs);
-    }
-	
-	protected void handleGAMECOPY(SOCGameCopy mes){
-		//do nothing just avoid saving the game again
-	}
-	
-	protected void handleLOADGAME(SOCLoadGame mes){
-		//we are not going through the normal start of game here so we need to make sure everyone is sit down and create the dummy brain
-		String prefix = mes.getFolder() + "/";
-		String fileName = prefix + "server_" + SOCGame.class.getName();
-		SOCGame ga = (SOCGame)DeepCopy.readFromFile(fileName);
-		ftq.dummy = new StacRobotDummyBrain(new SOCRobotClient(null, new ServerConnectInfo("replay", ""), "replayAgent", "", null),
-				new SOCRobotParameters(300, 500, 0f, 0f, 0f, 0f, 0f, SOCRobotDMImpl.FAST_STRATEGY, 0),
-				ga,new CappedQueue(),0);//need to update the playerNumber based on who is on the board
-		ftq.boardInitialized = true;
-		
-		for(SOCPlayer p : ga.getPlayers())
-			treat(new SOCSitDown(ga.getName(), p.getName(), p.getPlayerNumber(), false), true);
-		//then do the normal update
-		// -- merge TODO: call MessageHandler parent
-		////super.handleLOADGAME(mes);
 	}
 	
 	/**
@@ -1079,6 +1027,82 @@ public class SOCReplayClient extends SOCPlayerClient implements ActionListener {
 			return lp.getGameName();
 		}
 		
+	}
+
+	/**
+	 * Take care of any special handling for messages.
+	 * @author jdmonin
+	 * @since 2.4.50
+	 */
+	protected static class RCMessageHandler extends MessageHandler {
+
+		/**
+		 * Handle dev card - use special handling to ensure the card is removed from the list,
+		 * since every player is actively shown. Also calls
+		 * {@link MessageHandler#handleDEVCARDACTION(SOCDevCardAction) super.handleDEVCARDACTION(mes)}
+		 * for the usual handling.
+		 */
+		@Override
+		protected void handleDEVCARDACTION(final boolean isPractice, SOCDevCardAction mes) {
+			final SOCReplayClient rc = (SOCReplayClient) getClient();
+
+			//make sure the second draw message contains Unknown dev card type so we can handle the fully observable game just as a normal one
+			if(rc.repeatedDevCardMessage){
+				rc.repeatedDevCardMessage = false;
+				mes.setCardType(SOCDevCardConstants.UNKNOWN);
+			}else if(mes.getAction() == SOCDevCardAction.DRAW) {
+				rc.repeatedDevCardMessage = true;
+			}
+
+			// the usual handling
+			super.handleDEVCARDACTION(isPractice, mes);
+
+			final int pn = mes.getPlayerNumber();
+			PlayerClientListener pcl = rc.getClientListener(mes.getGame());
+			final SOCPlayer pl = pcl.getGame().getPlayer(pn);
+			pcl.playerDevCardsUpdated(pl, (mes.getAction() == SOCDevCardAction.ADD_OLD));
+			pcl.playerElementUpdated(pl, PlayerClientListener.UpdateType.VictoryPoints, false, false);
+
+			//We're only updating our own dev cards, so they are fully known and we must subtract the UNKNOWN cards.
+			//However, the server sends two SOCDevCard messages, one for the affected player, on to the other players (where the card type is UNKNOWN).
+			//It seems the replay client updates the SOCInventory objects for known as well as unkonwn values, causing a doubling of the cards in the player's hand.
+			//The solution is to subtract the unknown value from the total.
+			final SOCInventory inv = pl.getInventory();
+			int totalDCs = inv.getTotal();
+			int unknownDCs = inv.getAmount(SOCDevCardConstants.UNKNOWN);
+			totalDCs -= unknownDCs;
+			pcl.playerDevCardCountDisplayUpdate(pn, totalDCs);
+		}
+
+		/** Stub to do nothing and just avoid saving the game again */
+		@Override
+		protected void handleGAMECOPY(SOCGameCopy mes) {}
+
+		/**
+		 * we are not going through the normal start of game here,
+		 * so we need to make sure everyone is sit down and create the dummy brain,
+		 * then call {@link MessageHandler#handleLOADGAME(SOCLoadGame) super.handleLOADGAME(mes)} for the rest.
+		 */
+		@Override
+		protected void handleLOADGAME(SOCLoadGame mes) {
+			final SOCReplayClient rc = (SOCReplayClient) getClient();
+			String prefix = mes.getFolder() + "/";
+			String fileName = prefix + "server_" + SOCGame.class.getName();
+
+			SOCGame ga = (SOCGame) DeepCopy.readFromFile(fileName);
+			rc.ftq.dummy = new StacRobotDummyBrain
+				(new SOCRobotClient(null, new ServerConnectInfo("replay", ""), "replayAgent", "", null),
+					new SOCRobotParameters(300, 500, 0f, 0f, 0f, 0f, 0f, SOCRobotDMImpl.FAST_STRATEGY, 0),
+					ga,new CappedQueue(),0);//need to update the playerNumber based on who is on the board
+			rc.ftq.boardInitialized = true;
+
+			for(SOCPlayer p : ga.getPlayers())
+				handle(new SOCSitDown(ga.getName(), p.getName(), p.getPlayerNumber(), false), true);
+
+			//then do the normal update
+			super.handleLOADGAME(mes);
+		}
+
 	}
 	
 	/**
