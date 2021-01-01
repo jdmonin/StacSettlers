@@ -283,8 +283,7 @@ public class SOCReplayClient extends SOCPlayerClient implements ActionListener {
         //The solution is to subtract the unknown value from the total.
         final SOCInventory inv = pl.getInventory();
         int totalDCs = inv.getTotal();
-        int unknownDCs = inv.getAmount(SOCInventory.OLD, SOCDevCardConstants.UNKNOWN);
-        unknownDCs += inv.getAmount(SOCInventory.NEW, SOCDevCardConstants.UNKNOWN);
+        int unknownDCs = inv.getAmount(SOCDevCardConstants.UNKNOWN);
         totalDCs -= unknownDCs;
         pcl.playerDevCardCountDisplayUpdate(pn, totalDCs);
     }

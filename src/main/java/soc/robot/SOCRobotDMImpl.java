@@ -17,7 +17,6 @@ import soc.game.SOCBoardLarge;
 import soc.game.SOCCity;
 import soc.game.SOCDevCard;
 import soc.game.SOCDevCardConstants;
-import soc.game.SOCDevCardSet;
 import soc.game.SOCFortress;
 import soc.game.SOCGame;
 import soc.game.SOCGameOptionSet;
@@ -463,7 +462,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
             {
                 knightsToBuy = laSize -
                     (player.getNumKnights()
-                     + player.getInventory().getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.KNIGHT));
+                     + player.getInventory().getAmount(SOCInventory.OLD, SOCDevCardConstants.KNIGHT));
             }
             D.ebugPrintlnINFO("knightsToBuy = "+knightsToBuy);
             if (player.getGame().getNumDevCards() >= knightsToBuy)
@@ -1304,7 +1303,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
 	    boolean goingToPlayRB = false;
 	    if (!player.hasPlayedDevCard() &&
 		player.getNumPieces(SOCPlayingPiece.ROAD) >= 2 &&
-		player.getInventory().getAmount(SOCInventory.OLD, SOCDevCardConstants.ROADS) > 0) {
+		player.getInventory().hasPlayable(SOCDevCardConstants.ROADS) > 0) {
 	      goingToPlayRB = true;
 	    }
          */
@@ -2265,7 +2264,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
 	    boolean goingToPlayRB = false;
 	    if (!ourPlayerData.hasPlayedDevCard() &&
 		ourPlayerData.getNumPieces(SOCPlayingPiece.ROAD) >= 2 &&
-		ourPlayerData.getInventory().getAmount(SOCInventory.OLD, SOCDevCardConstants.ROADS) > 0) {
+		ourPlayerData.getInventory().hasPlayable(SOCDevCardConstants.ROADS) > 0) {
 	      goingToPlayRB = true;
 	    }
          */
@@ -2904,7 +2903,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
                 larmySize = laPlayer.getNumKnights() + 1;
             }
 
-            if (((player.getNumKnights() + player.getInventory().getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.KNIGHT) + player.getInventory().getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.KNIGHT)) >= larmySize))
+            if (((player.getNumKnights() + player.getInventory().getAmount(SOCDevCardConstants.KNIGHT)) >= larmySize))
             {
                 ret = true;
             }

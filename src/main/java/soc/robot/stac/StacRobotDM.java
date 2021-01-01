@@ -312,7 +312,7 @@ public class StacRobotDM extends SOCRobotDM<SOCBuildPlanStack> {
         if ((strategy == SMART_STRATEGY) &&
                 !player.hasPlayedDevCard() &&
                 player.getNumPieces(SOCPlayingPiece.ROAD) >= 2 &&
-                player.getInventory().getAmount(SOCInventory.OLD, SOCDevCardConstants.ROADS) > 0) {
+                player.getInventory().hasPlayable(SOCDevCardConstants.ROADS)) {
             SOCPossibleRoad secondFavoriteRoad = null;
             Enumeration threatenedRoadEnum;
             Enumeration goodRoadEnum;
@@ -717,8 +717,7 @@ public class StacRobotDM extends SOCRobotDM<SOCBuildPlanStack> {
                 }
                 // How many knights do we need to buy?
                 if ((player.getNumKnights() + 
-                        player.getInventory().getAmount(SOCInventory.OLD, SOCDevCardConstants.KNIGHT) +
-                        player.getInventory().getAmount(SOCInventory.NEW, SOCDevCardConstants.KNIGHT))
+                        player.getInventory().getAmount(SOCDevCardConstants.KNIGHT))
                         < laSize) {
                     knightsToBuy = laSize - (player.getNumKnights() + player.getInventory().getAmount(SOCInventory.OLD, SOCDevCardConstants.KNIGHT));
                 }
@@ -1332,8 +1331,7 @@ public class StacRobotDM extends SOCRobotDM<SOCBuildPlanStack> {
                 /// figure out how many knights we need to buy
                 ///
                 if ((player.getNumKnights() + 
-                        player.getInventory().getAmount(SOCInventory.OLD, SOCDevCardConstants.KNIGHT) +
-                        player.getInventory().getAmount(SOCInventory.NEW, SOCDevCardConstants.KNIGHT))
+                        player.getInventory().getAmount(SOCDevCardConstants.KNIGHT))
                         < laSize) {
                     knightsToBuy = laSize - (player.getNumKnights() +
                             player.getInventory().getAmount(SOCInventory.OLD, SOCDevCardConstants.KNIGHT));
@@ -1922,7 +1920,7 @@ public class StacRobotDM extends SOCRobotDM<SOCBuildPlanStack> {
 	    boolean goingToPlayRB = false;
 	    if (!player.hasPlayedDevCard() &&
 		player.getNumPieces(SOCPlayingPiece.ROAD) >= 2 &&
-		player.getInventory().getAmount(SOCInventory.OLD, SOCDevCardConstants.ROADS) > 0) {
+		player.getInventory().hasPlayable(SOCDevCardConstants.ROADS)) {
 	      goingToPlayRB = true;
 	    }
          */
@@ -2320,7 +2318,7 @@ public class StacRobotDM extends SOCRobotDM<SOCBuildPlanStack> {
 	    boolean goingToPlayRB = false;
 	    if (!player.hasPlayedDevCard() &&
 		player.getNumPieces(SOCPlayingPiece.ROAD) >= 2 &&
-		player.getInventory().getAmount(SOCInventory.OLD, SOCDevCardConstants.ROADS) > 0) {
+		player.getInventory().hasPlayable(SOCDevCardConstants.ROADS)) {
 	      goingToPlayRB = true;
 	    }
          */

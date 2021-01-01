@@ -1333,7 +1333,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 		/*
 		 * if there is a single option just roll
 		 */
-		if (ourPlayerData.getInventory().getAmount(SOCInventory.OLD, SOCDevCardConstants.KNIGHT) > 0){
+		if (ourPlayerData.getInventory().hasPlayable(SOCDevCardConstants.KNIGHT)) {
 			expectDICERESULT = true;
 			counter = 0;
 			D.ebugPrintlnINFO("Player " + getPlayerNumber() + " rolling dice");

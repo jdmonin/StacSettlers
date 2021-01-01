@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * Portions of this file Copyright (C) 2007-2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2007-2021 Jeremy D Monin <jeremy@nand.net>
  * Portions of this file Copyright (C) 2012 Skylar Bolton <iiagrer@gmail.com>
  * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  * Portions of this file Copyright (C) 2017 Ruud Poutsma <rtimon@gmail.com>
@@ -9644,19 +9644,19 @@ public class SOCGame implements Serializable, Cloneable
             ogsr.setDevTotalCards(pn, set.getTotal());
         
             //Unplayed Dev cards types and numbers (an array of integers: knights, roads, disc, mono, unknown)
-            int[] udc = new int[]{set.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.KNIGHT),
-            		set.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.ROADS),
-            		set.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.DISC),
-            		set.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.MONO),
-            		set.getAmount(SOCDevCardSet.OLD, SOCDevCardConstants.UNKNOWN)};
+            int[] udc = new int[]{set.getAmount(SOCInventory.OLD, SOCDevCardConstants.KNIGHT),
+            		set.getAmount(SOCInventory.OLD, SOCDevCardConstants.ROADS),
+            		set.getAmount(SOCInventory.OLD, SOCDevCardConstants.DISC),
+            		set.getAmount(SOCInventory.OLD, SOCDevCardConstants.MONO),
+            		set.getAmount(SOCInventory.OLD, SOCDevCardConstants.UNKNOWN)};
             ogsr.setUnplayedDevCards(pn, udc);
             
           //Newly bought Dev cards
-            int[] ndc = new int[]{set.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.KNIGHT),
-            		set.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.ROADS),
-            		set.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.DISC),
-            		set.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.MONO),
-            		set.getAmount(SOCDevCardSet.NEW, SOCDevCardConstants.UNKNOWN)};
+            int[] ndc = new int[]{set.getAmount(SOCInventory.NEW, SOCDevCardConstants.KNIGHT),
+            		set.getAmount(SOCInventory.NEW, SOCDevCardConstants.ROADS),
+            		set.getAmount(SOCInventory.NEW, SOCDevCardConstants.DISC),
+            		set.getAmount(SOCInventory.NEW, SOCDevCardConstants.MONO),
+            		set.getAmount(SOCInventory.NEW, SOCDevCardConstants.UNKNOWN)};
             ogsr.setNewDevCards(pn, ndc);
         
             //VP Dev cards

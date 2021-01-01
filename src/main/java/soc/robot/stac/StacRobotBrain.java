@@ -701,6 +701,8 @@ public class StacRobotBrain extends SOCRobotBrain<StacRobotDM, PersuasionStacRob
     /**
      * At the beginning of a turn, defer to the Dialogue Manager to see if they want to announce anything, set a flag to wait for other chats, etc...
      * Also check whether trade embargoes are to be proposed or lifted.
+     *<P>
+     * In StacSettlers v1, this method was {@code startTurnActions()}.
      */
     @Override
     protected void startTurnMainActions() {

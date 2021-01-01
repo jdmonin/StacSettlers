@@ -9,7 +9,6 @@ import soc.baseclient.SOCDisplaylessPlayerClient;
 import soc.disableDebug.D;
 import soc.game.SOCBoard;
 import soc.game.SOCDevCardConstants;
-import soc.game.SOCDevCardSet;
 import soc.game.SOCGame;
 import soc.game.SOCPlayer;
 import soc.game.SOCPlayerNumbers;

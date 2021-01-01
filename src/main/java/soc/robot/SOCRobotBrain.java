@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * Portions of this file Copyright (C) 2007-2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2007-2021 Jeremy D Monin <jeremy@nand.net>
  * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  * Portions of this file Copyright (C) 2017 Ruud Poutsma <rtimon@gmail.com>
  * Portions of this file Copyright (C) 2017-2018 Strategic Conversation (STAC Project) https://www.irit.fr/STAC/
@@ -2407,7 +2407,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * Third-party bots may instead choose to override this entire method.
      * NOTE: method required for SmartSettlers agent to override
      *<P>
-     * In StacSettlers v1, this mthod was {@code getActionForPLAY1()}.
+     * In StacSettlers v1, this method was {@code getActionForPLAY1()}.
      */
     protected void planAndDoActionForPLAY1()
     {
@@ -5528,6 +5528,8 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     /**
      * Perform any specific actions needed by this brain at start of the main part of any player's turn:
      * Dice roll actions are done, game state just became {@link SOCGame#PLAY1}.
+     *<P>
+     * In StacSettlers v1, this method was {@code startTurnActions()}.
      *
      * @see #endTurnActions()
      */
