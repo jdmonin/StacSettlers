@@ -1753,8 +1753,6 @@ public class MessageHandler
         ga.setCurrentPlayerNumber(pnum);
         ga.updateAtTurn();
         PlayerClientListener pcl = client.getClientListener(mes.getGame());
-        //  -- merge TODO: reconcile with jsettlers2 roll-prompt sound
-        ////playSound("Temple.wav", false /* pi.clientHand.muteSound.getBoolValue() */);
         pcl.playerTurnSet(pnum);
 
             //clear the trade responses before starting a new turn just in case a robot had its turn ended

@@ -1303,7 +1303,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
 	    boolean goingToPlayRB = false;
 	    if (!player.hasPlayedDevCard() &&
 		player.getNumPieces(SOCPlayingPiece.ROAD) >= 2 &&
-		player.getInventory().hasPlayable(SOCDevCardConstants.ROADS) > 0) {
+		player.getInventory().hasPlayable(SOCDevCardConstants.ROADS)) {
 	      goingToPlayRB = true;
 	    }
          */
@@ -2264,7 +2264,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
 	    boolean goingToPlayRB = false;
 	    if (!ourPlayerData.hasPlayedDevCard() &&
 		ourPlayerData.getNumPieces(SOCPlayingPiece.ROAD) >= 2 &&
-		ourPlayerData.getInventory().hasPlayable(SOCDevCardConstants.ROADS) > 0) {
+		ourPlayerData.getInventory().hasPlayable(SOCDevCardConstants.ROADS)) {
 	      goingToPlayRB = true;
 	    }
          */

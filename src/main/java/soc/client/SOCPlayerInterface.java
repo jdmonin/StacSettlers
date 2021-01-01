@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * Portions of this file Copyright (C) 2007-2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2007-2021 Jeremy D Monin <jeremy@nand.net>
  * Portions of this file Copyright (C) 2012-2013 Paul Bilnoski <paul@bilnoski.net>
  *     - UI layer refactoring, GameStatistics, type parameterization, GUI API updates, etc
  *
@@ -3253,6 +3253,8 @@ public class SOCPlayerInterface extends Frame
         // isn't called for first player during initial placement
         if (clientIsCurrentPlayer())
             playSound(SOUND_BEGIN_TURN);
+        else
+            client.playSound("Temple.wav", false /* pi.clientHand.muteSound.getBoolValue() */);
     }
 
     /**
