@@ -512,10 +512,10 @@ public class TestActionsMessages
                 {"all:SOCPlayerElement:", "|playerNum=3|actionType=SET|elementType=19|amount=1"},
                 {"all:SOCGameServerText:", "|text=" + CLIENT_NAME + " played a Monopoly card."},
                 {"all:SOCGameState:", "|state=53"},
-                {"all:SOCSimpleAction:", "|pn=3|actType=3|v1=3|v2=3"},
                 {"all:SOCPlayerElement:", "|playerNum=1|actionType=SET|elementType=3|amount=0|news=Y"},
                 {"all:SOCPlayerElement:", "|playerNum=2|actionType=SET|elementType=3|amount=0|news=Y"},
                 {"all:SOCPlayerElement:", "|playerNum=3|actionType=GAIN|elementType=3|amount=3"},
+                {"all:SOCSimpleAction:", "|pn=3|actType=3|v1=3|v2=3"},  // 3 == RSRC_TYPE_MONOPOLIZED
                 (othersAsRobot ? null : new String[]{"p1:SOCGameServerText:", "|text=" + CLIENT_NAME + "'s Monopoly took your 1 sheep."}),
                 (othersAsRobot ? null : new String[]{"p2:SOCGameServerText:", "|text=" + CLIENT_NAME + "'s Monopoly took your 2 sheep."}),
                 {"all:SOCGameState:", "|state=20"}
@@ -550,9 +550,7 @@ public class TestActionsMessages
                     {"all:SOCPlayerElement:", "|playerNum=3|actionType=SET|elementType=19|amount=1"},
                     {"all:SOCGameServerText:", "|text=" + CLIENT_NAME + " played a Year of Plenty card."},
                     {"all:SOCGameState:", "|state=52"},
-                    {"all:SOCPlayerElement:", "|playerNum=3|actionType=GAIN|elementType=2|amount=1"},
-                    {"all:SOCPlayerElement:", "|playerNum=3|actionType=GAIN|elementType=4|amount=1"},
-                    {"all:SOCGameServerText:", "|text=" + CLIENT_NAME + " received 1 ore and 1 wheat from the bank."},
+                    {"all:SOCPickResources:", "|resources=clay=0|ore=1|sheep=0|wheat=1|wood=0|unknown=0|pn=3|reason=2"},
                     {"all:SOCGameState:", "|state=20"}
                 });
         }
@@ -1277,12 +1275,10 @@ public class TestActionsMessages
                     {"p1:SOCSimpleRequest:game=", "|pn=1|reqType=1|v1=1|v2=0"},
                     {"all:SOCPlayerElement:game=", "|playerNum=3|actionType=SET|elementType=101|amount=1"},
                     {"p3:SOCSimpleRequest:game=", "|pn=3|reqType=1|v1=1|v2=0"},
-                    {"all:SOCPlayerElement:game=", "|playerNum=3|actionType=GAIN|elementType=1|amount=1"},
-                    {"all:SOCGameServerText:game=", "|text=" + CLIENT_NAME + " has picked 1 clay from the gold hex."},
+                    {"all:SOCPickResources:game=", "|resources=clay=1|ore=0|sheep=0|wheat=0|wood=0|unknown=0|pn=3|reason=3"},
                     {"all:SOCPlayerElement:game=", "|playerNum=3|actionType=SET|elementType=101|amount=0"},
                     {"all:SOCGameState:game=", "|state=56"},
-                    {"all:SOCPlayerElement:game=", "|playerNum=1|actionType=GAIN|elementType=4|amount=1"},
-                    {"all:SOCGameServerText:game=", "|text=" + CLIENT2_NAME + " has picked 1 wheat from the gold hex."},
+                    {"all:SOCPickResources:game=", "|resources=clay=0|ore=0|sheep=0|wheat=1|wood=0|unknown=0|pn=1|reason=3"},
                     {"all:SOCPlayerElement:game=", "|playerNum=1|actionType=SET|elementType=101|amount=0"},
                     {"all:SOCGameState:game=", "|state=20"}
                 });

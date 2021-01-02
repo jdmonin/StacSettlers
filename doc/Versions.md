@@ -22,11 +22,17 @@ JARs for recent JSettlers versions can be downloaded from
 - I18N:
 	- Added French translation (thank you Lee Passey)
 - Network/Message traffic:
-	- For efficiency and third-party bots' parsing, use data messages instead of text when clients are new enough:
+	- For efficiency and third-party bots' understanding, server sends data messages instead of text when clients are this version or newer:
 		- Report robbery with `SOCReportRobbery`
+		- Announce Discovery card/gold hex free resource picks with `SOCPickResources`
 		- Reject disallowed trade requests with `SOCBankTrade` or `SOCAcceptOffer` reason codes
-	- When Monopoly card played, server announces amount gained instead of player's total amount of that resource
+	- When Monopoly card played:
+		- Server announces amount gained instead of player's total amount of that resource
+		- Now sends resource gain/loss messages before, not after, SOCSimpleAction(RSRC_TYPE_MONOPOLIZED)
+		  so client's game data's is updated by the time it sees that action message
 	- If client sends discard with incorrect total, server re-sends SOCDiscardRequest which includes required amount
+	- For third-party clients/bots, client can ask server to announce SOCSimpleAction(DICE_RESULTS_FULLY_SENT)
+	  after each dice roll's result messages
 - For developers:
 	- Upstreamed and reintegrated from STAC Project fork https://github.com/ruflab/StacSettlers :
 	    - Various player and game statistic fields/methods and misc code
@@ -38,7 +44,8 @@ JARs for recent JSettlers versions can be downloaded from
 	- Enhanced server's recordGameEvent framework for more detailed game recording
 	- More accessible robot-related methods and data classes
 	- For third-party bots, added more granular override points like
-	  `endTurnActions`, `handleTradeResponse`, `planAndDoActionForPLAY1`, `SOCBuildingSpeedEstimateFactory`
+	  `endTurnActions`, `handleTradeResponse`, `planAndDoActionForPLAY1`, `SOCBuildingSpeedEstimateFactory`,
+	  `OpeningBuildStrategy.cancelWrongPiecePlacement`
 	- Made some data classes Serializable
 	- Save/load games:
 	    - SavedGameModel:
@@ -86,6 +93,9 @@ JARs for recent JSettlers versions can be downloaded from
 	- Net debug: If `jsettlers.debug.traffic=Y` is set and message from server can't be parsed, print it to console
 - Code internals:
 	- Fixed lint warnings for switch fallthrough, variable shadowing, renamed a few obscure fields
+	- Renames for consistency:
+	    - SOCDevCardConstants.TEMP -> TEMPLE
+	    - SOCPlayerInterface.clientIsCurrentPlayer -> isClientCurrentPlayer
 
 
 ## `2.4.00` (build JM20200704)

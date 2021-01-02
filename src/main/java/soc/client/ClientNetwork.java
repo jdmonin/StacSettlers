@@ -80,6 +80,7 @@ import soc.util.Version;
  *<br>
  * Messages from server to client are received in either {@link NetReadTask} or {@link LocalStringReaderTask},
  * which call the client's {@link MessageHandler#handle(SOCMessage, boolean)}.
+ * Those Task threads call {@link MessageHandler#init(SOCPlayerClient)} before starting their run loop.
  *<br>
  * Messages from client to server are formed in {@link GameMessageSender} or other classes,
  * which call back here to send to the server via {@link #putNet(String)} or {@link #putPractice(String)}.

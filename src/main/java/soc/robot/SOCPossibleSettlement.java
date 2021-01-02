@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * Portions of this file copyright (C) 2009,2012-2015,2018,2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file copyright (C) 2009,2012-2015,2018,2020-2021 Jeremy D Monin <jeremy@nand.net>
  * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
@@ -36,6 +36,10 @@ import soc.game.SOCPlayerNumbers;
 
 /**
  * This is a possible settlement that we can build
+ *<P>
+ * If serializing and deserializing this piece, remember the Player and {@link SOCBuildingSpeedEstimate}
+ * fields will be null when deserialized:
+ * Call {@link SOCPossiblePiece#setTransientsAtLoad(SOCPlayer, SOCPlayerTracker)} to set them.
  *
  * @author Robert S Thomas
  *
@@ -57,9 +61,6 @@ public class SOCPossibleSettlement extends SOCPossiblePiece
     protected int numberOfNecessaryRoads;
     protected Stack<SOCPossibleRoad> roadPath;
 
-    // The brain used to calculate speedup
-    transient protected SOCRobotBrain brain;
-
     /**
      * constructor
      *
@@ -67,12 +68,14 @@ public class SOCPossibleSettlement extends SOCPossiblePiece
      * @param co  coordinates; not validated
      * @param nr  necessaryRoads list reference to use (not to copy!),
      *     or {@code null} to create a new empty list here
+     * @param bseFactory  factory to use for {@link SOCBuildingSpeedEstimate}
+     *     in {@link #updateSpeedup()} calls; not null
      */
-    public SOCPossibleSettlement(SOCRobotBrain brain, SOCPlayer pl, int co, List<SOCPossibleRoad> nr)
+    public SOCPossibleSettlement
+        (SOCPlayer pl, int co, List<SOCPossibleRoad> nr, SOCBuildingSpeedEstimateFactory bseFactory)
     {
-        super(SOCPossiblePiece.SETTLEMENT, pl, co);
+        super(SOCPossiblePiece.SETTLEMENT, pl, co, bseFactory);
 
-        this.brain = brain;
         if (nr == null)
             nr = new ArrayList<SOCPossibleRoad>();
         necessaryRoads = nr;
@@ -96,7 +99,6 @@ public class SOCPossibleSettlement extends SOCPossiblePiece
         if (nr == null)
             throw new IllegalArgumentException("nr null");
 
-        this.brain = brain;
         pieceType = SOCPossiblePiece.SETTLEMENT;
         player = pl;
         coord = co;
@@ -122,7 +124,7 @@ public class SOCPossibleSettlement extends SOCPossiblePiece
     public SOCPossibleSettlement(final SOCPossibleSettlement ps)
     {
         //D.ebugPrintln(">>>> Copying possible settlement: "+ps);
-        super(SOCPossiblePiece.SETTLEMENT, ps.getPlayer(), ps.getCoordinates());
+        super(SOCPossiblePiece.SETTLEMENT, ps.getPlayer(), ps.getCoordinates(), ps.bseFactory);
 
         necessaryRoads = new ArrayList<SOCPossibleRoad>(ps.getNecessaryRoads().size());
         eta = ps.getETA();
@@ -216,7 +218,7 @@ public class SOCPossibleSettlement extends SOCPossiblePiece
              }
            }
            D.ebugPrintlnINFO();
-           SOCBuildingSpeedEstimate bse1 = brain.getEstimator(player.getNumbers());
+           SOCBuildingSpeedEstimate bse1 = bseFactory.getEstimator(player.getNumbers());
            int ourBuildingSpeed[] = bse1.getEstimatesFromNothingFast(player.getPortFlags());
            //
            //  get new numbers
@@ -239,7 +241,7 @@ public class SOCPossibleSettlement extends SOCPossiblePiece
              D.ebugPrintINFO(portFlags[port]+",");
            }
            D.ebugPrintlnINFO();
-           SOCBuildingSpeedEstimate bse2 = brain.getEstimator(newNumbers);
+           SOCBuildingSpeedEstimate bse2 = bseFactory.getEstimator(newNumbers);
            int speed[] = bse2.getEstimatesFromNothingFast(newPortFlags);
            for (int buildingType = SOCBuildingSpeedEstimate.MIN;
                 buildingType < SOCBuildingSpeedEstimate.MAXPLUSONE;
@@ -317,9 +319,5 @@ public class SOCPossibleSettlement extends SOCPossiblePiece
     public SOCResourceSet getResourceCost() {
         return SOCSettlement.COST;
     }
-
-	public void setBrain(SOCRobotBrain brain) {
-		this.brain = brain;
-	}
 
 }

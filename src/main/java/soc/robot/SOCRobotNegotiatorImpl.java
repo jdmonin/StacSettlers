@@ -594,7 +594,7 @@ public class SOCRobotNegotiatorImpl extends SOCRobotNegotiator<SOCBuildPlanStack
                 SOCRobotDM<SOCBuildPlanStack> simulator;
                 D.ebugPrintlnINFO("**** our building plan is empty ****");
                 simulator = new SOCRobotDMImpl
-                    (brain.getRobotParameters(), brain.openingBuildStrategy,
+                    (brain.getRobotParameters(), brain.openingBuildStrategy, brain.getEstimatorFactory(),
                      playerTrackers, ourPlayerTracker, ourPlayerData, ourBuildingPlan, brain.getRobotParameters().getStrategyType());
                 simulator.planStuff();
             }
@@ -1262,9 +1262,9 @@ public class SOCRobotNegotiatorImpl extends SOCRobotNegotiator<SOCBuildPlanStack
      * based on which resources we want and {@code ourResources}.
      *
      * @return the offer that we'll make to the bank/ports,
-     *     or {@code null} if {@code ourResources} already contains all needed {@code targetResources}
-     *     or {@code targetResources} is null or empty
-     * @param targetResources  what resources we want; can be null or empty
+     *     or {@code null} if {@code ourResources} already contains resources needed to start {@code buildPlan}
+     *     or if {@code buildPlan} is null or empty
+     * @param buildPlan  our build plan, or {@code null} or empty
      * @param ourResources     the resources we have; not null
      */
     public SOCTradeOffer getOfferToBank(SOCBuildPlanStack buildPlan, SOCResourceSet ourResources)
@@ -1606,7 +1606,7 @@ public class SOCRobotNegotiatorImpl extends SOCRobotNegotiator<SOCBuildPlanStack
             // TODO: We should move this constructor and all similar ones into a function that can be overridden, so 
             //  that Stac negotiator can use Stac DM for simulations
             simulator = new SOCRobotDMImpl
-                (brain.getRobotParameters(), brain.openingBuildStrategy,
+                (brain.getRobotParameters(), brain.openingBuildStrategy, brain.getEstimatorFactory(),
                  playerTrackers, receiverPlayerTracker, receiverPlayerData, receiverBuildingPlan, brain.getRobotParameters().getStrategyType());
 
             if (receiverNum == ourPlayerNumber)
@@ -1640,7 +1640,7 @@ public class SOCRobotNegotiatorImpl extends SOCRobotNegotiator<SOCBuildPlanStack
         {
             SOCBuildPlanStack senderBuildingPlan = new SOCBuildPlanStack();
             simulator = new SOCRobotDMImpl
-                (brain.getRobotParameters(), brain.openingBuildStrategy,
+                (brain.getRobotParameters(), brain.openingBuildStrategy, brain.getEstimatorFactory(),
                  playerTrackers, senderPlayerTracker, senderPlayerData, senderBuildingPlan, brain.getRobotParameters().getStrategyType());
 
             if (senderNum == ourPlayerNumber)

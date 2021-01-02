@@ -2804,7 +2804,9 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 			{
 				SOCRobotDM simulator;
 				D.ebugPrintlnINFO("**** our building plan is empty ****");
-				simulator = new SOCRobotDMImpl(brain.getRobotParameters(), brain.getOpeningBuildStrategy(), playerTrackers, ourPlayerTracker, ourPlayerData, ourBuildingPlan, brain.getRobotParameters().getStrategyType());
+				simulator = new SOCRobotDMImpl
+					(brain.getRobotParameters(), brain.getOpeningBuildStrategy(), brain.getEstimatorFactory(),
+					 playerTrackers, ourPlayerTracker, ourPlayerData, ourBuildingPlan, brain.getRobotParameters().getStrategyType());
 				simulator.planStuff();
 			}
 
@@ -4372,7 +4374,9 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
             SOCPlayerTracker pt = (SOCPlayerTracker) playerTrackers.get(Integer.valueOf(pn));
             SOCPlayer pd = game.getPlayer(pn);
 
-            SOCRobotDM<SOCBuildPlanStack> simulator = new SOCRobotDMImpl(brain.getRobotParameters(), playerTrackers, pt, pd, buildingPlan, brain.getRobotParameters().getStrategyType());
+            SOCRobotDM<SOCBuildPlanStack> simulator = new SOCRobotDMImpl
+                (brain.getRobotParameters(), brain.getOpeningBuildStrategy(), brain.getEstimatorFactory(),
+                 playerTrackers, pt, pd, buildingPlan, brain.getRobotParameters().getStrategyType());
             simulator.planStuff();
 
             if (buildingPlan.isEmpty()) {
@@ -4772,7 +4776,9 @@ public class StacRobotNegotiator extends SOCRobotNegotiator<SOCBuildPlanStack> {
 			StacRobotDM simulatorDM = new StacRobotDM(opponentBrain, playerTrackers, playerTracker, playerTracker.getPlayer(), bp);
 			simulatorDM.planStuff();
 		} else {
-			SOCRobotDM simulator = new SOCRobotDMImpl(brain.getRobotParameters(), brain.getOpeningBuildStrategy(), playerTrackers, playerTracker, playerData, bp, brain.getRobotParameters().getStrategyType());
+			SOCRobotDM simulator = new SOCRobotDMImpl
+				(brain.getRobotParameters(), brain.getOpeningBuildStrategy(), brain.getEstimatorFactory(),
+				 playerTrackers, playerTracker, playerData, bp, brain.getRobotParameters().getStrategyType());
 			simulator.planStuff();
 		}
 

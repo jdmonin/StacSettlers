@@ -23,17 +23,6 @@
  **/
 package soc.robot;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Stack;
-import java.util.Vector;
-
 import soc.baseclient.SOCDisplaylessPlayerClient;
 import soc.disableDebug.D;
 import soc.game.SOCBoard;
@@ -97,6 +86,24 @@ import soc.util.CappedQueue;
 import soc.util.DebugRecorder;
 import soc.util.Queue;
 import soc.util.SOCRobotParameters;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Stack;
+import java.util.Vector;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
+import java.util.Vector;
 
 
 /**
@@ -318,21 +325,6 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     protected SOCPlayerTracker[] playerTrackers;
 
     /**
-     * This is our current building plan.
-     *<P>
-     * Cleared at the start of each player's turn, and a few other places
-     * if certain conditions arise, by calling {@link #resetBuildingPlan()}.
-     * Set in {@link #planBuilding()}.
-     * When making a {@link #buildingPlan}, be sure to also set
-     * {@link #negotiator}'s target piece.
-     *<P>
-     * {@link SOCRobotDM#buildingPlan} is the same Stack.
-     *
-     * @see #whatWeWantToBuild
-     */
-    protected BP buildingPlan;
-
-    /**
      * The game we are playing. Set in constructor, unlike {@link #ourPlayerData}.
      * @see #gameIs6Player
      */
@@ -398,6 +390,21 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * @see #whatWeFailedToBuild
      */
     protected SOCPlayingPiece whatWeWantToBuild;
+
+    /**
+     * This is our current building plan.
+     *<P>
+     * Cleared at the start of each player's turn, and a few other places
+     * if certain conditions arise, by calling {@link #resetBuildingPlan()}.
+     * Set in {@link #planBuilding()}.
+     * When adding to a {@link #buildingPlan}, be sure to also set
+     * {@link #negotiator}'s target piece.
+     *<P>
+     * {@link SOCRobotDM#buildingPlan} is the same Stack.
+     *
+     * @see #whatWeWantToBuild
+     */
+    protected BP buildingPlan;
 
     /**
      * This is what we tried building this turn,
@@ -647,7 +654,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * @see #waitingForOurTurn
      * @since 2.4.50
      */
-    private boolean waitingForTurnMain;
+    protected boolean waitingForTurnMain;
 
     /**
      * true when we're waiting for the results of our requested bank trade.
@@ -756,14 +763,6 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * @since 1.1.09
      */
     protected int lastStartingPieceCoord;
-
-    /**
-     * During START1B and START2B states, coordinate of the potential settlement node
-     * towards which we're building, as calculated by {@link OpeningBuildStrategy#planInitRoad()}.
-     * Used to avoid repeats in {@link #cancelWrongPiecePlacementLocal(SOCPlayingPiece)}.
-     * @since 1.1.09
-     */
-    protected int lastStartingRoadTowardsNode;
 
     /**
      * Strategy to choose discards.
@@ -1061,6 +1060,9 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * Initializes our game and {@link #ourPlayerData}, {@link SOCPlayerTracker}s, etc.
      * Calls {@link #setStrategyFields()} to set {@link SOCRobotDM}, {@link SOCRobotNegotiator},
      * {@link RobberStrategy}, and other strategy fields,
+     *<P>
+     * If you override this method, either call {@code super.setOurPlayerData()}
+     * or be sure to set all those fields.
      */
     public void setOurPlayerData()
     {
@@ -1652,13 +1654,13 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         {
                             final int acceptingPN = ((SOCAcceptOffer) mes).getAcceptingNumber();
 
-                            if (((SOCAcceptOffer) mes).getOfferingNumber() == ourPlayerNumber)
-                            {
-                                handleTradeResponse(acceptingPN, true);
-                            }
-                            else if (acceptingPN < 0)
+                            if (acceptingPN < 0)
                             {
                                 clearTradingFlags(false, false);
+                            }
+                            else if (((SOCAcceptOffer) mes).getOfferingNumber() == ourPlayerNumber)
+                            {
+                                handleTradeResponse(acceptingPN, true);
                             }
 
                             //useful for debugging trade interactions
@@ -2295,6 +2297,53 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
 
     /**
+     * We need this method to override it in children classes. 
+     *<P>
+     * Handle a game state change from {@link SOCGameState} or another message
+     * which has a Game State field. Clears {@link #waitingForGameState}
+     * (unless {@code newState} is {@link SOCGame#LOADING} or {@link SOCGame#LOADING_RESUMING}),
+     * updates {@link #oldGameState} if state value is actually changing, then calls
+     * {@link SOCDisplaylessPlayerClient#handleGAMESTATE(SOCGame, int)}.
+     *<P>
+     * When state moves from {@link SOCGame#ROLL_OR_CARD} to {@link SOCGame#PLAY1},
+     * calls {@link #startTurnMainActions()}.
+     *
+     * @param newState  New game state, like {@link SOCGame#ROLL_OR_CARD}; if 0, does nothing
+     */
+    protected void handleGAMESTATE(int newState)
+    {
+        if (newState == 0)
+            return;
+
+        waitingForGameState = ((newState == SOCGame.LOADING) || (newState == SOCGame.LOADING_RESUMING));  // almost always false
+        int currGS = game.getGameState();
+        if (currGS != newState)
+            oldGameState = currGS;  // if no actual change, don't overwrite previously known oldGameState
+
+        // Special handling for legacy state update.  Allow legacy agents to 
+        //  treat this as they originally did, so we can contrast performance.  Non-legacy
+        //  agents should ignore this game state.
+        if (newState == SOCGame.PLAY1_LEGACY) {
+            if (isLegacy()) {
+                newState = SOCGame.PLAY1;
+            }
+        }
+
+        SOCDisplaylessPlayerClient.handleGAMESTATE(game, newState);
+
+        if (newState == SOCGame.ROLL_OR_CARD)
+        {
+            // probably need to restrict - currently will call this after every action within a turn.  Set a flag when TURN is issued, unset here
+            waitingForTurnMain = true;
+        }
+        else if ((newState == SOCGame.PLAY1) && waitingForTurnMain)
+        {
+            startTurnMainActions();
+            waitingForTurnMain = false;
+        }
+    }
+
+    /**
      * Bot is ending its turn; reset state control fields to act during other players' turns.
      *<UL>
      * <LI> {@link #waitingForGameState} = true
@@ -2401,10 +2450,13 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * <LI> {@link #planBuilding()}
      * <LI> {@link #buildOrGetResourceByTradeOrCard()}
      * <LI> {@link #considerScenarioTurnFinalActions()}
+     * <LI> {@link #endTurnActions()}
      *</UL>
      * If nothing to do, will call {@link #resetFieldsAtEndTurn()} and {@link SOCRobotClient#endTurn(SOCGame)}.
      *<P>
      * Third-party bots may instead choose to override this entire method.
+     * If doing so, remember to account for the strategy/decision methods listed above.
+     *<P>
      * NOTE: method required for SmartSettlers agent to override
      *<P>
      * In StacSettlers v1, this method was {@code getActionForPLAY1()}.
@@ -2517,53 +2569,6 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             }
         }
 		
-    }
-
-    /**
-     * We need this method to override it in children classes. 
-     *<P>
-     * Handle a game state change from {@link SOCGameState} or another message
-     * which has a Game State field. Clears {@link #waitingForGameState}
-     * (unless {@code newState} is {@link SOCGame#LOADING} or {@link SOCGame#LOADING_RESUMING}),
-     * updates {@link #oldGameState} if state value is actually changing, then calls
-     * {@link SOCDisplaylessPlayerClient#handleGAMESTATE(SOCGame, int)}.
-     *<P>
-     * When state moves from {@link SOCGame#ROLL_OR_CARD} to {@link SOCGame#PLAY1},
-     * calls {@link #startTurnMainActions()}.
-     *
-     * @param newState  New game state, like {@link SOCGame#ROLL_OR_CARD}; if 0, does nothing
-     */
-    protected void handleGAMESTATE(int newState)
-    {
-        if (newState == 0)
-            return;
-
-        waitingForGameState = ((newState == SOCGame.LOADING) || (newState == SOCGame.LOADING_RESUMING));  // almost always false
-        int currGS = game.getGameState();
-        if (currGS != newState)
-            oldGameState = currGS;  // if no actual change, don't overwrite previously known oldGameState
-
-        // Special handling for legacy state update.  Allow legacy agents to 
-        //  treat this as they originally did, so we can contrast performance.  Non-legacy
-        //  agents should ignore this game state.
-        if (newState == SOCGame.PLAY1_LEGACY) {
-            if (isLegacy()) {
-                newState = SOCGame.PLAY1;
-            }
-        }
-
-        SOCDisplaylessPlayerClient.handleGAMESTATE(game, newState);
-
-        if (newState == SOCGame.ROLL_OR_CARD)
-        {
-            // probably need to restrict - currently will call this after every action within a turn.  Set a flag when TURN is issued, unset here
-            waitingForTurnMain = true;
-        }
-        else if ((newState == SOCGame.PLAY1) && waitingForTurnMain)
-        {
-            startTurnMainActions();
-            waitingForTurnMain = false;
-        }
     }
 	
 	/**
@@ -3079,7 +3084,8 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * then trades with the bank ({@link #tradeWithBank(SOCBuildPlan)})
      * or with other players ({@link #makeOffer(SOCBuildPlan)}).
      *<P>
-     * Call when these conditions are all true:
+     * Is called by {@link #planAndDoActionForPLAY1()}.
+     * Call only if these conditions are all true:
      * <UL>
      *<LI> {@link #ourTurn}
      *<LI> {@link #planBuilding()} already called
@@ -3106,7 +3112,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      *
      * @param plan the building plan to follow when deciding, as this may change in the memory and is risky to call it repeatedly
      * @since 1.1.08
-     * @throws IllegalStateException  if {@code plan}{@link Stack#isEmpty() .isEmpty()}
+     * @throws IllegalStateException  if {@link #buildingPlan}{@link SOCBuildPlan#isEmpty() .isEmpty()}
      */
     protected void buildOrGetResourceByTradeOrCard(BP plan)
         throws IllegalStateException
@@ -3761,9 +3767,11 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
 
     /**
-     * Handle a DEVCARDACTION for this game.
-     * No brain-specific action.
-     * Ignores messages where {@link SOCDevCardAction#getCardTypes()} != {@code null}.
+     * Handle a DEVCARDACTION for 1 card in this game.
+     * Updates game data. No brain-specific action, but
+     * bots can override this to observe and record dev card interactions.
+     * Ignores messages where {@link SOCDevCardAction#getCardTypes()} != {@code null}
+     * because those are currently sent only at game end.
      *<P>
      * Before v2.0.00 this method was {@code handleDEVCARD}.
      *
@@ -4587,7 +4595,6 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             }
             catch (Exception e)
             {
-                tracker.releaseMonitor();
                 if (alive)
                 {
                     System.err.println("Exception caught - " + e);
@@ -4623,7 +4630,6 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             }
             catch (Exception e)
             {
-                tracker.releaseMonitor();
                 if (alive)
                 {
                     System.err.println("Exception caught - " + e);
@@ -4657,7 +4663,6 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             }
             catch (Exception e)
             {
-                tracker.releaseMonitor();
                 if (alive)
                 {
                     System.err.println("Exception caught - " + e);
@@ -4861,8 +4866,11 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * build there. Since we treat it like another player's new placement, we
      * can remove any of our planned pieces depending on this one.
      *<P>
+     * Calls {@link #resetBuildingPlan()}.
      * Also calls {@link SOCPlayer#clearPotentialSettlement(int)},
      * clearPotentialRoad, or clearPotentialCity.
+     * During Initial Placement states &lt;= {@link SOCGame#START3B},
+     * calls {@link OpeningBuildStrategy#cancelWrongPiecePlacement(SOCPlayingPiece)}.
      *
      * @param cancelPiece Type and coordinates of the piece to cancel; null is allowed but not very useful.
      * @since 1.1.00
@@ -4882,11 +4890,6 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                     ourPlayerData.clearPotentialRoad(coord);
                 else
                     ourPlayerData.clearPotentialShip(coord);
-                if (game.getGameState() <= SOCGame.START3B)
-                {
-                    // needed for placeInitRoad() calculations
-                    ourPlayerData.clearPotentialSettlement(lastStartingRoadTowardsNode);
-                }
                 break;
 
             case SOCPlayingPiece.SETTLEMENT:
@@ -4899,6 +4902,9 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                 ourPlayerData.clearPotentialCity(coord);
                 break;
             }
+
+            if (game.getGameState() <= SOCGame.START3B)
+                openingBuildStrategy.cancelWrongPiecePlacement(cancelPiece);
         }
 
         whatWeWantToBuild = null;
@@ -4957,7 +4963,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         {
             msec = (int) (msec * BOTS_ONLY_FAST_PAUSE_FACTOR);
             if (msec == 0)
-                return;  // will still yield within run() loop
+                return;  // or would still yield within run() loop
         } else if (pauseFaster && ! waitingForTradeResponse) {
              msec = (msec / 2) + (msec / 4);
         }
@@ -5020,10 +5026,9 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      *<P>
      * Road choice is based on the best nearby potential settlements, and doesn't
      * directly check {@link SOCPlayer#isPotentialRoad(int) ourPlayerData.isPotentialRoad(edgeCoord)}.
-     * If the server rejects our road choice, then {@link #cancelWrongPiecePlacementLocal(SOCPlayingPiece)}
-     * will need to know which settlement node we were aiming for,
-     * and call {@link SOCPlayer#clearPotentialSettlement(int) ourPlayerData.clearPotentialSettlement(nodeCoord)}.
-     * The {@link #lastStartingRoadTowardsNode} field holds this coordinate.
+     * If the server rejects our road choice, bot will call {@link #cancelWrongPiecePlacementLocal(SOCPlayingPiece)}
+     * which will call {@link OpeningBuildStrategy#cancelWrongPiecePlacement(SOCPlayingPiece)}
+     * in case the OBS wants to take action like clearing the potential settlement node we were aiming for.
      */
     public void planAndPlaceInitRoad()
     {
@@ -5036,7 +5041,6 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
         //D.ebugPrintln("Trying to build a road at "+Integer.toHexString(roadEdge));
         lastStartingPieceCoord = roadEdge;
-        lastStartingRoadTowardsNode = openingBuildStrategy.getPlannedInitRoadDestinationNode();
         client.putPiece(game, new SOCRoad(ourPlayerData, roadEdge, null));
         pause(2);
     }
@@ -5111,7 +5115,8 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             D.ebugPrintlnINFO("MAKE OFFER - " + offer);
             tradeAccepted = false;
             ///
-            ///  reset the offerRejections flag and check for human players
+            ///  reset the offerRejections flag, and check for human players in game
+            ///  (which affects how long to keep the offer out there, so they can watch)
             ///
             boolean anyHumans = false;
             boolean[]to = offer.getTo();
@@ -5149,7 +5154,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * If no counteroffer is made here, sets {@link #doneTrading}.
      *
      * @param offer  the other player's offer
-     * @return true if we made and sent an offer
+     * @return true if we made and sent a counteroffer
      */
     protected boolean makeCounterOffer(SOCTradeOffer offer)
     {
@@ -5159,14 +5164,14 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
         
         if (counterOffer != null)
         {
-            final int pn = offer.getFrom();
+            final int fromPN = offer.getFrom();
 
             // ensure counter-offers are only sent to the person we're countering, otherwise synchronization issues arise
             boolean[] to = counterOffer.getTo();
             for (int i=0; i<to.length; i++) {
                 to[i] = false;
             }
-            to[pn] = true;            
+            to[fromPN] = true;            
             
             ourPlayerData.setCurrentOffer(counterOffer);
             negotiator.addToOffersMade(counterOffer);
@@ -5174,9 +5179,9 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             ///  reset the offerRejections flag
             ///
             tradeAccepted = false;
-            waitingForTradeResponsePlayer[pn] = true;
+            waitingForTradeResponsePlayer[fromPN] = true;
             waitingForTradeResponse = true;
-            tradeResponseTimeoutSec = (game.getPlayer(pn).isRobot())
+            tradeResponseTimeoutSec = (game.getPlayer(fromPN).isRobot())
                 ? TRADE_RESPONSE_TIMEOUT_SEC_BOTS_ONLY
                 : TRADE_RESPONSE_TIMEOUT_SEC_HUMANS;
             counter = 0;
@@ -5611,7 +5616,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * any flags added in a third-party robot brain.
      *
      * @param isBankTrade  True if was bank/port trade, not player trade
-     * @param wasAllowed  True if trade was successfully offered or completed,
+     * @param wasAllowed  True if trade was successfully offered, completed, or rejected;
      *     false if server sent a message disallowing it
      * @see #tradeStopWaitingClearOffer()
      * @see #handleTradeResponse(int, boolean)

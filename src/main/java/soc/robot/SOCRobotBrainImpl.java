@@ -72,7 +72,7 @@ public class SOCRobotBrainImpl extends SOCRobotBrain<SOCRobotDMImpl, SOCRobotNeg
                     }
 
                     public final int[] getRollsForResourcesSorted(final SOCPlayer pl) {
-                        return SOCBuildingSpeedEstimate.getRollsForResourcesSorted(pl);
+                        return SOCBuildingSpeedEstimate.getRollsForResourcesSorted(pl, this);
                     }
 		};
         }

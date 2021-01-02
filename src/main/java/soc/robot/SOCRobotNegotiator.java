@@ -185,7 +185,7 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
      *
      * @param buildPlan  our build plan, or {@code null}
      * @return the offer we want to make, or {@code null} for no offer
-     * @see #getOfferToBank(SOCResourceSet)
+     * @see #getOfferToBank(BP, SOCResourceSet)
      */
     public abstract SOCTradeOffer makeOffer(BP buildPlan);
 
@@ -207,7 +207,7 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
      * @return the offer that we'll make to the bank/ports,
      *     or {@code null} if {@code ourResources} already contains all needed {@code targetResources}
      *     or {@code targetResources} is null or empty
-     * @param targetResources  what resources we want; can be null or empty
+     * @param buildPlan  our build plan, or {@code null} or empty
      * @param ourResources     the resources we have; not null
      */
     public abstract SOCTradeOffer getOfferToBank(BP buildPlan, SOCResourceSet ourResources);
@@ -276,7 +276,8 @@ public abstract class SOCRobotNegotiator<BP extends SOCBuildPlan>
     /**
      * @return the offer that we'll make to the bank/ports
      *
-     * @param targetResources  what resources we want
+     * @param  buildPlan  our build plan, or {@code null}
+     * @see #makeOffer(BP)
      */
     public SOCTradeOffer getOfferToBank(BP buildPlan) //SOCResourceSet targetResources)
     {

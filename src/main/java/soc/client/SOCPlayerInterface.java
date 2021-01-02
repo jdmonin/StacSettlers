@@ -50,6 +50,7 @@ import soc.game.SOCVillage;
 import soc.message.SOCMessage;
 import soc.message.SOCPlayerElement.PEType;
 import soc.message.SOCBankTrade;     // for reply code constant
+import soc.message.SOCPickResources;  // for reason code constants
 import soc.message.SOCRobotFlag;
 import soc.message.SOCSimpleAction;  // for action type constants
 import soc.message.SOCSimpleRequest;  // for request type constants
@@ -562,7 +563,7 @@ public class SOCPlayerInterface extends Frame
      * Set by {@link SOCHandPanel}'s removePlayer() and addPlayer() methods
      * by calling {@link #setClientHand(SOCHandPanel)}.
      * @see #clientHandPlayerNum
-     * @see #clientIsCurrentPlayer()
+     * @see #isClientCurrentPlayer()
      * @see #bankTradeWasFromTradePanel
      * @since 1.1.00
      */
@@ -572,7 +573,7 @@ public class SOCPlayerInterface extends Frame
      * Player ID of {@link #clientHand}, or -1.
      * Set by {@link SOCHandPanel}'s removePlayer() and addPlayer() methods
      * by calling {@link #setClientHand(SOCHandPanel)}.
-     * @see #clientIsCurrentPlayer()
+     * @see #isClientCurrentPlayer()
      * @since 1.1.00
      */
     private int clientHandPlayerNum;  // the field for this in some other packages is called ourPN or ourPlayerNumber
@@ -609,7 +610,7 @@ public class SOCPlayerInterface extends Frame
     protected final SOCPlayerClient client;
 
     /**
-     * the game associated with this interface. This reference changes if board is reset.
+     * the game associated with this interface. Not null. This reference changes if board is reset.
      */
     protected SOCGame game;
 
@@ -960,6 +961,7 @@ public class SOCPlayerInterface extends Frame
         this.layoutVS = layoutVS;
         gameStats = new SOCGameStatistics(game);
         clientListener = createClientListenerBridge();
+
         gameIsStarting = false;
         clientHand = null;
         clientHandPlayerNum = -1;
@@ -1390,7 +1392,7 @@ public class SOCPlayerInterface extends Frame
                 // Player data may not be received yet;
                 // game is created empty, then SITDOWN messages are received from server.
                 // gameState is at default 0 (NEW) during JOINGAMEAUTH and SITDOWN.
-                // initInterfaceElements is also called at board reset.
+                // initUIElements is also called at board reset.
                 // updatePlayerLimitDisplay will check the current gameState.
         }
 
@@ -1665,7 +1667,8 @@ public class SOCPlayerInterface extends Frame
     }
 
     /**
-     * @return the game associated with this interface
+     * Get the game displayed in this PlayerInterface. This reference changes if board is reset.
+     * @return the game associated with this interface; not null
      */
     public SOCGame getGame()
     {
@@ -2048,7 +2051,7 @@ public class SOCPlayerInterface extends Frame
     /** The client player's SOCHandPanel interface, if active in a game.
      *
      * @return our player's hand interface, or null if not in a game.
-     * @see #clientIsCurrentPlayer()
+     * @see #isClientCurrentPlayer()
      * @see #isClientPlayer(SOCPlayer)
      * @see #getClientPlayer()
      * @see #getClientPlayerNumber()
@@ -2088,11 +2091,14 @@ public class SOCPlayerInterface extends Frame
     /**
      * Is the client player active in this game, and the current player?
      * Assertion: If this returns true, {@link #getClientHand()} will return non-null.
+     *<P>
+     * Before v2.4.50 this method was {@code clientIsCurrentPlayer()}.
+     *
      * @see #getClientPlayerNumber()
      * @see #isClientPlayer(SOCPlayer)
      * @since 1.1.00
      */
-    public final boolean clientIsCurrentPlayer()
+    public final boolean isClientCurrentPlayer()
     {
         if (clientHand == null)
             return false;
@@ -2132,7 +2138,7 @@ public class SOCPlayerInterface extends Frame
      * Set by {@link #setClientHand(SOCHandPanel)}.
      *
      * @return client's player ID, or -1 if not seated
-     * @see #clientIsCurrentPlayer()
+     * @see #isClientCurrentPlayer()
      * @see #getClientPlayer()
      * @see #getClientHand()
      * @see #getClientNickname()
@@ -3251,7 +3257,7 @@ public class SOCPlayerInterface extends Frame
 
         // play Begin Turn sound here, not updateAtRollPrompt() which
         // isn't called for first player during initial placement
-        if (clientIsCurrentPlayer())
+        if (isClientCurrentPlayer())
             playSound(SOUND_BEGIN_TURN);
         else
             client.playSound("Temple.wav", false /* pi.clientHand.muteSound.getBoolValue() */);
@@ -3277,7 +3283,7 @@ public class SOCPlayerInterface extends Frame
         }
         // else, server has just sent the prompt text and we've printed it
 
-        if (clientIsCurrentPlayer() && ! clientListener.isNonBlockingDialogVisible())
+        if (isClientCurrentPlayer() && ! clientListener.isNonBlockingDialogVisible())
             getClientHand().autoRollOrPromptPlayer();
     }
 
@@ -3631,7 +3637,7 @@ public class SOCPlayerInterface extends Frame
                 boardPanel.popupFireBuildingRequest();
         }
 
-        if ((gs == SOCGame.PLACING_INV_ITEM) && clientIsCurrentPlayer()
+        if ((gs == SOCGame.PLACING_INV_ITEM) && isClientCurrentPlayer()
             && game.isGameOptionSet(SOCGameOptionSet.K_SC_FTRI))
         {
             printKeyed("game.invitem.sc_ftri.prompt");
@@ -4828,8 +4834,10 @@ public class SOCPlayerInterface extends Frame
     //========================================================
 
     /**
-     * Client Bridge to translate interface to SOCPlayerInterface methods.
+     * Client Bridge to translate PCL interface to SOCPlayerInterface methods.
+     * Added to PI during construction by {@link SOCPlayerInterface#createClientListenerBridge()} factory method.
      * For most methods here, {@link PlayerClientListener} will have their javadoc.
+     *
      * @author paulbilnoski
      * @since 2.0.00
      */
@@ -4854,6 +4862,11 @@ public class SOCPlayerInterface extends Frame
         public int getClientPlayerNumber()
         {
             return pi.getClientPlayerNumber();
+        }
+
+        public boolean isClientCurrentPlayer()
+        {
+            return pi.isClientCurrentPlayer();
         }
 
         /**
@@ -4970,6 +4983,33 @@ public class SOCPlayerInterface extends Frame
             hpan.updateValue(PlayerClientListener.UpdateType.Resources);
         }
 
+        public void playerPickedResources
+            (final SOCPlayer player, final SOCResourceSet resSet, final int reasonCode)
+        {
+            final String key;
+            switch (reasonCode)
+            {
+            case SOCPickResources.REASON_GENERIC:
+                key = "action.picked.rsrcs";  // "{0} has picked {1,rsrcs}."
+                break;
+
+            case SOCPickResources.REASON_DISCOVERY:
+                key = "action.card.discov.received";  // "{0} received {1,rsrcs} from the bank."
+                break;
+
+            case SOCPickResources.REASON_GOLD_HEX:
+                key = "action.picked.rsrcs.goldhex";  // "{0} has picked {1,rsrcs} from the gold hex."
+                break;
+
+            default:
+                return;
+            }
+
+            pi.printKeyedSpecial(key, player.getName(), resSet);
+            pi.getPlayerHandPanel(player.getPlayerNumber())
+                .updateValue(PlayerClientListener.UpdateType.ResourceTotalAndDetails);
+        }
+
         public void playerElementUpdated
             (final SOCPlayer player, final PlayerClientListener.UpdateType utype,
              final boolean isGoodNews, final boolean isBadNews)
@@ -5010,6 +5050,10 @@ public class SOCPlayerInterface extends Frame
 
             case Unknown:
                 hpan.updateValue(PlayerClientListener.UpdateType.Resources);
+                break;
+
+            case VictoryPoints:
+                hpan.updateValue(PlayerClientListener.UpdateType.VictoryPoints);
                 break;
 
             case SpecialVictoryPoints:
@@ -5486,7 +5530,7 @@ public class SOCPlayerInterface extends Frame
                 resDesc2 = null;
             }
 
-            if ((resultShipsLost == 0) || pi.clientIsCurrentPlayer())
+            if ((resultShipsLost == 0) || pi.isClientCurrentPlayer())
             {
                 // alert sound if client player lost ships
                 if (resultShipsLost > 0)
@@ -5572,7 +5616,7 @@ public class SOCPlayerInterface extends Frame
 
 //            playSound("Voltage.wav", pi.clientHand.muteSound.getBoolValue()); //---MG
 
-            if (pi.clientIsCurrentPlayer())
+            if (pi.isClientCurrentPlayer())
             	pi.clientHand.save.setEnabled(false);//do not allow saving a game once we have received an offer
             
             //---MG
@@ -5666,11 +5710,6 @@ public class SOCPlayerInterface extends Frame
 
         // methods for STAC; overridden in SOCReplayClient and/or StacDBReplayClient
 
-        public boolean isClientCurrentPlayer()
-        {
-            return pi.clientIsCurrentPlayer();
-        }
-
         public void chatPrintText(String txt)
         {
             pi.chatPrint(txt);
@@ -5695,7 +5734,7 @@ public class SOCPlayerInterface extends Frame
         public void setSaveButtonEnabledIfCurrent(final boolean enable)
         {
             final SOCHandPanel clientHand = pi.clientHand;
-            if ((clientHand == null) || (enable && ! pi.clientIsCurrentPlayer()))
+            if ((clientHand == null) || (enable && ! pi.isClientCurrentPlayer()))
                 return;
 
             clientHand.save.setEnabled(enable);

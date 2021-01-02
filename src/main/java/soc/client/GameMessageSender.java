@@ -107,8 +107,8 @@ import soc.message.StacStartGame;
      *
      * @param s  the message command, formatted by a {@code soc.message} class's {@code toCmd()}
      * @param isPractice  Send to the practice server, not tcp network?
-     *                {@link ClientNetwork#localTCPServer} is considered "network" here.
-     *                Use <tt>isPractice</tt> only with {@link ClientNetwork#practiceServer}.
+     *      {@link ClientNetwork#localTCPServer} is considered "network" here.
+     *      Use {@code isPractice} only with {@link ClientNetwork#practiceServer}.
      * @return true if the message was sent, false if not
      * @throws IllegalArgumentException if {@code s} is {@code null}
      * @see #put(SOCMessage, boolean)

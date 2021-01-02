@@ -406,11 +406,24 @@ When preparing to release a new version, testing should include:
                 - Should see marked seat as unlocked, locked as locked
                 - Should be able to take over bot by sitting at "marked" seat
         - When testing new server with client 2.4.50 or newer, and older client:
-            - Give Soldier dev cards to client players:  
-              `dev: 9 #2` etc
-            - Test robbery, with each client as victim, robber, observer
-            - All clients in game should see expected results in player hand panels and game text area
-            - Clients v2.4.50 or newer are sent `SOCReportRobbery` messages; older clients are sent `SOCPlayerElement` and `SOCGameServerText` instead
+            - All clients in game (players and observers) should see expected results in player hand panels and game text area for:
+                - Soldier dev card
+                    - Give Soldier cards to client players:  
+                      `dev: 9 #2` etc
+                    - Test robbery, with each client as victim, robber, observer
+                    - Clients v2.4.50 or newer are sent `SOCReportRobbery` messages; older clients are sent `SOCPlayerElement` and `SOCGameServerText` instead
+                - Discovery/Year of Plenty dev card
+                    - Give Discovery cards to client players:  
+                      `dev: 2 #2` etc
+                    - Play Discovery, with each client as player, observer
+                    - Clients v2.4.50 or newer are sent `SOCPickResources` messages; older clients are sent `SOCPlayerElement` and `SOCGameServerText` instead
+                - Gold Hex resource pick
+                    - Make a new game with New Shores scenario
+                    - Reset the board until island's gold hex dice number is reasonably frequent
+                    - During initial placement, put two players near gold hex
+                    - For two players, build ships and a settlement on that gold hex by using debug command `*FREEPLACE* 1`
+                    - When gold hex dice number is rolled, pick free resources
+                    - Clients are sent same message sequence as for Discovery/Year of Plenty detailed above
 - Server robustness: Bot disconnect/reconnect during game start
     - Start server with vm properties: `-Djsettlers.bots.test.quit_at_joinreq=30` `-Djsettlers.debug.traffic=Y`
     - Connect and start a 6-player game
@@ -606,7 +619,7 @@ When preparing to release a new version, testing should include:
         - Second pair of limited clients' game list should show that game as "(cannot join)"
         - In one of the second pair, double-click that game in game list; should show a popup "Client is incompatible with features of this game".  
           Double-click game again; should try to join, then show a popup with server's reply naming the missing required feature: `6pl`
-    - For reconnecting disconnected clients:
+    - When reconnecting disconnected clients:
         - Start a server without any options
         - Start a standard client under your IDE's debugger, connect to server
         - Create & start 3 games (against bots):
@@ -680,6 +693,17 @@ When preparing to release a new version, testing should include:
             - Start and connect with a client using a vm property value like `-Djsettlers.debug.client.features=;6pl;` (6-player but not sea board) or `=;sb;` (sea board but not 6-player)
             - In New Game dialog, shouldn't see game options related to the disallowed game type or missing client feature(s)
         - Exit clients and server
+    - Features for client/bot development:
+        - Client feature to have server announce SOCSimpleAction(DICE_RESULTS_FULLY_SENT)
+          after each dice roll's result messages
+            - Start server as usual
+            - Start and connect with standard client
+            - Create and start playing a game, past initial placement
+            - Start and connect with a client using vm property value  
+              `-Djsettlers.debug.client.features=;req_dice_res_fully_sent;`
+            - Join that game as observer
+            - When dice are rolled, message sequence from server should now end with:  
+              SOCSimpleAction:game=_gamename_|pn=-1|actType=5|v1=0|v2=0
 - Saving and loading games at server
     - Basics
         - Start server with debug user enabled, but not savegame feature: command-line arg `-Djsettlers.allow.debug=Y`

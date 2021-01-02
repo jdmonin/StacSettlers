@@ -186,7 +186,7 @@ public abstract class SOCRobotDM<BP extends SOCBuildPlan>
      */
     protected SOCRobotDM(SOCRobotBrain<?, ?, SOCBuildPlanStack> brain, int strategyType, BP plan)
     {
-        this(brain.getRobotParameters(), brain.openingBuildStrategy, brain.getEstimatorFactory(),
+        this(brain.getRobotParameters(), brain.getOpeningBuildStrategy(), brain.getEstimatorFactory(),
 	    brain.getPlayerTrackers(), brain.getOurPlayerTracker(), brain.getOurPlayerData(),
 	    plan, strategyType);
     }

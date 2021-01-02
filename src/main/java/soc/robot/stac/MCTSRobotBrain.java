@@ -2212,7 +2212,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 			return CARD_FREEROAD;
 		case SOCDevCardConstants.CAP:
 			return CARD_ONEPOINT;
-		case SOCDevCardConstants.TEMP:
+		case SOCDevCardConstants.TEMPLE:
 			return CARD_ONEPOINT;
 		case SOCDevCardConstants.CHAPEL:
 			return CARD_ONEPOINT;

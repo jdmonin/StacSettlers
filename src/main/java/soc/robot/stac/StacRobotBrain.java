@@ -2,7 +2,7 @@
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
  * This file Copyright (C) 2017-2018 Strategic Conversation (STAC Project) https://www.irit.fr/STAC/
- * Portions of this file Copyright (C) 2007-2011,2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2007-2011,2020-2021 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -610,7 +610,7 @@ public class StacRobotBrain extends SOCRobotBrain<StacRobotDM, PersuasionStacRob
             }
 
             public final int[] getRollsForResourcesSorted(final SOCPlayer pl) {
-                return SOCBuildingSpeedEstimate.getRollsForResourcesSorted(pl);
+                return SOCBuildingSpeedEstimate.getRollsForResourcesSorted(pl, this);
             }
         };
     }

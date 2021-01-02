@@ -36,6 +36,7 @@ import soc.game.SOCPlayingPiece;
 import soc.game.SOCResourceConstants;  // for javadocs only
 import soc.game.SOCResourceSet;
 import soc.game.SOCSpecialItem;
+import soc.message.SOCPickResources;  // for reason codes in javadocs
 import soc.message.SOCPlayerElement.PEType;
 
 /**
@@ -70,14 +71,22 @@ public interface PlayerClientListener
      * Get the game shown in this UI. This reference changes if board is reset.
      * @return game; not null
      * @since 2.4.50
+     * @see #getClientPlayerNumber()
      */
     SOCGame getGame();
 
     /**
-     * Get the client's player number if playing in a game.
+     * Get the client's player number if client is a player in a game.
      * @return Client player's {@link SOCPlayer#getPlayerNumber()} if playing, or -1 if observing or not yet seated
+     * @see #isClientCurrentPlayer()
      */
     int getClientPlayerNumber();
+
+    /**
+     * Is the client player active in this game, and the current player?
+     * @see #getClientPlayerNumber()
+     */
+    boolean isClientCurrentPlayer();
 
     /**
      * Receive a notification that the current player has rolled the dice.
@@ -172,6 +181,7 @@ public interface PlayerClientListener
      * @param player  The player
      * @param addedPlayable  True if the update added a dev card or item that's playable now
      *     ({@link SOCInventory#OLD}, not {@link SOCInventory#NEW NEW})
+     * @see UpdateType#DevCards
      */
     void playerDevCardsUpdated(SOCPlayer player, final boolean addedPlayable);
 
@@ -211,6 +221,19 @@ public interface PlayerClientListener
      * @param player  The player
      */
     void playerResourcesUpdated(SOCPlayer player);
+
+    /**
+     * A player has chosen their two free Discovery/Year of Plenty resources,
+     * or free Gold Hex resources. Is called after client's game data has been updated.
+     * Should indicate that the trade has happened as if sent a {@code SOCGameServerText} about it,
+     * unless {@code reasonCode} is 0.
+     * @param player  The player; not null
+     * @param resSet  Resources chosen; not null
+     * @param reasonCode  Reason code from {@link SOCPickResources}, such as
+     *     {@link SOCPickResources#REASON_DISCOVERY} or {@link SOCPickResources#REASON_GOLD_HEX}, or 0
+     * @since 2.4.50
+     */
+    void playerPickedResources(SOCPlayer player, SOCResourceSet resSet, int reasonCode);
 
     /**
      * A player's game stats, such as resource totals received from dice rolls, should be displayed.
@@ -611,11 +634,6 @@ public interface PlayerClientListener
     // Methods for STAC
 
     /**
-     * Is the client player active in this game, and the current player?
-     */
-    boolean isClientCurrentPlayer();
-
-    /**
      * Print a line of text in the game chat area, like {@link SOCPlayerInterface#chatPrint(String)}.
      * @since 2.4.50
      */
@@ -737,9 +755,18 @@ public interface PlayerClientListener
         /** Wonder build level, in {@link SOCGameOptionSet#K_SC_WOND _SC_WOND} scenario */
         WonderLevel,
 
+        /** Victory Points, from {@link SOCPlayer#getTotalVP()} **/
         VictoryPoints,
+
         SpecialVictoryPoints,
+
+        /**
+         * Total count of development cards/items, from player's {@link SOCInventory#getTotal()}.
+         * Doesn't update the inventory item list if that's shown:
+         * Call {@link PlayerClientListener#playerDevCardsUpdated(SOCPlayer, boolean)} if needed.
+         */
         DevCards,
+
         LongestRoad,
         LargestArmy
     }

@@ -728,6 +728,7 @@ public class SOCPlayerTracker implements Serializable
         //
         final SOCBoard board = game.getBoard();
         Collection<Integer> adjNodeEnum = board.getAdjacentNodesToEdge(rs.getCoordinates());
+        final SOCBuildingSpeedEstimateFactory bsef = brain.getEstimatorFactory();
 
         for (Integer adjNode : adjNodeEnum)
         {
@@ -755,7 +756,7 @@ public class SOCPlayerTracker implements Serializable
                     // else, add new possible settlement
                     //
                     //D.ebugPrintln("$$$ adding new possible settlement at "+Integer.toHexString(adjNode.intValue()));
-                    SOCPossibleSettlement newPosSet = new SOCPossibleSettlement(player, adjNode.intValue(), null);
+                    SOCPossibleSettlement newPosSet = new SOCPossibleSettlement(player, adjNode.intValue(), null, bsef);
                     newPosSet.setNumberOfNecessaryRoads(0);
                     possibleSettlements.put(adjNode, newPosSet);
                     updateSettlementConflicts(newPosSet, trackers);
@@ -959,6 +960,7 @@ public class SOCPlayerTracker implements Serializable
         //
         //D.ebugPrintln("$$$ checking for possible settlements");
         //
+        final SOCBuildingSpeedEstimateFactory bsef = brain.getEstimatorFactory();
         for (Integer adjNode : board.getAdjacentNodesToEdge(tgtRoadEdge))
         {
             if (dummy.canPlaceSettlement(adjNode.intValue()))
@@ -1001,7 +1003,7 @@ public class SOCPlayerTracker implements Serializable
                     List<SOCPossibleRoad> nr = new ArrayList<SOCPossibleRoad>();
                     nr.add(targetRoad);
 
-                    SOCPossibleSettlement newPosSet = new SOCPossibleSettlement(pl, adjNode.intValue(), nr);
+                    SOCPossibleSettlement newPosSet = new SOCPossibleSettlement(pl, adjNode.intValue(), nr, bsef);
                     newPosSet.setNumberOfNecessaryRoads(targetRoad.getNumberOfNecessaryRoads() + 1);
                     possibleSettlements.put(adjNode, newPosSet);
                     targetRoad.addNewPossibility(newPosSet);
@@ -1481,7 +1483,7 @@ public class SOCPlayerTracker implements Serializable
      *
      * @param settlement Location of our bad settlement
      *
-     * @see SOCRobotBrain#cancelWrongPiecePlacement(SOCCancelBuildRequest)
+     * @see SOCRobotBrain#cancelWrongPiecePlacement(soc.message.SOCCancelBuildRequest)
      * @since 1.1.00
      */
     public void cancelWrongSettlement(SOCSettlement settlement)
@@ -2058,7 +2060,7 @@ public class SOCPlayerTracker implements Serializable
      *
      * @param city Location of our bad city
      *
-     * @see SOCRobotBrain#cancelWrongPiecePlacement(SOCCancelBuildRequest)
+     * @see SOCRobotBrain#cancelWrongPiecePlacement(soc.message.SOCCancelBuildRequest)
      * @since 1.1.00
      */
     public void cancelWrongCity(SOCCity city)

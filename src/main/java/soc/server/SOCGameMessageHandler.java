@@ -519,7 +519,7 @@ public class SOCGameMessageHandler
                     srv.messageToGameForVersions(ga, 0, SOCGameTextMsg.VERSION_FOR_DICE_RESULT_INSTEAD - 1,
                         new SOCGameTextMsg
                             (gn, SOCGameTextMsg.SERVERNAME,
-                             plName + " rolled a " + roll.diceA + " and a " + roll.diceB + "."), // I18N
+                             plName + " rolled a " + roll.diceA + " and a " + roll.diceB + "."), // I18N OK: v1.x always english
                         true);
                 }
                 // This is the wrong place to send this game state, as resources have not been allocated
@@ -889,6 +889,10 @@ public class SOCGameMessageHandler
                         }
                     }
                 }
+
+                if (ga.clientRequestsDiceResultsFullySent)
+                    srv.messageToGame(gn, true, new SOCSimpleAction
+                        (gn, -1, SOCSimpleAction.DICE_RESULTS_FULLY_SENT));
             }
             else
             {
@@ -1622,7 +1626,8 @@ public class SOCGameMessageHandler
     /**
      * Check and complete a player trade accepted by both sides, and announce it with messages to the game.
      * Calls {@link SOCGame#canMakeTrade(int, int)}, {@link SOCGame#makeTrade(int, int)},
-     * {@link SOCGameHandler#reportTrade(SOCGame, int, int)}.
+     * {@link SOCGameHandler#reportTrade(SOCGame, int, int)}, then clears all trade offers
+     * by announcing {@link SOCClearOffer}.
      *<P>
      * <B>Note:</B> Calling this method assumes the players have either accepted and/or made a counter-offer,
      * and that the offer-initiating player's {@link SOCPlayer#getCurrentOffer()} is set to the trade to be executed.
@@ -1662,12 +1667,6 @@ public class SOCGameMessageHandler
                 SOCTradeOffer currentOffer = ga.getPlayer(offeringNumber).getCurrentOffer();
                 srv.db.logResourcesReceivedByTrading(offerer, currentOffer.getGetSet());
                 srv.db.logResourcesReceivedByTrading(accepter, currentOffer.getGiveSet());
-
-                /**
-                 * announce the accepted offer to game; won't re-send mes from client
-                 * because its acceptingNumber isn't required or sanitized
-                 */
-                srv.messageToGame(gaName, true, new SOCAcceptOffer(gaName, acceptingNumber, offeringNumber));
 
                 // System.err.println(ga.getTurnCount() + " - Server sending message for accepted trade: " + mes.toString());
                 //newProt                        tradeResponses.put(ga.getName(),new StacTradeMessage[ga.maxPlayers]);//clear the trade responses after a trade was accepted
@@ -3574,10 +3573,24 @@ public class SOCGameMessageHandler
                     {
                         ga.doDiscoveryAction(rsrcs);
 
-                        handler.reportRsrcGainLoss(ga, rsrcs, false, false, pn, -1, null);
-                        srv.messageToGameKeyedSpecial
-                            (ga, true, true, "action.card.discov.received", player.getName(), rsrcs);
-                            // "{0} received {1,rsrcs} from the bank."
+                        final SOCPickResources picked = new SOCPickResources
+                            (gaName, rsrcs, pn, SOCPickResources.REASON_DISCOVERY);
+                        if (ga.clientVersionLowest >= SOCPickResources.VERSION_FOR_SERVER_ANNOUNCE)
+                        {
+                            srv.messageToGame(gaName, true, picked);
+                        } else {
+                            srv.recordGameEvent(gaName, picked);
+
+                            srv.messageToGameForVersions
+                                (ga, SOCPickResources.VERSION_FOR_SERVER_ANNOUNCE, Integer.MAX_VALUE, picked, true);
+
+                            handler.reportRsrcGainLossForVersions
+                                (ga, rsrcs, false, true, pn, -1, null, SOCPickResources.VERSION_FOR_SERVER_ANNOUNCE - 1);
+                            srv.messageToGameForVersionsKeyed
+                                (ga, 0, SOCPickResources.VERSION_FOR_SERVER_ANNOUNCE - 1, true, true,
+                                 "action.card.discov.received", player.getName(), rsrcs);
+                                     // "{0} received {1,rsrcs} from the bank."
+                        }
                         handler.sendGameState(ga);
 
                         srv.writeToDB(ga, GameActionRow.PLAYDISC);
@@ -3728,6 +3741,22 @@ public class SOCGameMessageHandler
 
                     srv.gameList.takeMonitorForGame(gaName);
 
+                    /**
+                     * Send each affected player's resource counts for the monopolized resource;
+                     * set isNews flag for each victim player's count.
+                     * Sending rsrc number works because SOCPlayerElement.CLAY == SOCResourceConstants.CLAY.
+                     */
+                    for (int pn = 0; pn < ga.maxPlayers; ++pn)
+                        if (isVictim[pn])
+                            srv.messageToGameWithMon
+                                (gaName, true, new SOCPlayerElement
+                                    (gaName, pn, SOCPlayerElement.SET,
+                                     rsrc, ga.getPlayer(pn).getResources().getAmount(rsrc), true));
+                    srv.messageToGameWithMon
+                        (gaName, true, new SOCPlayerElement
+                            (gaName, cpn, SOCPlayerElement.GAIN,
+                             rsrc, monoTotal, false));
+
                     final SOCSimpleAction actMsg = new SOCSimpleAction
                         (gaName, cpn,
                          SOCSimpleAction.RSRC_TYPE_MONOPOLIZED, monoTotal, rsrc);
@@ -3754,22 +3783,6 @@ public class SOCGameMessageHandler
                         srv.messageToGameForVersions(ga, -1, SOCStringManager.VERSION_FOR_I18N - 1,
                             new SOCGameTextMsg(gaName, SOCGameTextMsg.SERVERNAME, monoTxt), false);
                     }
-
-                    /**
-                     * send each affected player's resource counts for the monopolized resource;
-                     * set isNews flag for each victim player's count
-                     */
-                    for (int pn = 0; pn < ga.maxPlayers; ++pn)
-                        if (isVictim[pn])
-                            // sending rsrc number works because SOCPlayerElement.CLAY == SOCResourceConstants.CLAY
-                            srv.messageToGameWithMon
-                                (gaName, true, new SOCPlayerElement
-                                    (gaName, pn, SOCPlayerElement.SET,
-                                     rsrc, ga.getPlayer(pn).getResources().getAmount(rsrc), true));
-                    srv.messageToGameWithMon
-                        (gaName, true, new SOCPlayerElement
-                            (gaName, cpn, SOCPlayerElement.GAIN,
-                             rsrc, monoTotal, false));
 
                     srv.gameList.releaseMonitorForGame(gaName);
 

@@ -22,6 +22,7 @@ package soc.message;
 import java.util.StringTokenizer;
 
 import soc.game.SOCBoardLarge;  // solely for javadocs
+import soc.game.SOCGame;        // solely for javadocs
 import soc.game.SOCGameOptionSet;  // solely for javadocs
 import soc.game.SOCResourceConstants;  // solely for javadocs
 import soc.util.SOCStringManager;  // solely for javadocs
@@ -94,8 +95,14 @@ public class SOCSimpleAction extends SOCMessageTemplate4i
      * {@code value2}: The monopolized resource type,
      *     such as {@link SOCResourceConstants#CLAY} or {@link SOCResourceConstants#SHEEP}
      *<P>
-     * Will be followed by a {@link SOCPlayerElement} for each player to {@code SET} their new amount of
-     * that resource type, which for any victim also has the {@link SOCPlayerElement#isNews()} flag set.
+     * Is preceded by each affected player's {@link SOCPlayerElement}({@code GAIN}, <em>amount</em>) or ({@code SET}, 0)
+     * for that resource type, which for any victim also has the {@link SOCPlayerElement#isNews()} flag set.
+     *<P>
+     * In v2.0.00 - 2.4.00 those {@code SOCPlayerElement}s weren't sent until after
+     * SOCSimpleAction(RSRC_TYPE_MONOPOLIZED). v2.4.50 and newer send them before the action message
+     * (as v1.x did before sending current player "You monopolized..." text)
+     * so client's game data is updated by the time it sees RSRC_TYPE_MONOPOLIZED.
+     *
      * @since 2.0.00
      */
     public static final int RSRC_TYPE_MONOPOLIZED = 3;
@@ -112,6 +119,31 @@ public class SOCSimpleAction extends SOCMessageTemplate4i
      * @since 2.0.00
      */
     public static final int BOARD_EDGE_SET_SPECIAL = 4;
+
+    /**
+     * This marker "action" means the server has sent all results/game data changes from the current dice roll.
+     * Clients can now take plan and take action based on fully updated game details. Server announces this
+     * to game at end of its response to current player client's {@link SOCRollDice}, only if game has a certain
+     * config flag set.
+     *<P>
+     * Can be useful for third-party bot or client development.
+     * The standard client and built-in bots don't need this to be sent:
+     * If the roll results require special action from the bots or human clients
+     * (move robber, discard resources, etc), the game state and other messages from server
+     * will prompt that.
+     *<P>
+     * Is sent only if the game's {@link SOCGame#clientRequestsDiceResultsFullySent} config flag is set.
+     *<P>
+     * A client can request this by saying it has {@link soc.util.SOCFeatureSet#CLIENT_REQUESTS_DICE_RESULTS_FULLY_SENT}
+     * when it sends {@link SOCVersion} info while connecting to the server. The flag is then set for any game that
+     * client joins.
+     *<P>
+     * {@code pn}: Unused; -1 <br>
+     * {@code value1}, {@code value2}: Unused; 0
+     *
+     * @since 2.4.50
+     */
+    public static final int DICE_RESULTS_FULLY_SENT = 5;
 
     /**
      * This message from server announces the results of the current player's pirate fortress attack attempt:
@@ -151,7 +183,7 @@ public class SOCSimpleAction extends SOCMessageTemplate4i
      * The current player has removed a trade port from the board.
      * {@code value1} is the former port's edge coordinate, {@code value2} is the port type.
      * Sent to entire game.  If the player must place the port immediately, server will soon send
-     * {@link SOCGameState}({@link soc.game.SOCGame#PLACING_INV_ITEM PLACING_INV_ITEM}) among other messages.
+     * {@link SOCGameState}({@link SOCGame#PLACING_INV_ITEM PLACING_INV_ITEM}) among other messages.
      *<P>
      * When the player wants to place the removed port, they will send {@link SOCSimpleRequest#TRADE_PORT_PLACE}
      * with their chosen location.  If the placement is allowed, the server will broadcast a similar

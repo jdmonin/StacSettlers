@@ -871,7 +871,7 @@ import javax.swing.SwingConstants;
         if (! doNotClearPopup)
             pi.getBoardPanel().popupClearBuildRequest();  // Just in case
 
-        final boolean isCurrent = pi.clientIsCurrentPlayer();
+        final boolean isCurrent = pi.isClientCurrentPlayer();
         final int gstate = game.getGameState();
         final boolean canAskSBP =
             game.canAskSpecialBuild(player.getPlayerNumber(), false)

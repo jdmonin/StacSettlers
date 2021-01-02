@@ -938,7 +938,16 @@ public class SOCDisplaylessPlayerClient implements Runnable
              */
             case SOCMessage.REPORTROBBERY:
                 handleREPORTROBBERY
-                    ((SOCReportRobbery) mes, games.get(((SOCReportRobbery) mes).getGame()));
+                    ((SOCReportRobbery) mes, games.get(((SOCMessageForGame) mes).getGame()));
+                break;
+
+            /**
+             * Player has Picked Resources.
+             * Added 2020-12-14 for v2.4.50.
+             */
+            case SOCMessage.PICKRESOURCES:
+                handlePICKRESOURCES
+                    ((SOCPickResources) mes, games.get(((SOCMessageForGame) mes).getGame()));
                 break;
             }
         }
@@ -2367,6 +2376,25 @@ public class SOCDisplaylessPlayerClient implements Runnable
     }
 
     /**
+     * Handle the "Player has Picked Resources" message by updating player resource data.
+     * @param mes  the message
+     * @param ga  Game to update
+     * @return  True if updated, false if player number not found
+     * @since 2.4.50
+     */
+    public static boolean handlePICKRESOURCES
+        (final SOCPickResources mes, final SOCGame ga)
+    {
+        final SOCPlayer pl = ga.getPlayer(mes.getPlayerNumber());
+        if (pl == null)
+            return false;
+
+        pl.getResources().add(mes.getResources());
+
+        return true;
+    }
+
+    /**
      * Handle the "inventory item action" message by updating player inventory.
      * @param games  The hashtable of client's {@link SOCGame}s; key = game name
      * @param mes  the message
@@ -2686,6 +2714,7 @@ public class SOCDisplaylessPlayerClient implements Runnable
         // Catch these before default case, so 'unknown type' won't be printed
 
         case SOCSimpleAction.DEVCARD_BOUGHT:
+        case SOCSimpleAction.DICE_RESULTS_FULLY_SENT:
         case SOCSimpleAction.RSRC_TYPE_MONOPOLIZED:
         case SOCSimpleAction.SC_PIRI_FORT_ATTACK_RESULT:
             // game data updates are sent in preceding or following messages, can ignore this one
@@ -2695,8 +2724,9 @@ public class SOCDisplaylessPlayerClient implements Runnable
             // ignore unknown types
             // Since the bots and server are almost always the same version, this
             // shouldn't often occur: print for debugging.
-            System.err.println
-                ("handleSIMPLEACTION: Unknown type ignored: " + atype + " in game " + gaName);
+            if (mes.getPlayerNumber() >= 0)
+                System.err.println
+                    ("handleSIMPLEACTION: Unknown type ignored: " + atype + " in game " + gaName);
         }
     }
 

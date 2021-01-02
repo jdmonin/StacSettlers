@@ -3927,7 +3927,6 @@ public class SOCServer extends Server
             ? new ServerConnectInfo(strSocketName, robotCookie)
             : new ServerConnectInfo("localhost", port, robotCookie);
 
-        String curr3pBotClass = null;  // for context when reporting third-party bot instantiation errors
         try
         {
             SOCRobotFactory factory = new SOCDefaultRobotFactory();
@@ -3955,28 +3954,34 @@ public class SOCServer extends Server
             // Now, any third-party bots starting up with server.
             if (robots3pCliConstrucs != null)
             {
-                int i = 0;
-                for (final Constructor<? extends SOCRobotClient> con : robots3pCliConstrucs)
+                String curr3pBotClass = null;
+
+                try
                 {
-                    ++i;
-                    curr3pBotClass = con.getDeclaringClass().getName();
-                    SOCLocalRobotClient.createAndStartRobotClientThread(null, "extrabot " + i, sci, knownOpts, con, null);
+                    int i = 0;
+                    for (final Constructor<? extends SOCRobotClient> con : robots3pCliConstrucs)
+                    {
+                        ++i;
+                        curr3pBotClass = con.getDeclaringClass().getName();
+                        SOCLocalRobotClient.createAndStartRobotClientThread(null, "extrabot " + i, sci, knownOpts, con, null);
+                    }
+                } catch (Exception e) {
+                    System.err.println("*** Can't start third-party bot " + curr3pBotClass + ": " + e);
+                    if ((e instanceof ReflectiveOperationException) && (e.getCause() instanceof Exception))
+                    {
+                        e = (Exception) e.getCause();
+                        System.err.println("    caused by " + e);
+                    }
+                    e.printStackTrace();
+
+                    return false;
                 }
             }
         }
         catch (Exception e)
         {
-            if (curr3pBotClass != null)
-            {
-                System.err.println("*** Can't start third-party bot " + curr3pBotClass + ": " + e);
-                if ((e instanceof ReflectiveOperationException) && (e.getCause() instanceof Exception))
-                {
-                    e = (Exception) e.getCause();
-                    System.err.println("    caused by " + e);
-                }
-                e.printStackTrace();
-            }
-            //TODO: log
+            System.err.println("*** setupLocalRobots: Can't start bot: " + e);
+            //TODO: log?
             return false;
         }
         catch (LinkageError e)
@@ -4200,7 +4205,8 @@ public class SOCServer extends Server
 
     /**
      * This server's game list. Treat as read-only.
-     * Useful for membership checks like {@link SOCGameListAtServer#isMember(String, String)}.
+     * Useful for membership checks like {@link SOCGameListAtServer#isMember(String, String)}
+     * and operations like {@link SOCGameList#takeMonitorForGame(String)}.
      * @since 2.4.50
      */
     public SOCGameListAtServer getGameList()
@@ -7611,6 +7617,7 @@ public class SOCServer extends Server
      * That method also ensures this method and {@code authCallback} run in the Treater thread; see
      * {@link Server#inQueue inQueue}.{@link InboundMessageQueue#isCurrentThreadTreater() isCurrentThreadTreater()}.
      *
+     * @param authUsername  User name as authenticated (or from user if has no DB/no auth), or null if auth failed
      * @param hadDelay  If true, this callback has been delayed by {@code BCrypt} calculations;
      *     otherwise it's an immediate callback (user not found, password didn't use BCrypt hashing)
      * @since 1.2.00

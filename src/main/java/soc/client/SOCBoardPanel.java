@@ -5859,7 +5859,7 @@ import javax.swing.JComponent;
                             topText = strings.get("board.msg.n7.last.round");  // "Last round for "No 7s""
                         } else if (no7roundsleft > 0)
                         {
-                            if (playerInterface.clientIsCurrentPlayer()
+                            if (playerInterface.isClientCurrentPlayer()
                               && playerInterface.getClientHand().isClientAndCurrentlyCanRoll())
                                 topText = strings.get("board.msg.n7.rounds.left", (1 + no7roundsleft));
                                     // "{0} rounds left for "No 7s""
@@ -8208,7 +8208,7 @@ import javax.swing.JComponent;
 
             final boolean debugPP = game.isDebugFreePlacement();
             final boolean playerIsCurrent =
-                (player != null) && (debugPP || playerInterface.clientIsCurrentPlayer());
+                (player != null) && (debugPP || playerInterface.isClientCurrentPlayer());
             boolean hoverTextSet = false;  // True once text is determined
 
             /** If we're hovering at a node port, store its coordinate here and also set {@link #nodePortType} */
@@ -8948,7 +8948,7 @@ import javax.swing.JComponent;
        */
       public void showCancelBuild(int buildType, int x, int y, int hilightAt)
       {
-          menuPlayerIsCurrent = (player != null) && playerInterface.clientIsCurrentPlayer();
+          menuPlayerIsCurrent = (player != null) && playerInterface.isClientCurrentPlayer();
           wantsCancel = true;
           cancelBuildType = buildType;
           hoverRoadID = 0;
@@ -9057,7 +9057,7 @@ import javax.swing.JComponent;
 
           boolean didEnableDisable = true;  // don't go through both sets of menu item enable/disable statements
 
-          menuPlayerIsCurrent = (player != null) && playerInterface.clientIsCurrentPlayer();
+          menuPlayerIsCurrent = (player != null) && playerInterface.isClientCurrentPlayer();
 
           if (menuPlayerIsCurrent)
           {
@@ -9239,7 +9239,7 @@ import javax.swing.JComponent;
       public void showAtPirateFortress(final int x, final int y, SOCFortress ft)
       {
           final boolean settleItemWasFortress = (hoverSettlementID == -1);
-          menuPlayerIsCurrent = (player != null) && playerInterface.clientIsCurrentPlayer();
+          menuPlayerIsCurrent = (player != null) && playerInterface.isClientCurrentPlayer();
           wantsCancel = false;
           cancelBuildType = 0;
           hoverRoadID = 0;
@@ -9272,7 +9272,7 @@ import javax.swing.JComponent;
       /** Handling the menu items **/
       public void actionPerformed(ActionEvent e)
       {
-          if (! playerInterface.clientIsCurrentPlayer())
+          if (! playerInterface.isClientCurrentPlayer())
               return;
           if (! menuPlayerIsCurrent)
               return;
@@ -9534,7 +9534,7 @@ import javax.swing.JComponent;
             super(hp, strings.get("board.trade.trade.port"));  // "Trade Port"
             bpanel = bp;
             SOCPlayerInterface pi = hp.getPlayerInterface();
-            if (! pi.clientIsCurrentPlayer())
+            if (! pi.isClientCurrentPlayer())
                 throw new IllegalStateException("Not current player");
 
           tradeFromTypes = new SOCHandPanel.ResourceTradeTypeMenu[5];
@@ -9685,7 +9685,7 @@ import javax.swing.JComponent;
             }
 
             // Should only get here once, in one thread.
-            if (! playerInterface.clientIsCurrentPlayer())
+            if (! playerInterface.isClientCurrentPlayer())
                 return;  // Stale request, player's already changed
 
             final GameMessageSender messageSender = playerInterface.getClient().getGameMessageSender();

@@ -310,17 +310,24 @@ public class SOCPlayerClient
 
     /**
      * Helper object to deal with network connectivity.
+     * Calls {@link #messageHandler} to dispatch inbound message traffic.
+     * @see #gameMessageSender
      * @since 2.0.00
      */
     private ClientNetwork net;
 
     /**
-     * Helper object to receive incoming network traffic from the server.
+     * Helper object to dispatch incoming messages from the server.
+     * Called by {@link ClientNetwork} when it receives network traffic.
+     * Must call {@link MessageHandler#init(SOCPlayerClient)} before usage.
+     * @see #gameMessageSender
      */
     private final MessageHandler messageHandler;
 
     /**
      * Helper object to form and send outgoing network traffic to the server.
+     * @see #messageHandler
+     * @see #net
      * @since 2.0.00
      */
     private final GameMessageSender gameMessageSender;
@@ -474,6 +481,8 @@ public class SOCPlayerClient
 
     /**
      * Map from game-name to the listener for that game.
+     * @see #getClientListeners()
+     * @see #getClientListener(String)
      */
     private final Map<String, PlayerClientListener> clientListeners = new HashMap<String, PlayerClientListener>();
 

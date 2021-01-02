@@ -79,6 +79,8 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
      * @param params  the robot parameters
      * @param obs  a robot brain's current {@link OpeningBuildStrategy}, or {@code null} to create one here,
      *     in case DM needs to call {@link OpeningBuildStrategy#estimateResourceRarity()}
+     * @param bsef  the BSE factory to use, or {@code null} to create a
+     *     new <tt>{@link SOCBuildingSpeedEstimateFactory}(null)</tt>
      * @param pt   the player trackers, same format as {@link SOCRobotBrain#getPlayerTrackers()}
      * @param opt  our player tracker
      * @param opd  our player data; also calls {@link SOCPlayer#getGame()} here
@@ -86,12 +88,13 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
      */
     public SOCRobotDMImpl(SOCRobotParameters params,
             OpeningBuildStrategy obs,
+            SOCBuildingSpeedEstimateFactory bsef,
             SOCPlayerTracker[] pt,
             SOCPlayerTracker opt,
             SOCPlayer opd,
             SOCBuildPlanStack bp,
             int strategyType) {
-        super(params, obs, new SOCBuildingSpeedEstimateFactory(null), pt, opt, opd, bp, strategyType);
+        super(params, obs, bsef, pt, opt, opd, bp, strategyType);
         brain = null;
         game = player.getGame();
     }

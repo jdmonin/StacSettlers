@@ -30,9 +30,9 @@ import soc.game.SOCGame;
  *<P>
  * From client, this message means that a player wants to start the game;
  * from server, it means that a game has just started, leaving state {@code NEW}.
- * The server sends the game's new {@link SOCGameState} before sending {@code SOCStartGame}.
  *<P>
- * In v2.0.00 and newer, from server this message optionally includes a {@link #getGameState()} field
+ * Server v1.x sends the game's new {@link SOCGameState} before sending {@code SOCStartGame}.
+ * In v2.0.00 and newer, this message optionally includes a {@link #getGameState()} field
  * instead of a separate {@link SOCGameState} message, since the state is part of the Start Game transition.
  *<P>
  * If a client joins a game in progress, it won't be sent a {@code SOCStartGame} message,
