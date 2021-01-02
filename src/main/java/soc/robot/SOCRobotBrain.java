@@ -128,7 +128,7 @@ import java.util.Vector;
  * (search {@link #run()} for <tt>mesType == SOCMessage.TURN</tt>).
  * The plan for what to build next is decided in {@link SOCRobotDM#planStuff(int)}
  * (called from {@link #planBuilding()} and some other places) which updates {@link #buildingPlan}.
- * That plan is executed in {@link #planAndDoActionForPLAY1()}, which calls {@link #buildOrGetResourceByTradeOrCard()}
+ * That plan is executed in {@link #planAndDoActionForPLAY1()}, which calls {@link #buildOrGetResourceByTradeOrCard(BP)}
  * and other strategy/decision methods.
  *<P>
  * Current status and the next expected action are tracked by the "waitingFor" and "expect" flag fields.
@@ -385,7 +385,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
 
     /**
      * This is the piece we want to build now.
-     * Set in {@link #buildOrGetResourceByTradeOrCard()} from {@link #buildingPlan},
+     * Set in {@link #buildOrGetResourceByTradeOrCard(BP)} from {@link #buildingPlan},
      * used in {@link #placeIfExpectPlacing()}.
      * @see #whatWeFailedToBuild
      */
@@ -2448,7 +2448,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      *<UL>
      * <LI> {@link #playKnightCardIfShould()}
      * <LI> {@link #planBuilding()}
-     * <LI> {@link #buildOrGetResourceByTradeOrCard()}
+     * <LI> {@link #buildOrGetResourceByTradeOrCard(BP)}
      * <LI> {@link #considerScenarioTurnFinalActions()}
      * <LI> {@link #endTurnActions()}
      *</UL>
@@ -3945,7 +3945,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * Calls {@link #buildingPlan}.{@link SOCBuildPlan#advancePlan() advancePlan()}.
      * Sets {@link #whatWeWantToBuild}, {@link #waitingForDevCard},
      * or {@link #waitingForPickSpecialItem}.
-     * Called from {@link #buildOrGetResourceByTradeOrCard()}.
+     * Called from {@link #buildOrGetResourceByTradeOrCard(BP)}.
      *<P>
      * Checks against {@link #whatWeFailedToBuild} to see if server has rejected this already.
      * Calls <tt>client.buyDevCard()</tt> or <tt>client.buildRequest()</tt>.

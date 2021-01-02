@@ -1039,7 +1039,7 @@ public class SOCReplayClient extends SOCPlayerClient implements ActionListener {
 		/**
 		 * Handle dev card - use special handling to ensure the card is removed from the list,
 		 * since every player is actively shown. Also calls
-		 * {@link MessageHandler#handleDEVCARDACTION(SOCDevCardAction) super.handleDEVCARDACTION(mes)}
+		 * {@link MessageHandler#handleDEVCARDACTION(boolean, SOCDevCardAction) super.handleDEVCARDACTION(isPractice, mes)}
 		 * for the usual handling.
 		 */
 		@Override

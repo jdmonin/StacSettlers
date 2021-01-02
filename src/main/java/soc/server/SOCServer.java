@@ -2,7 +2,7 @@
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
  * Portions of this file Copyright (C) 2005 Chadwick A McHenry <mchenryc@acm.org>
- * Portions of this file Copyright (C) 2007-2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2007-2021 Jeremy D Monin <jeremy@nand.net>
  * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
@@ -2782,6 +2782,10 @@ public class SOCServer extends Server
      * and looks for the Agent fields and sets up the robots accordingly.
      *<P>
      * Is called when {@link #PROP_STAC_ROBOTS} &gt; 0.
+     *
+     * @see #setupLocalRobots(int, int)
+     * @see #setupLocalRobots(SOCRobotFactory, String, int)
+     * @return True if any robots were set up, false if none or an exception occurred.
      */
     private boolean setUpStacRobots(){
         String agentName; 
@@ -3917,6 +3921,8 @@ public class SOCServer extends Server
      * @see soc.client.SOCPlayerClient#startPracticeGame()
      * @see soc.client.MainDisplay#startLocalTCPServer(int)
      * @see #startRobotOnlyGames(boolean, boolean)
+     * @see #setupLocalRobots(SOCRobotFactory, String, int)
+     * @see #setUpStacRobots()
      * @see SOCLocalRobotClient
      * @since 1.1.00
      */
@@ -3998,7 +4004,9 @@ public class SOCServer extends Server
      * @param factory the robot factory that creates the type of robots specified in the configuration
      * @param namePrefix the robot's name
      * @param numBots the number of robots
-     * @return
+     * @return True if any robots were set up, or {@code numBots == 0}; false if an exception occurred.
+     * @see #setupLocalRobots(int, int)
+     * @see #setUpStacRobots()
      */
     public boolean setupLocalRobots(SOCRobotFactory factory, String namePrefix, int numBots)
     {

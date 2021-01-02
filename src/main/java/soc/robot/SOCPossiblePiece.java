@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * Portions of this file Copyright (C) 2011-2015,2017-2018,2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2011-2015,2017-2018,2020-2021 Jeremy D Monin <jeremy@nand.net>
  * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  * Portions of this file Copyright (C) 2017 Ruud Poutsma <rtimon@gmail.com>
  *
@@ -105,7 +105,7 @@ public abstract class SOCPossiblePiece implements Serializable
 
     /**
      * The player who owns this piece.
-     * Null if loaded from serialized form, until
+     * Null or stale if loaded from serialized form, until
      * {@link #setTransientsAtLoad(SOCPlayer, SOCPlayerTracker)} is called.
      */
     protected SOCPlayer player;
@@ -215,7 +215,7 @@ public abstract class SOCPossiblePiece implements Serializable
     /**
      * Get this piece's owner.
      *<P>
-     * If this piece has been deserialized, this will be {@code null} until
+     * If this piece has been deserialized, this will be {@code null} or stale until
      * {@link SOCPossiblePiece#setTransientsAtLoad(SOCPlayer, SOCPlayerTracker)} is called.
      *
      * @return the owner of this piece

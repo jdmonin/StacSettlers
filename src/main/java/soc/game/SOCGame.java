@@ -9804,7 +9804,7 @@ public class SOCGame implements Serializable, Cloneable
      * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
      * @since 2.0.00
      */
-    public static class RollResult
+    public static class RollResult implements Serializable
     {
         /**
          * The dice numbers rolled, each 1 to 6.

@@ -1206,7 +1206,13 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
     	}
     }
     
-    protected void handleGAMESTATE(SOCGameState mes) {
+    @Override
+    protected void handleGAMESTATE(int newState) {
+    	if (newState == 0)
+    		return;
+
+    	super.handleGAMESTATE(newState);
+
     	if(isRobotType(MCTSRobotType.MCTS_FACTORED_BELIEF) && game.getCurrentPlayerNumber() != -1){
     		if(game.getGameState() != SOCGame.OVER && game.getGameState() != SOCGame.PLACING_ROBBER && game.getGameState() != SOCGame.WAITING_FOR_ROB_CHOOSE_PLAYER) {
     			int pn = game.getCurrentPlayerNumber();
