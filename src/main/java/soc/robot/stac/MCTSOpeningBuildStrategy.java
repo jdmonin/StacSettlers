@@ -1,6 +1,6 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * This file copyright (C) 2020 Jeremy D Monin <jeremy@nand.net>
+ * This file copyright (C) 2020-2021 Jeremy D Monin <jeremy@nand.net>
  * Portions of this file Copyright (C) 2017-2018 Strategic Conversation (STAC Project) https://www.irit.fr/STAC/
  *
  * This program is free software; you can redistribute it and/or
@@ -130,8 +130,8 @@ public class MCTSOpeningBuildStrategy extends StacOpeningBuildStrategy
 	D.ebugPrintlnINFO(s);
 
 	int road = br.translateEdgeToJSettlers(action[1]);
+	plannedRoadDestinationNode = -1;  // we don't know where MCTS planned to go next
 	br.lastSettlement = -1;
-        // -- merge TODO: what about OpeningBuildStrategy.plannedRoadDestinationNode?
 
 	return road;
     }

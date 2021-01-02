@@ -1,6 +1,6 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * This file Copyright (C) 2020 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2020-2021 Jeremy D Monin <jeremy@nand.net>
  * Portions of this file Copyright (C) 2017-2018 Strategic Conversation (STAC Project) https://www.irit.fr/STAC/
  *
  * This program is free software; you can redistribute it and/or
@@ -130,7 +130,7 @@ public class OriginalSSOpeningBuildStrategy extends StacOpeningBuildStrategy
         String s = String.format("Performing action: [%d %d %d %d %d]", bl.action[0], bl.action[1], bl.action[2], bl.action[3], bl.action[4]);
         D.ebugPrintlnINFO(s);
         int roadEdge = br.translateEdgeToJSettlers(bl.action[1]);
-        // -- merge TODO: what about OpeningBuildStrategy.plannedRoadDestinationNode?
+        plannedRoadDestinationNode = -1;  // we don't know where SmartSettlers planned to go next
 
         D.ebugPrintlnINFO("!!! PUTTING INIT ROAD !!!");
         D.ebugPrintlnINFO("Trying to build first road at "+Integer.toHexString(roadEdge));

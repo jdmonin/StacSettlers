@@ -3131,7 +3131,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
             return brain.getEstimator(numbers);
         }
         else {
-            return new SOCBuildingSpeedFast(numbers);
+            return bseFactory.getEstimator(numbers);
         }
     }
     
@@ -3149,7 +3149,7 @@ public class SOCRobotDMImpl extends SOCRobotDM<SOCBuildPlanStack> {
             return brain.getEstimator();
         }
         else {
-            return new SOCBuildingSpeedFast();
+            return bseFactory.getEstimator();
         }
     }
 
