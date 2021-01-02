@@ -2677,6 +2677,12 @@ public class SOCServer extends Server
             throw new IllegalStateException();
 
         /**
+         * Activate PLAY_FO, PLAY_VPO observability game opts before starting any bots.
+         */
+        knownOpts.activate(SOCGameOptionSet.K_PLAY_FO);
+        knownOpts.activate(SOCGameOptionSet.K_PLAY_VPO);
+
+        /**
          * If we have any STARTROBOTS, start them up now.
          * Each bot will have its own thread and {@link SOCRobotClient}.
          */
