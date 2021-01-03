@@ -945,12 +945,15 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
     
     /**
      * This code moved here from the SOCPlayerClient, because it's more appropriate here.
-     * @param mes 
+     * @param gaName  Game name; not null
+     * @param mesText  Message text; not null, but may be ""
+     * @param fromNickname  Message sender from {@link SOCGameTextMsg#getNickname()}
+     * @param pcl  ClientListener; not null
      */
-    protected void handleTradeGameTextMessage(SOCGameTextMsg mes) {
-        String tradeString = StacDialogueManager.fromMessage(mes.getText());
+    protected void handleTradeGameTextMessage
+        (final String gaName, final String mesText, final String fromNickname, final PlayerClientListener pcl) {
+        String tradeString = StacDialogueManager.fromMessage(mesText);
         StacTradeMessage tm = StacTradeMessage.parse(tradeString);
-        PlayerClientListener pcl = client.getClientListener(game.getName());
 
         //we've already treated our own message when we sent it
         if (tm.getSenderInt() != getPlayerNumber()) {
@@ -1011,15 +1014,15 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
                 } catch (NumberFormatException e) {
                     //this shouldn't happen anyway as there are so many checks for the correct player number in place
                     e.printStackTrace();
-                    pcl.messageReceived(mes.getNickname(), tm.getNLChatString());
+                    pcl.messageReceived(fromNickname, tm.getNLChatString());
                     return;
                 }
 
-                SOCPlayer sender = game.getPlayer(mes.getNickname());
+                SOCPlayer sender = game.getPlayer(fromNickname);
 
                 if (tradeResponses[to] == null) {
                     if (Integer.parseInt(tm.getSender()) != getPlayerNumber())
-                        pcl.messageReceived(mes.getNickname(), tm.getNLChatString());
+                        pcl.messageReceived(fromNickname, tm.getNLChatString());
                     return; //this isn't an issue as no responses and rejects may be sent after a trade was executed, but we need to exit to avoid breaking the logic below
                 }
 
@@ -1181,18 +1184,18 @@ public class StacPlayerDialogueManager extends StacDialogueManager {
                 //I.E. FOR THE MOMENT: if it is sent to us by somebody else, i.e. an agent)
 //                                boolean addresseeIsRobot = game.getPlayer(to).isRobot();
                 if (getPlayerNumber() == to && !tm.isNoResponse()) {
-                    pcl.messageReceived(mes.getNickname(), tm.getNLChatString());
+                    pcl.messageReceived(fromNickname, tm.getNLChatString());
                 }else if(!tm.isNoResponse() && getPlayerNumber() != sender.getPlayerNumber()){
                     //do not print no response messages or accepts/rejects from us to avoid duplication
-                    pcl.messageReceived(mes.getNickname(), tm.getNLChatString());
+                    pcl.messageReceived(fromNickname, tm.getNLChatString());
                 }
                 //if in development mode, also print the no response messages
                 if(client.devMode && tm.isNoResponse()){
-                    pcl.messageReceived(mes.getNickname(), tm.getNLChatString());
+                    pcl.messageReceived(fromNickname, tm.getNLChatString());
                 }
             }
             else
-                pcl.messageReceived(mes.getNickname(), mes.getText());
+                pcl.messageReceived(fromNickname, mesText);
         }
     }
 }

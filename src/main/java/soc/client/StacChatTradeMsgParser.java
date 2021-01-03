@@ -13,7 +13,6 @@ import soc.game.SOCResourceConstants;
 import soc.game.SOCResourceSet;
 import soc.game.StacTradeOffer;
 import soc.message.SOCBankTrade;
-import soc.message.SOCGameTextMsg;
 import soc.robot.SOCPossiblePiece;
 import soc.robot.stac.Persuasion;
 
@@ -1048,19 +1047,20 @@ public class StacChatTradeMsgParser {
         
     /**
      * Turns the build plan announcement into a friendly human readable string
-     * @param msg the SOCGameTextMsg containing the announcement
+     * @param mesText  Message text; not null, but may be ""
+     * @param fromNickname  Message sender, from {@link soc.message.SOCGameTextMsg#getNickname()}
      * @return
      */
-    public static StringBuffer annMessageToString(SOCGameTextMsg msg) {
+    public static StringBuffer annMessageToString(final String mesText, final String fromNickname) {
     	//ANN:BP:SOCPossiblePiece:type=2~player=soc.game.SOCPlayer@1e3b5f92~coord=78]
-    	String split[] = msg.getText().split(":");
+    	String split[] = mesText.split(":");
     	if(split.length < 4){
-            D.ebugERROR(msg.getText() + " from player " + msg.getNickname() + " cannot be parsed due to wrong format");
-            return new StringBuffer(msg.getText());
+            D.ebugERROR(mesText + " from player " + fromNickname + " cannot be parsed due to wrong format");
+            return new StringBuffer(mesText);
     	}
         String annString = StacDialogueManager.fromMessage(split[3]);
         SOCPossiblePiece pp = SOCPossiblePiece.parse(annString);
-        StringBuffer annMsgText = new StringBuffer(msg.getNickname());
+        StringBuffer annMsgText = new StringBuffer(fromNickname);
         switch (pp.getType()) {
             case 0: annMsgText.append(": I want to build a road at "); break;
             case 1: annMsgText.append(": I want to build a settlement at "); break;
@@ -1076,23 +1076,24 @@ public class StacChatTradeMsgParser {
     
     /**
      * Turns the request message into a friendly human readable string
-     * @param mes the SOCGameTextMsg containing the request
+     * @param mesText  Message text; not null, but may be ""
+     * @param fromNickname  Message sender, from {@link soc.message.SOCGameTextMsg#getNickname()}
      * @return
      */
-	public static String reqMessageToString(SOCGameTextMsg mes) {
+	public static String reqMessageToString(final String mesText, final String fromNickname) {
 		String reqMsg;
-		if(mes.getText().contains("REQ:BP")){
-			reqMsg = mes.getNickname() + ": " + "Please announce your build plan";
-    	}else if(mes.getText().contains("REQ:RES")){
-    		reqMsg =mes.getNickname() + ": " + "Please announce your resources";
-    	}else if(mes.getText().contains("REQ:EXTRA")){
-    		reqMsg =mes.getNickname() + ": " + "Please announce your extra resources";
-    	}else if(mes.getText().contains("REQ:WANTED")){
-    		reqMsg =mes.getNickname() + ": " + "Please announce the resources you want";
-    	}else if(mes.getText().contains("REQ:TRD:")){
-    		reqMsg =mes.getNickname() + ": " + "Does anyone have any offers for me?";
+		if(mesText.contains("REQ:BP")){
+			reqMsg = fromNickname + ": " + "Please announce your build plan";
+    	}else if(mesText.contains("REQ:RES")){
+    		reqMsg =fromNickname + ": " + "Please announce your resources";
+    	}else if(mesText.contains("REQ:EXTRA")){
+    		reqMsg =fromNickname + ": " + "Please announce your extra resources";
+    	}else if(mesText.contains("REQ:WANTED")){
+    		reqMsg =fromNickname + ": " + "Please announce the resources you want";
+    	}else if(mesText.contains("REQ:TRD:")){
+    		reqMsg =fromNickname + ": " + "Does anyone have any offers for me?";
     	}else
-    		reqMsg =mes.getNickname() + ": " + mes.getText(); // undefined request type, just print in the chat as a normal msg
+    		reqMsg =fromNickname + ": " + mesText; // undefined request type, just print in the chat as a normal msg
 		return reqMsg;
 	}    
     ////to friendly messages///

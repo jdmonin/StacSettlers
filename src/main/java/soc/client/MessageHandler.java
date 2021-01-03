@@ -1478,18 +1478,47 @@ public class MessageHandler
      */
     protected void handleGAMETEXTMSG(SOCGameTextMsg mes)
     {
-        PlayerClientListener pcl = client.getClientListener(mes.getGame());
+        final String gaName = mes.getGame();
+        PlayerClientListener pcl = client.getClientListener(gaName);
         if (pcl == null)
             return;
 
-        String fromNickname = mes.getNickname(), mesText = mes.getText();
+        String fromNickname = mes.getNickname();
+        final String mesText = mes.getText();
+
         if (fromNickname.equals(SOCGameTextMsg.SERVERNAME))  // for pre-2.0.00 servers not using SOCGameServerText
-        {
             fromNickname = null;
 
+        if (stacParseServerText(gaName, mesText, fromNickname, pcl))
+            return;
+
+        pcl.messageReceived(fromNickname, mesText);
+    }
+
+    /**
+     * Parse a game text message (any {@link SOCGameServerText} or {@link SOCGameTextMsg})
+     * and handle any Stac-specific text.
+     *<P>
+     * In v1 this code was part of {@code handleGAMETEXTMSG(..)}.
+     *
+     * @param gaName  Game name; not null
+     * @param mesText  Message text; not null, but may be ""
+     * @param fromNickname  Message sender from {@link SOCGameTextMsg#getNickname()},
+     *     or null if text message is {@link SOCGameServerText}
+     *     or a {@link SOCGameTextMsg} from {@link SOCGameTextMsg#SERVERNAME}
+     * @param pcl  ClientListener; not null
+     * @return  True if message was recognized and should be ignored by caller, false if caller should call
+     *     {@link PlayerClientListener#messageReceived(String, String) pcl.messageReceived(null, mesText)} as usual
+     * @since 2.4.50
+     */
+    protected boolean stacParseServerText
+        (final String gaName, final String mesText, final String fromNickname, final PlayerClientListener pcl)
+    {
+        if (fromNickname == null)
+        {
             if (mesText.contains(" traded ") && !mesText.contains(" bank.")){
                 //a trade was executed so clear the responses
-                SOCGame ga = client.games.get(mes.getGame());
+                SOCGame ga = client.games.get(gaName);
                 D.ebugPrintlnINFO("PlayerClient: Clearing all trade messages - after trade was made");
                 StacPlayerDialogueManager dm = client.dialogueManagers.get(ga.getName());
                 if (dm != null)
@@ -1505,30 +1534,31 @@ public class MessageHandler
             ////                pcl.tradeConfirmationHide();
             }
         } else {
-                if (mes.getText().startsWith(StacTradeMessage.TRADE)) {
-                    StacPlayerDialogueManager dm = client.dialogueManagers.get(mes.getGame());
+                if (mesText.startsWith(StacTradeMessage.TRADE)) {
+                    StacPlayerDialogueManager dm = client.dialogueManagers.get(gaName);
                     if (dm != null)
-                        dm.handleTradeGameTextMessage(mes);
+                        dm.handleTradeGameTextMessage(gaName, mesText, fromNickname, pcl);
                     
                     if (client instanceof SOCReplayClient) {
-                        SOCGame ga = (SOCGame) client.games.get(mes.getGame());
-                        String tradeString = StacDialogueManager.fromMessage(mes.getText());
+                        SOCGame ga = (SOCGame) client.games.get(gaName);
+                        String tradeString = StacDialogueManager.fromMessage(mesText);
                         StacTradeMessage tm = StacTradeMessage.parse(tradeString);
                         pcl.chatPrintText(ga.getPlayerNames()[tm.getSenderInt()] + ": " + tm.getNLChatString());
                     }
-                } else if (mes.getText().contains("ANN:BP:")) {
-                    StringBuffer annMsg = StacChatTradeMsgParser.annMessageToString(mes);
+                } else if (mesText.contains("ANN:BP:")) {
+                    StringBuffer annMsg = StacChatTradeMsgParser.annMessageToString(mesText, fromNickname);
                     pcl.chatPrintText(annMsg.toString());
-                } else if(mes.getText().contains("REQ:")){
-                    String reqMsg = StacChatTradeMsgParser.reqMessageToString(mes);
+                } else if(mesText.contains("REQ:")){
+                    String reqMsg = StacChatTradeMsgParser.reqMessageToString(mesText, fromNickname);
                     pcl.chatPrintText(reqMsg);
                 }else {
                     //ignore NULL:ST as these do not communicate anything to the human player
-                    if(mes.getText().contains("NULL:ST") || mes.getText().equals(StacRobotDialogueManager.ANN_PARTICIPATION))
-                        return;
+                    if(mesText.contains("NULL:ST") || mesText.equals(StacRobotDialogueManager.ANN_PARTICIPATION))
+                        return true;
                 }
         }
-        pcl.messageReceived(fromNickname, mes.getText());
+
+        return false;
     }
 
     /**
@@ -3084,11 +3114,15 @@ public class MessageHandler
      */
     protected void handleGAMESERVERTEXT(SOCGameServerText mes)
     {
-        PlayerClientListener pcl = client.getClientListener(mes.getGame());
+        final String gaName = mes.getGame(), mesText = mes.getText();
+        PlayerClientListener pcl = client.getClientListener(gaName);
         if (pcl == null)
             return;
 
-        pcl.messageReceived(null, mes.getText());
+        if (stacParseServerText(gaName, mesText, null, pcl))
+            return;
+
+        pcl.messageReceived(null, mesText);
     }
 
     /**
