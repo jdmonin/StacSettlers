@@ -1640,12 +1640,16 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                             if (pn != -1)
                             {
                                 game.getPlayer(pn).setCurrentOffer(null);
+                                if (pn == ourPlayerNumber)
+                                    //attempt to fix hanging robot after accepting a counteroffer
+                                    //  Upstream jsettlers clears these flags in handleTradeResponse instead
+                                    clearTradingFlags();
                             } else {
                                 for (int i = 0; i < game.maxPlayers; ++i)
                                     game.getPlayer(i).setCurrentOffer(null);
+                                //attempt to fix hanging robot after accepting a counteroffer
+                                clearTradingFlags();
                             }
-//attempt to fix hanging robot after accepting a counteroffer 
-//                            clearTradingFlags();
                         }
                         break;
 
@@ -1658,7 +1662,8 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                             {
                                 clearTradingFlags(false, false);
                             }
-                            else if (((SOCAcceptOffer) mes).getOfferingNumber() == ourPlayerNumber)
+                            else if ((ourPlayerNumber == acceptingPN)
+                                     || (ourPlayerNumber == ((SOCAcceptOffer) mes).getOfferingNumber()))
                             {
                                 handleTradeResponse(acceptingPN, true);
                             }
@@ -1774,6 +1779,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         	handleGameTxtMsg(gtm);
                         }
                         break;
+
                     case SOCMessage.PARSERESULT:
                         handleParseResult((SOCParseResult)mes);
                         break;
@@ -3569,6 +3575,10 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * @see #tradeStopWaitingClearOffer()
      */
     protected void handleTradeResponse(int playerNum, boolean accept) {
+        if (accept && (playerNum == ourPlayerNumber))
+            return;  // unlike jsettlers, this stacsettlers base SOCRobotBrain ignores when we've accepted an offer
+                     // or counteroffer; other bots can override this method if they want to not ignore that
+
         waitingForTradeResponsePlayer[playerNum] = false;
         tradeAccepted |= accept;
         

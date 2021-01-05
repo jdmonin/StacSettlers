@@ -638,14 +638,24 @@ public class StacRobotBrain extends SOCRobotBrain<StacRobotDM, PersuasionStacRob
     
     @Override
     public void handleGameTxtMsg(SOCGameTextMsg gtm) {
-        String text = gtm.getText();
-        if ((text.startsWith(client.getNickname() + " traded ") && !text.endsWith(" bank.") && !text.endsWith("port."))
-                || (text.contains(" traded ") && text.endsWith(" from " + client.getNickname() + "."))) {
+        // currently nothing to do here:
+        // StacSettlers v2 uses handleTradeResponse instead
+        // String text = gtm.getText();
+    }
+
+    /**
+     * {@inheritDoc}
+     *<P>
+     * In StacSettlers v1, this was handled by parsing server announcements in {@code handleGameTxtMsg(..)}.
+     * @since 2.4.50
+     */
+    @Override
+    public void handleTradeResponse(int playerNum, boolean accept) {
         	//TODO capture trade for preference model
             if (declarativeMemory.getMyNegotiatedOffer() == null)
                 System.err.println("negotiated offer is null");
+
             declarativeMemory.negotiatedOfferWasExecuted(); //.addPastTrade(declarativeMemory.getMyNegotiatedOffer());
-        }
     }
  
     /*
