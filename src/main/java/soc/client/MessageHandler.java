@@ -1529,6 +1529,7 @@ public class MessageHandler
 
             }else if(mesText.contains(" stole a resource from ")){
             	//do nothing
+            	// also, server sends SOCReportRobbery message we could react to instead of looking for this text
             ////            } else if (mesText.startsWith(SOCServer.MSG_ILLEGAL_TRADE) || mesText.startsWith(SOCServer.MSG_ILLEGAL_OFFER) || mesText.startsWith(SOCServer.MSG_REJECTED_TRADE_CONFIRMATION)) {
             // -- merge TODO: look for SOCAcceptOffer(SOCBankTrade.PN_REPLY_CANNOT_MAKE_TRADE) or "confirmation rejected" data message instead
             ////                pcl.tradeConfirmationHide();

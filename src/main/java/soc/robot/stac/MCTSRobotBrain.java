@@ -1199,7 +1199,13 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 	            if(mes.getPlayerNumber() != getPlayerNumber()){//only if we are not playing it so we don't update twice;
 	            	getGame().devCardPlayed(mes.getCardType());
 	            }
-	            beliefModel.updateDevCardModel(socToSSDevCard(mes.getCardType()), Action.LOSE, mes.getPlayerNumber());
+
+	            final int ctype = mes.getCardType();
+	            beliefModel.updateDevCardModel(socToSSDevCard(ctype), Action.LOSE, mes.getPlayerNumber());
+
+	            if (ctype == SOCDevCardConstants.MONO)
+	            	monopolyPhase = true;
+
 	            break;
 	
 	        }
@@ -1247,8 +1253,6 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 	            beliefModel.updateResourceBelief(set, pn, SOCPlayerElement.GAIN, fromPn); //gain first
 	            beliefModel.updateResourceBelief(set, fromPn, SOCPlayerElement.LOSE); //lose after so we know what we can gain
 	            
-            }else if(mesText.contains("played a Monopoly card")) {
-            	monopolyPhase = true;
             }
         }
     }
