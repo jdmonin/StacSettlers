@@ -1643,12 +1643,12 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                                 if (pn == ourPlayerNumber)
                                     //attempt to fix hanging robot after accepting a counteroffer
                                     //  Upstream jsettlers clears these flags in handleTradeResponse instead
-                                    clearTradingFlags();
+                                    clearTradingFlags(false, true);
                             } else {
                                 for (int i = 0; i < game.maxPlayers; ++i)
                                     game.getPlayer(i).setCurrentOffer(null);
                                 //attempt to fix hanging robot after accepting a counteroffer
-                                clearTradingFlags();
+                                clearTradingFlags(false, true);
                             }
                         }
                         break;
