@@ -385,8 +385,6 @@ public class SOCServer extends Server
      * {@link #PROP_JSETTLERS_BOTS_FAST__PAUSE__PERCENT} and
      * {@link #PROP_JSETTLERS_BOTS_BOTGAMES_PARALLEL}.
      *<P>
-     * To start games of different sizes/board types, set {@link #PROP_JSETTLERS_BOTS_BOTGAMES_GAMETYPES}.
-     *<P>
      * To wait at server startup time before starting these games, use
      * {@link #PROP_JSETTLERS_BOTS_BOTGAMES_WAIT__SEC}. To shut down the server
      * after they all finish, use {@link #PROP_JSETTLERS_BOTS_BOTGAMES_SHUTDOWN}.
@@ -407,6 +405,7 @@ public class SOCServer extends Server
     public static final String PROP_JSETTLERS_BOTS_BOTGAMES_TOTAL = "jsettlers.bots.botgames.total";
 
     /**
+     * Ignored by StacSettlers, to simplify Stac robot code/assumptions:
      * Integer property {@code jsettlers.bots.botgames.gametypes}: The mix of game sizes and board types
      * to use when starting bot-only games ({@link #PROP_JSETTLERS_BOTS_BOTGAMES_TOTAL} > 0).
      *<UL>
@@ -704,7 +703,7 @@ public class SOCServer extends Server
         // I18n.PROP_JSETTLERS_LOCALE,             "Locale override from the default, such as es or en_US, for console output",
             // -- not used yet at server
         PROP_JSETTLERS_BOTS_BOTGAMES_TOTAL,     "Run this many robot-only games, a few at a time (default 0); allow bot-only games",
-        PROP_JSETTLERS_BOTS_BOTGAMES_GAMETYPES, "Robot-only games: Game size/board type mix (default 1)",
+        PROP_JSETTLERS_BOTS_BOTGAMES_GAMETYPES, "Robot-only games: Ignored by StacSettlers: Game size/board type mix (default 1)",
         PROP_JSETTLERS_BOTS_BOTGAMES_PARALLEL,  "Start this many robot-only games at a time (default 4)",
         PROP_JSETTLERS_BOTS_BOTGAMES_WAIT__SEC, "Wait at startup before starting robot-only games (default 1.6 seconds)",
         PROP_JSETTLERS_BOTS_BOTGAMES_SHUTDOWN,  "After running the robot-only games, shut down the server if no other games are active (if Y)",
@@ -2681,6 +2680,12 @@ public class SOCServer extends Server
          */
         knownOpts.activate(SOCGameOptionSet.K_PLAY_FO);
         knownOpts.activate(SOCGameOptionSet.K_PLAY_VPO);
+
+        /**
+         * To simplify robot code, StacSettlers doesn't allow 6-player games or sea board
+         */
+        props.setProperty(PROP_JSETTLERS_GAME_DISALLOW_6PLAYER, "Y");
+        props.setProperty(PROP_JSETTLERS_GAME_DISALLOW_SEA__BOARD, "Y");
 
         /**
          * If we have any STARTROBOTS, start them up now.
@@ -8984,9 +8989,7 @@ public class SOCServer extends Server
      *<P>
      * Starts 4 games at server startup unless {@link #PROP_JSETTLERS_BOTS_BOTGAMES_PARALLEL} is set to another value.
      *<P>
-     * If {@link #PROP_JSETTLERS_BOTS_BOTGAMES_GAMETYPES} is set, will start an even mix of game sizes and board types.
-     * If testing a third-party bot which has a limited {@link SOCFeatureSet}, that bot can still be selected to join
-     * games which use classic board with 4 and possibly 6 players. Built-in bots will fill the other started games.
+     * StacSettlers ignores {@link #PROP_JSETTLERS_BOTS_BOTGAMES_GAMETYPES}, to simplify Stac robot code/assumptions.
      *<P>
      * <B>Locks:</b> May or may not have {@link SOCGameList#takeMonitor()} when calling;
      * see {@code hasGameListMonitor} parameter.  If not already held, this method takes and releases that monitor.
@@ -8998,7 +9001,8 @@ public class SOCServer extends Server
      */
     private void startRobotOnlyGames(final boolean wasGameDestroyed, final boolean hasGameListMonitor)
     {
-        final int gameTypes = getConfigIntProperty(PROP_JSETTLERS_BOTS_BOTGAMES_GAMETYPES, 1);
+        final int gameTypes = 1;  // StacSettlers uses only 4-player classic board
+          // = getConfigIntProperty(PROP_JSETTLERS_BOTS_BOTGAMES_GAMETYPES, 1);
 
         int nParallel;
         if (wasGameDestroyed)
@@ -9058,6 +9062,10 @@ public class SOCServer extends Server
 
                 gaName = newGame.getName();  // in case was changed to avoid duplicate
                 System.out.println("Started bot-only game: " + gaName + desc.toString());
+
+                // required for starting the game: same param values as in SSMH.handleSTARTGAME
+                gamesParams.put(gaName, new StacGameParameters(false, "", 0, -1, false, false, false, false));
+
                 newGame.setGameState(SOCGame.READY);
                 if (! readyGameAskRobotsJoin(newGame, null, null, 0, false))
                 {
