@@ -1516,18 +1516,7 @@ public class MessageHandler
     {
         if (fromNickname == null)
         {
-            if (mesText.contains(" traded ") && !mesText.contains(" bank.")){
-                //a trade was executed so clear the responses
-                SOCGame ga = client.games.get(gaName);
-                D.ebugPrintlnINFO("PlayerClient: Clearing all trade messages - after trade was made");
-                StacPlayerDialogueManager dm = client.dialogueManagers.get(ga.getName());
-                if (dm != null)
-                    dm.clearTradeResponses();
-
-                pcl.clearTradeOffer(null, false);
-                    //if clientIsCurrentPlayer, will enable save button
-
-            }else if(mesText.contains(" stole a resource from ")){
+            if(mesText.contains(" stole a resource from ")){
             	//do nothing
             	// also, server sends SOCReportRobbery message we could react to instead of looking for this text
             ////            } else if (mesText.startsWith(SOCServer.MSG_ILLEGAL_TRADE) || mesText.startsWith(SOCServer.MSG_ILLEGAL_OFFER) || mesText.startsWith(SOCServer.MSG_REJECTED_TRADE_CONFIRMATION)) {
@@ -2484,6 +2473,15 @@ public class MessageHandler
             pcl.playerTradeAccepted(ga.getPlayer(offeringPN), ga.getPlayer(acceptingPN));
         else
             pcl.playerTradeDisallowed(offeringPN, false);
+
+        //a trade was executed so clear the responses
+        D.ebugPrintlnINFO("PlayerClient: Clearing all trade messages - after trade was made");
+        StacPlayerDialogueManager dm = client.dialogueManagers.get(ga.getName());
+        if (dm != null)
+            dm.clearTradeResponses();
+
+        pcl.clearTradeOffer(null, false);
+            //if clientIsCurrentPlayer, will enable save button
     }
 
     /**
