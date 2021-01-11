@@ -446,43 +446,48 @@ When preparing to release a new version, testing should include:
       Message traffic will be shown in the terminal/client output.
     - Test client newer than server:
         - Build server JAR as usual, make temp copy of it, and start the temp copy (which has the actual current version number)
-        - In `SOCScenario.initAllScenarios()`, uncomment `SC_TSTNC` "New: v+1 back-compat" and `SC_TSTNO` "New: v+1 only"  
+        - In `SOCScenario.initAllScenarios()`, uncomment `SC_TSTNC` "New: v+1 back-compat", `SC_TSTNA` "New: v+1 another back-compat", and `SC_TSTNO` "New: v+1 only"  
           Update their version parameters to current versionnum and current + 1. Example:  
-          `("SC_TSTNC", 2000, 2001, ...)`  
-          `("SC_TSTNO", 2001, 2001, ...)`
+          `("SC_TSTNC", 2400, 2401, ...)`  
+          `("SC_TSTNA", 2400, 2401, ...)`  
+          `("SC_TSTNO", 2401, 2401, ...)`
         - In `SOCGameOptionSet.getAllKnownOptions()`, scroll to the end and uncomment `DEBUGBOOL` "Test option bool".
-          Update its version parameters to current versionnum and current + 1. Example:  
-          `("DEBUGBOOL", 2000, 2001, false, ...)`
-        - In `src/main/resources/resources/version.info`, add 1 to versionnum and version. Example: 2000 -> 2001, 2.0.00 -> 2.0.01
-        - Build and launch client (at that "new" version), don't connect to server
+          Update its min-version parameter to current versionnum. Example:  
+          `("DEBUGBOOL", 2400, Version.versionNumber(), false, ...)`
+        - In `src/main/resources/resources/version.info`, add 1 to versionnum and version. Example: 2400 -> 2401, 2.4.00 -> 2.4.01
+        - Build client (at that "new" version) using `gradle assemble` to skip the usual unit tests.
+          The built jars' filenames might include current version number; that's not an issue.
+        - Launch that client (prints the "new" version number at startup), don't connect to server
         - Click "Practice"; dialog's game options should include DEBUGBOOL,
-          Scenario dropdown should include those 2 "new" scenarios
+          Scenario dropdown should include those 3 "new" scenarios
         - Quit and re-launch client, connect to server
         - Message traffic should include:
           - Client's `SOCGameOptionGetInfos` for DEBUGBOOL
           - Server response: `SOCGameOptionInfo` for DEBUGBOOL, + 1 more Option Info to end that short list
         - Click "New Game"
-        - In message traffic, should see a `SOCScenarioInfo` with `lastModVers=MARKER_KEY_UNKNOWN` for each of the 2 new scenarios, + 1 more to end the list of Infos
+        - In message traffic, should see a `SOCScenarioInfo` with `lastModVers=MARKER_KEY_UNKNOWN` for each of the 3 new scenarios, + 1 more to end the list of Infos
         - The "new" items are unknown at server: New Game dialog shouldn't have DEBUGBOOL,
-          its Scenario dropdown shouldn't have the 2 test scenarios
+          its Scenario dropdown shouldn't have the 3 test scenarios
         - Quit client and server
     - Then, test server newer than client:
         - Temporarily "localize" the test option and scenarios by adding to
           `src/main/resources/resources/strings/server/toClient_es.properties`:  
           `gameopt.DEBUGBOOL = test debugbool localized-es`  
           `gamescen.SC_TSTNC.n = test-localizedname-es`  
-        - Build server JAR and start a server from it (has the "new" version number);  
-          use `gradle assemble` here to skip the usual unit tests
+        - Build server jar, using `gradle assemble` to skip the usual unit tests
+        - Start a server from that jar (prints the "new" version number at startup)
         - Reset `version.info`, `toClient_es.properties`, `SOCGameOptionSet.getAllKnownOptions()`,
-          and `SOCScenario.initAllScenarios()` to their actual versions (2001 -> 2000, re-comment, etc)
+          and `SOCScenario.initAllScenarios()` to their actual versions
+          (2401 -> 2400, re-comment options/scenarios, etc).
+          Afterwards, `git status` shouldn't list those files as modified.
         - Build and launch client (at actual version)
         - Connect to "newer" server
         - Message traffic should include:
           - Client's generic `SOCGameOptionGetInfos` asking if any changes
           - Server response: `SOCGameOptionInfo` for DEBUGBOOL, + 1 more Option Info to end that short list
         - Click "New Game"
-        - In message traffic, should see a `SOCScenarioInfo` for each of the 2 new scenarios, + 1 more to end the list of Infos
-        - Dialog should show DEBUGBOOL option. Should see `SC_TSTNC` but not `SC_TSTNO` in Scenario dropdown
+        - In message traffic, should see a `SOCScenarioInfo` for each of the 3 new scenarios, + 1 more to end the list of Infos
+        - Dialog should show DEBUGBOOL option. Should see `SC_TSTNC` and `SC_TSTNA` but not `SC_TSTNO` in Scenario dropdown
         - Start a game using `SC_TSTNC` scenario, begin game play
         - Launch a 2nd client, connect to server
         - Click "Game Info"
@@ -495,15 +500,15 @@ When preparing to release a new version, testing should include:
         - Quit 2nd client. Keep server and 1st client running
     - Test i18n (server still newer than client):
         - Launch another client, with a locale: `-Djsettlers.debug.traffic=Y -Djsettlers.locale=es`
-        - In message traffic, should see a `SOCGameOptionInfo` for DEBUGBOOL with "localized" name
+        - Connect to server; in message traffic, should see a `SOCGameOptionInfo` for DEBUGBOOL with "localized" name
         - In that client, click "Game Info"
         - In message traffic, should see only 1 `SOCScenarioInfo`, with that game's SC_TSTNC scenario
         - Game Info dialog should show scenario's info and "localized" name
         - Quit and re-launch that client
         - Connect to server, click "New Game"
         - In message traffic, should see:
-          - a `SOCScenarioInfo` for each of the 2 new scenarios (SC_TSTNC, SC_TSTNO); SC_TSTNC name should be the localized one
-          - `SOCLocalizedStrings:type=S` with all scenario texts except SC_TSTNC, SC_TSTNO
+          - a `SOCScenarioInfo` for each of the 3 new scenarios (SC_TSTNC, SC_TSTNA, SC_TSTNO); SC_TSTNC name should be the localized one
+          - `SOCLocalizedStrings:type=S` with all scenario texts except SC_TSTNC, SC_TSTNA, SC_TSTNO
           - 1 more `SOCScenarioInfo` to end the list of Infos
         - Dialog should show "localized" DEBUGBOOL game option. Scenario dropdown should show all scenarios with localized text
         - Cancel out of New Game dialog

@@ -37,8 +37,8 @@ import soc.game.SOCPlayerNumbers;
 /**
  * This is a possible settlement that we can build
  *<P>
- * If serializing and deserializing this piece, remember the Player and {@link SOCBuildingSpeedEstimate}
- * fields will be null when deserialized:
+ * If serializing and deserializing this piece, remember the Player and
+ * {@link SOCBuildingSpeedEstimateFactory} fields will be null when deserialized:
  * Call {@link SOCPossiblePiece#setTransientsAtLoad(SOCPlayer, SOCPlayerTracker)} to set them.
  *
  * @author Robert S Thomas

@@ -1,6 +1,6 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * This file copyright (C) 2019-2020 Jeremy D Monin <jeremy@nand.net>
+ * This file copyright (C) 2019-2021 Jeremy D Monin <jeremy@nand.net>
  * Extracted in 2019 from SOCPlayerClient.java, so:
  * Portions of this file Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
  * Portions of this file Copyright (C) 2007-2019 Jeremy D Monin <jeremy@nand.net>
@@ -117,7 +117,7 @@ import soc.message.StacStartGame;
         throws IllegalArgumentException
     {
         if (s == null)
-            throw new IllegalArgumentException("null");
+            throw new IllegalArgumentException("s null");
 
         if (isPractice)
             return net.putPractice(s);
@@ -132,12 +132,12 @@ import soc.message.StacStartGame;
      * Because the player can be in both network games and practice games,
      * uses {@code isPractice} to route to the appropriate client-server connection.
      *
-     * @param m  the message to send, by calling its {@link SOCMessage#toCmd()}.
+     * @param msg  the message to send, by calling its {@link SOCMessage#toCmd()}.
      * @param isPractice  Send to the practice server, not tcp network?
      *      {@link ClientNetwork#localTCPServer} is considered "network" here.
      *      Use {@code isPractice} only with {@link ClientNetwork#practiceServer}.
      * @return true if the message was sent, false if not
-     * @throws IllegalArgumentException if {@code m} is {@code null}
+     * @throws IllegalArgumentException if {@code msg} is {@code null}
      * @see #put(String, boolean)
      * @since 2.4.50
      */
@@ -145,7 +145,7 @@ import soc.message.StacStartGame;
         throws IllegalArgumentException
     {
         if (msg == null)
-            throw new IllegalArgumentException("null");
+            throw new IllegalArgumentException("msg null");
 
         return put(msg.toCmd(), isPractice);
     }

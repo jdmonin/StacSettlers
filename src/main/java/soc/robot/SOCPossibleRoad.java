@@ -1,7 +1,7 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
  * Copyright (C) 2003  Robert S. Thomas <thomas@infolab.northwestern.edu>
- * Portions of this file Copyright (C) 2011-2015,2018,2020 Jeremy D Monin <jeremy@nand.net>
+ * Portions of this file Copyright (C) 2011-2015,2018,2020-2021 Jeremy D Monin <jeremy@nand.net>
  * Portions of this file Copyright (C) 2012 Paul Bilnoski <paul@bilnoski.net>
  *
  * This program is free software; you can redistribute it and/or
@@ -26,6 +26,7 @@ import soc.game.SOCPlayer;
 import soc.game.SOCPlayingPiece;
 import soc.game.SOCResourceSet;
 import soc.game.SOCRoad;
+import soc.game.SOCShip;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +34,8 @@ import java.util.List;
 
 /**
  * This is a possible road that we can build.
- * Note that {@link SOCPossibleShip} is a subclass.
+ * Note that {@link SOCPossibleShip} is a subclass,
+ * unlike {@link SOCRoad}/{@link SOCShip} which are siblings.
  *
  * @author Robert S Thomas
  */

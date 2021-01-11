@@ -98,7 +98,7 @@ public abstract class SOCPossiblePiece implements Serializable
 
     /**
      * The type of this playing piece; a constant
-     *    such as {@link SOCPossiblePiece#ROAD}, {@link SOCPossiblePiece#CITY}, etc.
+     *    such as {@link #ROAD}, {@link #CITY}, etc.
      *    The constant types are the same as in {@link SOCPlayingPiece#getResourcesToBuild(int)}.
      */
     protected int pieceType;
@@ -202,8 +202,7 @@ public abstract class SOCPossiblePiece implements Serializable
     }
 
     /**
-     * @return  the type of piece; a constant
-     *    such as {@link SOCPossiblePiece#ROAD}, {@link SOCPossiblePiece#CITY}, etc.
+     * @return  the type of piece; a constant such as {@link #ROAD}, {@link #CITY}, etc.
      *    The type constants are the same as in {@link SOCPlayingPiece#getResourcesToBuild(int)}.
      * @see #getResourcesToBuild()
      */
@@ -216,7 +215,7 @@ public abstract class SOCPossiblePiece implements Serializable
      * Get this piece's owner.
      *<P>
      * If this piece has been deserialized, this will be {@code null} or stale until
-     * {@link SOCPossiblePiece#setTransientsAtLoad(SOCPlayer, SOCPlayerTracker)} is called.
+     * {@link #setTransientsAtLoad(SOCPlayer, SOCPlayerTracker)} is called.
      *
      * @return the owner of this piece
      */

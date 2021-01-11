@@ -68,6 +68,7 @@ import soc.message.SOCPlayerElement.PEType;
 import soc.message.SOCPlayerElements;
 import soc.message.SOCPutPiece;
 import soc.message.SOCRejectOffer;
+import soc.message.SOCReportRobbery;
 import soc.message.SOCResourceCount;
 import soc.message.SOCSetPlayedDevCard;
 import soc.message.SOCSetSpecialItem;
@@ -2157,8 +2158,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
                         }
 
                         counter = 0;
-                        client.discard(game, discardStrategy.discard
-                            (((SOCDiscardRequest) mes).getNumberOfDiscards(), buildingPlan));
+                        discard(((SOCDiscardRequest) mes).getNumberOfDiscards());
 
                         break;
 
@@ -2313,6 +2313,9 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      *<P>
      * When state moves from {@link SOCGame#ROLL_OR_CARD} to {@link SOCGame#PLAY1},
      * calls {@link #startTurnMainActions()}.
+     *<P>
+     * If overriding this method, please call {@code super.handleGAMESTATE(newState)}
+     * so game data is updated and {@code startTurnMainActions()} is called when it should be.
      *
      * @param newState  New game state, like {@link SOCGame#ROLL_OR_CARD}; if 0, does nothing
      */
@@ -2610,6 +2613,22 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
             game.getBoard().setRobberHex(newHex, true);
         else
             ((SOCBoardLarge) game.getBoard()).setPirateHex(-newHex, true);
+    }
+
+    /**
+     * Update game data and any bot tracking when a player has been robbed.
+     * Calls {@link SOCDisplaylessPlayerClient#handleREPORTROBBERY(SOCReportRobbery, SOCGame)}.
+     * Third-party bots can override if needed; if so, be sure to call {@code super.handleREPORTROBBERY(..)}.
+     *
+     * @param mes  Robbery report message
+     * @since 2.4.50
+     */
+    protected void handleREPORTROBBERY(SOCReportRobbery mes)
+    {
+        SOCDisplaylessPlayerClient.handleREPORTROBBERY((SOCReportRobbery) mes, game);
+
+        // Basic robot brain doesn't do anything else with this message,
+        // but a third-party bot might want to.
     }
 
     /**
@@ -3569,18 +3588,18 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * If {@code accepted}, also clears {@link #waitingForTradeResponse}
      * by calling {@link #clearTradingFlags(boolean, boolean)}.
      *
-     * @param playerNum  Player number: The other player accepting or rejecting our offer,
+     * @param toPlayerNum  Player number: The other player accepting or rejecting our offer,
      *     or {@link #ourPlayerNumber} if called for accepting another player's offer
-     * @param accept  True if offer was accepted, false if rejected
+     * @param accepted  True if offer was accepted, false if rejected
      * @see #tradeStopWaitingClearOffer()
      */
-    protected void handleTradeResponse(int playerNum, boolean accept) {
-        if (accept && (playerNum == ourPlayerNumber))
+    protected void handleTradeResponse(final int toPlayerNum, final boolean accepted) {
+        if (accepted && (toPlayerNum == ourPlayerNumber))
             return;  // unlike jsettlers, this stacsettlers base SOCRobotBrain ignores when we've accepted an offer
                      // or counteroffer; other bots can override this method if they want to not ignore that
 
-        waitingForTradeResponsePlayer[playerNum] = false;
-        tradeAccepted |= accept;
+        waitingForTradeResponsePlayer[toPlayerNum] = false;
+        tradeAccepted |= accepted;
         
         boolean everyoneResponded = true,
             allHumansRejected = (tradeResponseTimeoutSec > TRADE_RESPONSE_TIMEOUT_SEC_BOTS_ONLY);
@@ -5038,7 +5057,8 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
      * directly check {@link SOCPlayer#isPotentialRoad(int) ourPlayerData.isPotentialRoad(edgeCoord)}.
      * If the server rejects our road choice, bot will call {@link #cancelWrongPiecePlacementLocal(SOCPlayingPiece)}
      * which will call {@link OpeningBuildStrategy#cancelWrongPiecePlacement(SOCPlayingPiece)}
-     * in case the OBS wants to take action like clearing the potential settlement node we were aiming for.
+     * in case the OBS wants to take action to prevent re-choosing the same wrong choice again,
+     * like clearing the potential settlement node we were aiming for.
      */
     public void planAndPlaceInitRoad()
     {
@@ -5058,6 +5078,7 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     /**
      * Select a new robber location and move the robber there.
      * Calls {@link RobberStrategy#getBestRobberHex()}.
+     * Calls {@link SOCRobotClient#moveRobber(SOCGame, SOCPlayer, int)}.
      *<P>
      * Currently the robot always chooses to move the robber, never the pirate.
      */
@@ -5071,7 +5092,24 @@ public abstract class SOCRobotBrain<DM extends SOCRobotDM<BP>, N extends SOCRobo
     }
 
     /**
-     * make bank trades or port trades to get the required resources for executing a plan, if possible.
+     * Select resources to discard, then ask the server to do so.
+     * Calls {@link DiscardStrategy#discard(int, SOCBuildPlanStack)}.
+     * Calls {@link SOCRobotClient#discard(SOCGame, SOCResourceSet)}.
+     *<P>
+     * This method can be overridden if a bot's discard code needs to do
+     * something outside the scope of the {@link DiscardStrategy} method,
+     * like send messages to the server before or after the discard request.
+     *
+     * @param numDiscards  Number of resources bot's been asked to discard
+     * @since 2.4.50
+     */
+    protected void discard(final int numDiscards)
+    {
+        client.discard(game, discardStrategy.discard(numDiscards, buildingPlan));
+    }
+
+    /**
+     * Make bank trades or port trades to get the required resources for executing a plan, if possible.
      * Calls {@link SOCRobotNegotiator#getOfferToBank(SOCBuildPlan, SOCResourceSet)}.
      *
      * @param buildPlan  Build plan to look for resources to build. {@code getOfferToBank(..)}
