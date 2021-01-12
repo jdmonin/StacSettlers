@@ -1,6 +1,6 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * This file Copyright (C) 2018-2020 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2018-2021 Jeremy D Monin <jeremy@nand.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -87,10 +87,13 @@ public class TestGameOptions
         for (SOCGameOption opt : knownOpts)
         {
             final String okey = opt.key;
+
+            // JM: changed to allow StacSettlers to use its 3P gameopts which don't match that naming convention
             boolean named3p = (okey.length() >= 2) && (okey.charAt(1) == '3');
-            assertEquals
-                ("key " + okey + " second char is '3' only if FLAG_3RD_PARTY",
-                 named3p, opt.hasFlag(SOCGameOption.FLAG_3RD_PARTY));
+            if (named3p)
+                assertTrue
+                    ("key " + okey + " second char is '3' only if FLAG_3RD_PARTY",
+                     opt.hasFlag(SOCGameOption.FLAG_3RD_PARTY));
         }
     }
 

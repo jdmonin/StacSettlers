@@ -509,16 +509,20 @@ public class SOCGameOptionSet
 
         //---MG
         opts.add(new SOCGameOption
-            ("RG", -1, 1113, false, FLAG_DROP_IF_UNUSED, "Regular SOCL game (untick for practice game)"));
+            ("RG", -1, 2450, false, SOCGameOption.FLAG_3RD_PARTY | FLAG_DROP_IF_UNUSED,
+             "Regular SOCL game (untick for practice game)"));
         
         opts.add(new SOCGameOption
-            ("LB", -1, 1113, false, FLAG_DROP_IF_UNUSED, "Load saved board layout (tick to load a saved configuration)"));
+            ("LB", -1, 2450, false, SOCGameOption.FLAG_3RD_PARTY | FLAG_DROP_IF_UNUSED,
+             "Load saved board layout (tick to load a saved configuration)"));
         
         opts.add(new SOCGameOption
-            ("CN", -1, 1113, true, FLAG_DROP_IF_UNUSED, "Chat negotiations (tick to trade via the chat)"));
+            ("CN", -1, 2450, true, SOCGameOption.FLAG_3RD_PARTY | FLAG_DROP_IF_UNUSED,
+             "Chat negotiations (tick to trade via the chat)"));
         
         opts.add(new SOCGameOption
-            ("FO", -1, 1113, false, FLAG_DROP_IF_UNUSED, "Fully observable (tick to show hidden information)"));
+            ("FO", -1, 2450, false, SOCGameOption.FLAG_3RD_PARTY | FLAG_DROP_IF_UNUSED,
+             "Fully observable (tick to show hidden information)"));
 
         final SOCGameOption optSC = new SOCGameOption
             ("SC", 2000, 2000, 8, false, FLAG_DROP_IF_UNUSED, "Game Scenario: #");
