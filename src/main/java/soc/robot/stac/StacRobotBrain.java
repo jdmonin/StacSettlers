@@ -650,7 +650,7 @@ public class StacRobotBrain extends SOCRobotBrain<StacRobotDM, PersuasionStacRob
      * @since 2.4.50
      */
     @Override
-    public void handleTradeResponse(int playerNum, boolean accept) {
+    public void handleTradeResponse(int toPlayerNum, boolean accepted) {
         	//TODO capture trade for preference model
             if (declarativeMemory.getMyNegotiatedOffer() == null)
                 System.err.println("negotiated offer is null");

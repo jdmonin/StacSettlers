@@ -60,6 +60,7 @@ import soc.message.SOCGameTextMsg;
 import soc.message.SOCPlayerElement;
 import soc.message.SOCPlayerElement.PEType;
 import soc.message.SOCPutPiece;
+import soc.message.SOCReportRobbery;
 import soc.message.SOCRobotFlag;
 import soc.robot.SOCBuildPlanStack;
 import soc.robot.SOCPlayerTracker;
@@ -767,6 +768,21 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
 			break;
 		}
 	}
+
+	@Override
+	protected void handleREPORTROBBERY(SOCReportRobbery mes)
+	{
+		super.handleREPORTROBBERY(mes);
+
+		if ( (! isRobotType(MCTSRobotType.MCTS_FACTORED_BELIEF)) || getGame().getGameState() == SOCGame.OVER)
+			return;
+
+		//update the belief model for the gain from robbery
+		ResourceSet set = new ResourceSet(1);
+			// TODO: if game is Fully Observable, can get the actual type from mes.resType instead of unknown
+		beliefModel.updateResourceBelief(set, mes.perpPN, SOCPlayerElement.GAIN, mes.victimPN); //gain first
+		beliefModel.updateResourceBelief(set, mes.victimPN, SOCPlayerElement.LOSE); //lose after so we know what we can gain
+	}
 	
 	/**
 	 * plan and place first settlement also set the starting player and our
@@ -839,6 +855,7 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
     /**
      * Discard. Tries calling {@link MCTSDiscardStrategy}, falls back to {@code SOCGame.discardOrGainPickRandom} if needed.
      */
+    @Override
     protected void discard(int numDiscards) {
     	SOCResourceSet discards = new SOCResourceSet();
     	if(numDiscards >= ((CatanConfig) gameFactory.getConfig()).N_MAX_DISCARD){//it would take too long if we have to compute all combinations over this
@@ -1233,28 +1250,6 @@ public class MCTSRobotBrain extends StacRobotBrain implements GameStateConstants
     			}
     		}
     	}
-    }
-    
-    
-    @Override
-    public void handleGameTxtMsg(SOCGameTextMsg gtm) {
-    	super.handleGameTxtMsg(gtm);
-        
-        //TODO: The below handling of stealing creates issues if the game is fully observable as stealing will be reported twice...fix it by checking if the game is observable or not...how? this is a server parameter...
-        if (isRobotType(MCTSRobotType.MCTS_FACTORED_BELIEF) && getGame().getGameState() != SOCGame.OVER) {
-            String mesText = gtm.getText();
-            if(mesText.contains(" stole a resource from ")){
-	            SOCGame ga = getGame();
-	            //update the belief model for the gain from robbery
-	            ResourceSet set = new ResourceSet(1);
-	            String[] nicks = mesText.split(" stole a resource from "); //there is no trailing full stop suprisingly
-	            int fromPn = ga.getPlayer(nicks[1]).getPlayerNumber();
-	            int pn = ga.getPlayer(nicks[0]).getPlayerNumber();
-	            beliefModel.updateResourceBelief(set, pn, SOCPlayerElement.GAIN, fromPn); //gain first
-	            beliefModel.updateResourceBelief(set, fromPn, SOCPlayerElement.LOSE); //lose after so we know what we can gain
-	            
-            }
-        }
     }
     
     @Override

@@ -1039,35 +1039,36 @@ public class SOCReplayClient extends SOCPlayerClient implements ActionListener {
 		/**
 		 * Handle dev card - use special handling to ensure the card is removed from the list,
 		 * since every player is actively shown. Also calls
-		 * {@link MessageHandler#handleDEVCARDACTION(boolean, SOCDevCardAction) super.handleDEVCARDACTION(isPractice, mes)}
+		 * {@link MessageHandler#handleDEVCARDACTION(SOCGame, SOCPlayer, boolean, int, int) super.handleDEVCARDACTION(..)}
 		 * for the usual handling.
 		 */
 		@Override
-		protected void handleDEVCARDACTION(final boolean isPractice, SOCDevCardAction mes) {
+		protected void handleDEVCARDACTION
+			(final SOCGame ga, final SOCPlayer player, final boolean isClientPlayer, final int act, int ctype)
+		{
 			final SOCReplayClient rc = (SOCReplayClient) getClient();
 
 			//make sure the second draw message contains Unknown dev card type so we can handle the fully observable game just as a normal one
 			if(rc.repeatedDevCardMessage){
 				rc.repeatedDevCardMessage = false;
-				mes.setCardType(SOCDevCardConstants.UNKNOWN);
-			}else if(mes.getAction() == SOCDevCardAction.DRAW) {
+				ctype = SOCDevCardConstants.UNKNOWN;
+			}else if(act == SOCDevCardAction.DRAW) {
 				rc.repeatedDevCardMessage = true;
 			}
 
 			// the usual handling
-			super.handleDEVCARDACTION(isPractice, mes);
+			super.handleDEVCARDACTION(ga, player, isClientPlayer, act, ctype);
 
-			final int pn = mes.getPlayerNumber();
-			PlayerClientListener pcl = rc.getClientListener(mes.getGame());
-			final SOCPlayer pl = pcl.getGame().getPlayer(pn);
-			pcl.playerDevCardsUpdated(pl, (mes.getAction() == SOCDevCardAction.ADD_OLD));
-			pcl.playerElementUpdated(pl, PlayerClientListener.UpdateType.VictoryPoints, false, false);
+			final int pn = player.getPlayerNumber();
+			PlayerClientListener pcl = rc.getClientListener(ga.getName());
+			pcl.playerDevCardsUpdated(player, (act == SOCDevCardAction.ADD_OLD));
+			pcl.playerElementUpdated(player, PlayerClientListener.UpdateType.VictoryPoints, false, false);
 
 			//We're only updating our own dev cards, so they are fully known and we must subtract the UNKNOWN cards.
 			//However, the server sends two SOCDevCard messages, one for the affected player, on to the other players (where the card type is UNKNOWN).
 			//It seems the replay client updates the SOCInventory objects for known as well as unkonwn values, causing a doubling of the cards in the player's hand.
 			//The solution is to subtract the unknown value from the total.
-			final SOCInventory inv = pl.getInventory();
+			final SOCInventory inv = player.getInventory();
 			int totalDCs = inv.getTotal();
 			int unknownDCs = inv.getAmount(SOCDevCardConstants.UNKNOWN);
 			totalDCs -= unknownDCs;
