@@ -1,4 +1,4 @@
-# Project info file included into JARs; see soc.util.Version, build.gradle
+# Project info file included into JARs; see soc.util.Version, pom.xml
 #
 # version under development
 project.version=2.4.50

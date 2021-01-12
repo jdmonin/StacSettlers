@@ -60,30 +60,11 @@
 					<include>log4j2.yaml</include>
 				</includes>
 			</resource>
+			<!-- images, hexes, sounds, strings, version.info -->
 			<resource>
-				<directory>${basedir}/src/main/resources/resources/images</directory>
+				<directory>${basedir}/src/main/resources/resources</directory>
 				<filtering>false</filtering>
-				<targetPath>resources/images/</targetPath>
-			</resource>
-			<resource>
-				<directory>${basedir}/src/main/resources/resources/hexes/classic</directory>
-				<filtering>false</filtering>
-				<targetPath>resources/hexes/classic/</targetPath>
-			</resource>
-			<resource>
-				<directory>${basedir}/src/main/resources/resources/hexes/classic/rotat</directory>
-				<filtering>false</filtering>
-				<targetPath>resources/hexes/classic/rotat/</targetPath>
-			</resource>
-			<resource>
-				<directory>${basedir}/src/main/resources/resources/sounds</directory>
-				<filtering>false</filtering>
-				<targetPath>resources/sounds/</targetPath>
-			</resource>
-			<resource>
-				<directory>${basedir}/src/main/resources/resources/strings</directory>
-				<filtering>false</filtering>
-				<targetPath>resources/strings/</targetPath>
+				<targetPath>resources/</targetPath>
 			</resource>
 		</resources>
 		<sourceDirectory>${src.dir}</sourceDirectory>
