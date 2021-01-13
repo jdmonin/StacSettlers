@@ -3703,13 +3703,7 @@ public class SOCServer extends Server
 
         boolean gameDestroyed = false;
 
-        if (! hasGameListLock) {
-            gameList.takeMonitorForGame(gm);
-        }
         gameList.removeMember(c, gm);
-        if (! hasGameListLock) {
-            gameList.releaseMonitorForGame(gm);
-        }
 
         if (ga == null)
         {
