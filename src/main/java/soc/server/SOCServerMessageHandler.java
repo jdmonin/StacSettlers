@@ -1,6 +1,6 @@
 /**
  * Java Settlers - An online multiplayer version of the game Settlers of Catan
- * This file Copyright (C) 2016-2020 Jeremy D Monin <jeremy@nand.net>
+ * This file Copyright (C) 2016-2021 Jeremy D Monin <jeremy@nand.net>
  * Some contents were formerly part of SOCServer.java;
  * Portions of this file Copyright (C) 2003 Robert S. Thomas <thomas@infolab.northwestern.edu>
  * Portions of this file Copyright (C) 2007-2016 Jeremy D Monin <jeremy@nand.net>
@@ -2692,10 +2692,17 @@ public class SOCServerMessageHandler
         (Connection c, final SOCStartGame mes, final int botsOnly_maxBots)
     {
         final String gn = mes.getGame();
-        //store the properties passed once with the msg required for loading
-        srv.gamesParams.put(gn, new StacGameParameters(false, "", 0, -1, false, false, false, false));
+        final SOCGame ga = gameList.getGameData(gn);
+        if (ga == null)
+            return;  // unlikely
 
-        handleSTARTGAME(c, gn, false, botsOnly_maxBots);
+        //store the properties passed once with the msg required for loading
+        srv.gamesParams.put(gn, new StacGameParameters
+            (false, "", 0, -1, false, false,
+             ga.isGameOptionSet(SOCGameOptionSet.K_PLAY_FO),
+             ga.isGameOptionSet(SOCGameOptionSet.K_PLAY_VPO)));
+
+        handleSTARTGAME(c, ga, false, botsOnly_maxBots);
     }
 
     /**
@@ -2722,10 +2729,18 @@ public class SOCServerMessageHandler
         (Connection c, final StacStartGame mes, final int botsOnly_maxBots)
     {
         final String gn = mes.getGame();
-        //store the properties passed once with the msg required for loading
-        srv.gamesParams.put(gn, new StacGameParameters(mes.getLoadFlag(), mes.getFolder(), mes.getTurnNo(), mes.getStartingPlayer(), mes.getLoadBoardFlag(), mes.getChatNegotiationsFlag(), mes.getFullyObservableFlag(), mes.getObservableVPFlag()));
+        final SOCGame ga = gameList.getGameData(gn);
+        if (ga == null)
+            return;  // unlikely
 
-        handleSTARTGAME(c, gn, mes.getShuffleFlag(), botsOnly_maxBots);
+        //store the properties passed once with the msg required for loading
+        srv.gamesParams.put(gn, new StacGameParameters
+            (mes.getLoadFlag(), mes.getFolder(), mes.getTurnNo(), mes.getStartingPlayer(),
+             mes.getLoadBoardFlag(), mes.getChatNegotiationsFlag(),
+             mes.getFullyObservableFlag() || ga.isGameOptionSet(SOCGameOptionSet.K_PLAY_FO),
+             mes.getObservableVPFlag() || ga.isGameOptionSet(SOCGameOptionSet.K_PLAY_VPO)));
+
+        handleSTARTGAME(c, ga, mes.getShuffleFlag(), botsOnly_maxBots);
     }
 
     /**
@@ -2734,12 +2749,12 @@ public class SOCServerMessageHandler
      * @since 2.4.50
      */
     private void handleSTARTGAME
-        (Connection c, final String gn, final boolean noShuffle, final int botsOnly_maxBots)
+        (Connection c, final SOCGame ga, final boolean noShuffle, final int botsOnly_maxBots)
     {
-        SOCGame ga = gameList.getGameData(gn);
+        final String gaName = ga.getName();
 
         //initialise the object storing the trade responses for this game
-        srv.tradeResponses.put(gn, new StacTradeMessage[ga.maxPlayers]);
+        srv.tradeResponses.put(gaName, new StacTradeMessage[ga.maxPlayers]);
         D.ebugPrintlnINFO("--- Server: clearing trade response for all players (3)" + srv.tradeResponsesString(ga.getName()));
 
         if (ga == null)
@@ -2870,14 +2885,14 @@ public class SOCServerMessageHandler
                             if (! invitedBots)
                             {
                                 System.err.println
-                                    (SOCServer.formattedDate() + ":" + "Robot-join problem in game " + gn + ": "
+                                    (SOCServer.formattedDate() + ":" + "Robot-join problem in game " + gaName + ": "
                                      + ((e != null) ? e : " no matching bots available"));
 
                                 // recover, so that human players can still start a game
                                 ga.setGameState(SOCGame.NEW);
                                 allowStart = false;
 
-                                gameList.takeMonitorForGame(gn);
+                                gameList.takeMonitorForGame(gaName);
                                 if (e != null)
                                     srv.messageToGameKeyed(ga, true, false, "start.robots.cannot.join.problem", e.getMessage());
                                         // "Sorry, robots cannot join this game: {0}"
@@ -2886,7 +2901,7 @@ public class SOCServerMessageHandler
                                         // "Sorry, robots cannot join this game because of its options."
                                 srv.messageToGameKeyed(ga, true, false, "start.to.start.without.robots");
                                     // "To start the game without robots, lock all empty seats."
-                                gameList.releaseMonitorForGame(gn);
+                                gameList.releaseMonitorForGame(gaName);
                             }
                         }
                     }
@@ -2898,7 +2913,7 @@ public class SOCServerMessageHandler
                  */
                 if (seatsFull && allowStart)
                 {
-                    GameHandler hand = gameList.getGameTypeHandler(gn);
+                    GameHandler hand = gameList.getGameTypeHandler(gaName);
                     if (hand != null)
                         hand.startGame(ga);
                 }
