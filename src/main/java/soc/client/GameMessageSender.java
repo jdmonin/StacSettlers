@@ -288,24 +288,24 @@ import soc.message.StacStartGame;
             StacGameParameters gp = client.gamesParams.get(ga.getName());
             //remove the line breaks
             me = me.replace("\n", "");
-            PlayerClientListener pi = client.getClientListener(ga.getName());
+            PlayerClientListener pcl = client.getClientListener(ga.getName());
             final String nickname = client.getNickname(ga.isPractice);
 
             //we might be trying to send a trade message via the chat interface, so handle these here
             if(gp.chatNegotiations && StacChatTradeMsgParser.isTradeMsgFormat(me)){
-                int pn = pi.getClientPlayerNumber(); //this player's number (position on board)
+                int pn = pcl.getClientPlayerNumber(); //this player's number (position on board)
             	StringWriter output = new StringWriter(); //this doesn't need closing according to the javadoc
             	Map.Entry<StacTradeMessage,Integer> entry = StacChatTradeMsgParser.parseTradeMsg(me, ga.getName(), pn, output);
-                pi.printText(output.toString());//in case we cannot parse the message, let the player know what the problem is
+                pcl.printText(output.toString());//in case we cannot parse the message, let the player know what the problem is
                 if(entry!=null){
                     StacTradeMessage trdMsg = entry.getKey();
                     //check if we have the correct player rss
                     if (trdMsg.getOffer()!=null && !ga.getPlayer(pn).getResources().contains(trdMsg.getOffer().getGiveSet()))
                     {
-                        pi.printText("*** You can't offer what you don't have.");
+                        pcl.printText("*** You can't offer what you don't have.");
                     }else if(ga.getGameState()!= SOCGame.PLAY1){
                         //also check if it is legal to make a trade now
-                        pi.printText("* You cannot trade at this time.\n");
+                        pcl.printText("* You cannot trade at this time.\n");
                     }else if(pn != ga.getCurrentPlayerNumber() && trdMsg.getOffer() != null){
                         //if we are not the current player we can only make a new offer to the current player
                         boolean onlyToTheCurrent = true;
@@ -319,7 +319,7 @@ import soc.message.StacStartGame;
 //                            put(new SOCGameTextMsg(ga.getName(), nickname, StacChatTradeMsgParser.composeTradeMessageString(trdMsg, entry.getValue())), ga.isPractice);
                             put(new SOCGameTextMsg(ga.getName(), nickname, trdMsg.toMessage()), ga.isPractice);
                         }else
-                            pi.printText("*** You can only make offers to the current player.");
+                            pcl.printText("*** You can only make offers to the current player.");
                     }else{
                         StacTradeMessage[] responses = new StacTradeMessage[ga.maxPlayers];
                         StacPlayerDialogueManager dm = client.dialogueManagers.get(ga.getName());
@@ -330,18 +330,18 @@ import soc.message.StacStartGame;
                             int to = entry.getValue();
                             if(responses[to] != null){
                                 if(responses[to].isReject() || responses[to].isNoResponse()){
-                                    pi.printText("*** You cannot accept a reject or a no response");
+                                    pcl.printText("*** You cannot accept a reject or a no response");
                                     return;
                                 }
                                 if(!responses[to].isAccept()){
                                     //this is an accept to a new offer
                                     if(!responses[to].getOffer().getTo()[pn]){
                                         //if we are not a recipient do not allow the user to accept the offer
-                                        pi.printText("*** You cannot accept someone else's offer");
+                                        pcl.printText("*** You cannot accept someone else's offer");
                                         return;
                                     }
                                     if(!ga.getPlayer(pn).getResources().contains(responses[to].getOffer().getGetSet())){
-                                        pi.printText("*** You can't accept an offer of what you don't have.");
+                                        pcl.printText("*** You can't accept an offer of what you don't have.");
                                         return;
                                     }
                                 }
@@ -349,7 +349,7 @@ import soc.message.StacStartGame;
                         }else if(trdMsg.isReject()){
                             //when we are rejecting an offer clear the corresponding trade bubble
                             int to = entry.getValue();
-                            pi.clearTradeOffer(ga.getPlayer(to), false);
+                            pcl.clearTradeOffer(ga.getPlayer(to), false);
                         }   
                         //if we pass the above checks we can send the message
 //                        put(new SOCGameTextMsg(ga.getName(), nickname, StacChatTradeMsgParser.composeTradeMessageString(trdMsg, entry.getValue())), ga.isPractice);
@@ -359,11 +359,11 @@ import soc.message.StacStartGame;
             }else if(StacChatTradeMsgParser.isBankTradeMsgFormat(me)){ //bank trades via the chat is allowed even with trading via the old interface
                 StringWriter output = new StringWriter();
                 SOCBankTrade msg = StacChatTradeMsgParser.parseBankTradeMsg
-                    (me, ga.getName(), pi.getClientPlayerNumber(), output);
+                    (me, ga.getName(), pcl.getClientPlayerNumber(), output);
                 if(ga.getGameState()!= SOCGame.PLAY1)
-                    pi.printText("* You cannot trade at this time.\n");
+                    pcl.printText("* You cannot trade at this time.\n");
                 else if(msg == null){
-                    pi.printText(output.toString());//in case we cannot parse the message, let the player know what the problem is
+                    pcl.printText(output.toString());//in case we cannot parse the message, let the player know what the problem is
                 }else{
                     put(msg.toCmd(), ga.isPractice);//the server takes care of the rest by checking the amounts etc
                 }
@@ -375,42 +375,42 @@ import soc.message.StacStartGame;
                 if (dm != null)
                     text = dm.interpretNLChatInput(me);
                 if (!text.startsWith(StacTradeMessage.TRADE)) {
-                    pi.messageReceived(nickname, me);
+                    pcl.messageReceived(nickname, me);
                     put(new SOCGameTextMsg(ga.getName(), nickname, StacTradeMessage.FAKE_CLARIFICATION + me), ga.isPractice);
-                    pi.chatPrintText(text);
+                    pcl.chatPrintText(text);
                     put(new SOCGameTextMsg(ga.getName(), nickname, StacTradeMessage.FAKE_CLARIFICATION + text), ga.isPractice);
                 } else {
                     D.ebugPrintlnINFO("Player client; sending message: " + text);
                     put(new SOCGameTextMsg(ga.getName(), nickname, text), ga.isPractice);
-                    pi.messageReceived(nickname, me); //the server is not sending back our own messages, so we send the string to the chat history now
+                    pcl.messageReceived(nickname, me); //the server is not sending back our own messages, so we send the string to the chat history now
                 }
             } else if(me.matches(StacChatTradeMsgParser.NL_BANK_TRADE)) {
                 StringWriter output = new StringWriter();
                 SOCBankTrade msg = StacChatTradeMsgParser.parseNLBankTradeMsg
-                    (me, ga.getName(), pi.getClientPlayerNumber(), output);
+                    (me, ga.getName(), pcl.getClientPlayerNumber(), output);
                 if (ga.getGameState()!= SOCGame.PLAY1) {
                     String fakeResponse = "Bank: Sorry, but you cannot trade at the moment.";
-                    pi.printText(me);
-                    pi.printText(fakeResponse);
+                    pcl.printText(me);
+                    pcl.printText(fakeResponse);
                     put(new SOCGameTextMsg(ga.getName(), nickname, StacTradeMessage.FAKE_CLARIFICATION + me), ga.isPractice);
                     put(new SOCGameTextMsg(ga.getName(), nickname, StacTradeMessage.FAKE_CLARIFICATION + fakeResponse), ga.isPractice);
                 } else if (msg == null) {
 //"Bank: Sorry, but you cannot make this transaction!"
-                    pi.printText(output.toString());//in case we cannot parse the message, let the player know what the problem is
+                    pcl.printText(output.toString());//in case we cannot parse the message, let the player know what the problem is
                     put(new SOCGameTextMsg(ga.getName(), nickname, StacTradeMessage.FAKE_CLARIFICATION + output.toString()), ga.isPractice);
                 } else {
                     //check if the player has the resouces to give away
-                    SOCPlayer player = ga.getPlayer(pi.getClientPlayerNumber());
+                    SOCPlayer player = ga.getPlayer(pcl.getClientPlayerNumber());
                     if (!player.getResources().contains(msg.getGiveSet())) {
                         String fakeResponse = "Bank: You don't have " + msg.getGiveSet().toFriendlyString() + ".";
-                    pi.printText(me);
-                        pi.printText(fakeResponse);
+                    pcl.printText(me);
+                        pcl.printText(fakeResponse);
                         put(new SOCGameTextMsg(ga.getName(), nickname, StacTradeMessage.FAKE_CLARIFICATION + me), ga.isPractice);
                         put(new SOCGameTextMsg(ga.getName(), nickname, StacTradeMessage.FAKE_CLARIFICATION + fakeResponse), ga.isPractice);
                     } else if (!ga.canMakeBankTrade(msg.getGiveSet(), msg.getGetSet())) {
                         String fakeResponse = "Bank: You can't make that trade.";
-                        pi.printText(me);
-                        pi.printText(fakeResponse);
+                        pcl.printText(me);
+                        pcl.printText(fakeResponse);
                         put(new SOCGameTextMsg(ga.getName(), nickname, StacTradeMessage.FAKE_CLARIFICATION + me), ga.isPractice);
                         put(new SOCGameTextMsg(ga.getName(), nickname, StacTradeMessage.FAKE_CLARIFICATION + fakeResponse), ga.isPractice);
                     } else {
@@ -430,7 +430,7 @@ import soc.message.StacStartGame;
                     StacPlayerDialogueManager dm = client.dialogueManagers.get(ga.getName());
                     if (dm != null) {
                         String text = dm.getFallbackFakeClarification(me);
-                        pi.printText(text);
+                        pcl.printText(text);
                         put(new SOCGameTextMsg(ga.getName(), nickname, StacTradeMessage.FAKE_CLARIFICATION + text), ga.isPractice);
                     }
             }
